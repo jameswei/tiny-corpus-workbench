@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/preparation-manifest-v0.1.schema.json",
+  "title": "tiny-corpus-workbench preparation manifest v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "milestone", "run_id", "observation_id", "created_at", "status", "source", "runtime", "configurations", "docling_document_schema", "models", "extractors", "comparison"],
+  "properties": {
+    "schema_version": {"const": "tcw.preparation-manifest/v0.1"},
+    "milestone": {"const": "v0.1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "observation_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["SUCCESS", "PARTIAL_SUCCESS", "FAILED"]},
+    "source": {"$ref": "#/$defs/source"},
+    "runtime": {"$ref": "#/$defs/runtime"},
+    "configurations": {"$ref": "#/$defs/configurations"},
+    "docling_document_schema": {"$ref": "#/$defs/documentSchema"},
+    "models": {"$ref": "#/$defs/models"},
+    "extractors": {"type": "array", "prefixItems": [{"$ref": "#/$defs/extractor"}, {"$ref": "#/$defs/extractor"}], "items": false, "minItems": 2, "maxItems": 2},
+    "comparison": {"type": "object", "additionalProperties": false, "required": ["status", "path"], "properties": {"status": {"enum": ["COMPLETE", "INCOMPLETE", "NOT_AVAILABLE"]}, "path": {"const": "comparison.json"}}}
+  },
+  "$defs": {
+    "source": {"type": "object", "additionalProperties": false, "required": ["path", "name", "key", "media_type", "size", "sha256", "fixture_id"], "properties": {"path": {"type": "string"}, "name": {"type": "string"}, "key": {"type": "string"}, "media_type": {"type": "string"}, "size": {"type": "integer", "minimum": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "fixture_id": {"type": ["string", "null"]}}},
+    "runtime": {"type": "object", "additionalProperties": false, "required": ["python", "implementation", "platform", "lockfile", "dependencies"], "properties": {"python": {"type": "string"}, "implementation": {"type": "string"}, "platform": {"type": "string"}, "lockfile": {"type": "object", "additionalProperties": false, "required": ["path", "sha256"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}, "dependencies": {"type": "object", "additionalProperties": false, "required": ["docling", "docling-core", "markitdown"], "properties": {"docling": {"const": "2.113.0"}, "docling-core": {"type": "string"}, "markitdown": {"const": "0.1.6"}}}}},
+    "configurations": {"type": "object", "additionalProperties": false, "required": ["docling", "markitdown"], "properties": {"docling": {"type": "object", "additionalProperties": false, "required": ["accelerator", "ocr", "table_structure", "remote_services", "external_plugins", "artifacts_path"], "properties": {"accelerator": {"const": "cpu"}, "ocr": {"const": false}, "table_structure": {"const": true}, "remote_services": {"const": false}, "external_plugins": {"const": false}, "artifacts_path": {"const": "explicit-local-path"}}}, "markitdown": {"type": "object", "additionalProperties": false, "required": ["convert_method", "plugins", "llm_client", "text_hints"], "properties": {"convert_method": {"const": "convert_local"}, "plugins": {"const": false}, "llm_client": {"const": false}, "text_hints": {"const": "extension-media-type-utf8"}}}}},
+    "documentSchema": {"type": "object", "additionalProperties": false, "required": ["name", "version", "compatibility"], "properties": {"name": {"type": "string"}, "version": {"type": "string"}, "compatibility": {"type": "string"}}},
+    "modelFile": {"type": "object", "additionalProperties": false, "required": ["path", "size", "sha256"], "properties": {"path": {"type": "string"}, "size": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}},
+    "models": {"type": "object", "additionalProperties": false, "required": ["required", "path", "inventory_hash", "files"], "properties": {"required": {"type": "boolean"}, "path": {"type": "string"}, "inventory_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}, "files": {"type": "array", "items": {"$ref": "#/$defs/modelFile"}}}},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "role", "media_type", "size", "sha256", "immutable"], "properties": {"path": {"type": "string"}, "role": {"type": "string"}, "media_type": {"type": "string"}, "size": {"type": "integer", "minimum": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "immutable": {"const": true}}},
+    "error": {"type": ["object", "null"], "additionalProperties": false, "required": ["code", "message"], "properties": {"code": {"enum": ["MODEL_ARTIFACTS_MISSING", "MODEL_ARTIFACTS_INVALID", "DOCLING_CONVERSION_FAILED", "DOCLING_SERIALIZATION_FAILED", "MARKITDOWN_CONVERSION_FAILED", "INTERNAL_ERROR"]}, "message": {"type": "string", "maxLength": 500}}},
+    "extractor": {"type": "object", "additionalProperties": false, "required": ["name", "version", "status", "duration_ms", "upstream_status", "artifacts", "error"], "properties": {"name": {"enum": ["docling", "markitdown"]}, "version": {"type": "string"}, "status": {"enum": ["SUCCESS", "PARTIAL_SUCCESS", "FAILED"]}, "duration_ms": {"type": "integer", "minimum": 0}, "upstream_status": {"type": ["string", "null"]}, "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}}, "error": {"$ref": "#/$defs/error"}}}
+  }
+}

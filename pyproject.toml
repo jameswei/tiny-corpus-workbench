@@ -26,6 +26,13 @@ test = [
 [project.urls]
 Repository = "https://github.com/jameswei/tiny-corpus-workbench"
 
+[project.scripts]
+tcw = "tiny_corpus_workbench.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

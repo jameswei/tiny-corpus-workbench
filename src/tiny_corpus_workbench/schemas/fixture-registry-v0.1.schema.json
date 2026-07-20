@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/fixture-registry-v0.1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generator", "lockfile_sha256", "fixtures"],
+  "properties": {
+    "schema_version": {"const": "tcw.fixture-registry/v0.1"},
+    "generator": {"type": "object", "additionalProperties": false, "required": ["name", "schema"], "properties": {"name": {"const": "tools/generate_fixtures.py"}, "schema": {"const": "tcw.authored-fixture/v0.1"}}},
+    "lockfile_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "fixtures": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"$ref": "#/$defs/fixture"}}
+  },
+  "$defs": {
+    "fixture": {"type": "object", "additionalProperties": false, "required": ["id", "family", "format", "path", "media_type", "size", "sha256", "authored_source", "generator", "ownership", "license", "anchors", "expected_docling_table_count"], "properties": {"id": {"type": "string"}, "family": {"enum": ["policy-memo", "meeting-minutes", "release-notice"]}, "format": {"enum": ["pdf", "docx", "md", "txt"]}, "path": {"type": "string"}, "media_type": {"type": "string"}, "size": {"type": "integer", "minimum": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "authored_source": {"type": "object", "additionalProperties": false, "required": ["id", "path", "sha256"], "properties": {"id": {"type": "string"}, "path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}, "generator": {"type": "object", "additionalProperties": false, "required": ["name", "schema", "lockfile_sha256"], "properties": {"name": {"const": "tools/generate_fixtures.py"}, "schema": {"const": "tcw.authored-fixture/v0.1"}, "lockfile_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}, "ownership": {"const": "project-authored"}, "license": {"const": "CC0-1.0"}, "anchors": {"type": "object", "additionalProperties": false, "required": ["document_id", "date", "url"], "properties": {"document_id": {"type": "string"}, "date": {"type": "string"}, "url": {"type": "string"}}}, "expected_docling_table_count": {"type": "integer", "minimum": 0, "maximum": 1}}}
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/comparison-summary-v0.1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "normalization_algorithm", "source", "anchors", "status", "views", "deltas"],
+  "properties": {
+    "schema_version": {"const": "tcw.comparison-summary/v0.1"},
+    "normalization_algorithm": {"const": "tcw-markdown-normalize-v1"},
+    "source": {"type": "object", "additionalProperties": false, "required": ["sha256", "media_type", "fixture_id"], "properties": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "media_type": {"type": "string"}, "fixture_id": {"type": ["string", "null"]}}},
+    "anchors": {"type": "object", "additionalProperties": {"type": "string"}},
+    "status": {"enum": ["COMPLETE", "INCOMPLETE", "NOT_AVAILABLE"]},
+    "views": {"type": "object", "additionalProperties": false, "required": ["docling", "markitdown"], "properties": {"docling": {"$ref": "#/$defs/view"}, "markitdown": {"$ref": "#/$defs/view"}}},
+    "deltas": {"$ref": "#/$defs/deltas"}
+  },
+  "$defs": {
+    "view": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["artifact_sha256", "normalized_sha256", "anchors", "bytes", "characters", "non_whitespace_characters", "lines", "non_empty_lines", "atx_headings", "unordered_list_items", "ordered_list_items", "pipe_table_rows", "visible_urls"], "properties": {"artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "normalized_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "anchors": {"type": "object", "additionalProperties": {"type": "boolean"}}, "bytes": {"type": "integer", "minimum": 0}, "characters": {"type": "integer", "minimum": 0}, "non_whitespace_characters": {"type": "integer", "minimum": 0}, "lines": {"type": "integer", "minimum": 0}, "non_empty_lines": {"type": "integer", "minimum": 0}, "atx_headings": {"type": "integer", "minimum": 0}, "unordered_list_items": {"type": "integer", "minimum": 0}, "ordered_list_items": {"type": "integer", "minimum": 0}, "pipe_table_rows": {"type": "integer", "minimum": 0}, "visible_urls": {"type": "integer", "minimum": 0}}}]},
+    "deltas": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["bytes", "characters", "non_whitespace_characters", "lines", "non_empty_lines", "atx_headings", "unordered_list_items", "ordered_list_items", "pipe_table_rows", "visible_urls", "normalized_equal"], "properties": {"bytes": {"type": "integer"}, "characters": {"type": "integer"}, "non_whitespace_characters": {"type": "integer"}, "lines": {"type": "integer"}, "non_empty_lines": {"type": "integer"}, "atx_headings": {"type": "integer"}, "unordered_list_items": {"type": "integer"}, "ordered_list_items": {"type": "integer"}, "pipe_table_rows": {"type": "integer"}, "visible_urls": {"type": "integer"}, "normalized_equal": {"type": "boolean"}}}]}
+  }
+}
