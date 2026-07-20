@@ -41,6 +41,13 @@ class ArtifactTests(unittest.TestCase):
             (root / "link").symlink_to(root / "a")
             with self.assertRaises(RuntimeContractError):
                 inventory_models(root, required=True)
+            alias = root.parent / "model-root-alias"
+            alias.symlink_to(root)
+            try:
+                with self.assertRaises(RuntimeContractError):
+                    inventory_models(alias, required=True)
+            finally:
+                alias.unlink()
 
 
 if __name__ == "__main__":

@@ -21,6 +21,8 @@ def write_json(path: Path, value: Any) -> None:
 
 
 def inventory_models(root: Path, *, required: bool) -> dict[str, Any]:
+    if root.is_symlink():
+        raise RuntimeContractError("Docling model artifact root must not be a symlink")
     root = root.resolve()
     if not required:
         return {"required": False, "path": str(root), "inventory_hash": None, "files": []}

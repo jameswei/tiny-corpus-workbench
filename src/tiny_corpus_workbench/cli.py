@@ -166,8 +166,13 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
                     if isinstance(error, DoclingSerializationError)
                     else "DOCLING_CONVERSION_FAILED"
                 )
+                message = (
+                    "Docling serialization failed for the validated local source"
+                    if code == "DOCLING_SERIALIZATION_FAILED"
+                    else "Docling conversion failed for the validated local source"
+                )
                 docling_result["error"] = StableError(
-                    code, sanitize_message(error)
+                    code, message
                 ).to_dict()
             finally:
                 docling_result["duration_ms"] = (time.monotonic_ns() - started) // 1_000_000
@@ -183,7 +188,8 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
             ]
         except Exception as error:
             markitdown_result["error"] = StableError(
-                "MARKITDOWN_CONVERSION_FAILED", sanitize_message(error)
+                "MARKITDOWN_CONVERSION_FAILED",
+                "MarkItDown conversion failed for the validated local source",
             ).to_dict()
         finally:
             markitdown_result["duration_ms"] = (time.monotonic_ns() - started) // 1_000_000
