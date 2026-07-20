@@ -14,6 +14,9 @@ context before downstream systems process them. This project explores how to
 inspect extraction results, diagnose concrete quality problems, and apply
 controlled refinements without hiding or overwriting the original evidence.
 
+RAG is one common downstream use: extraction and preparation errors can
+propagate into chunking, indexing, retrieval, and generated answers.
+
 The intended lifecycle is:
 
 ```text
