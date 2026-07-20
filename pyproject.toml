@@ -1,6 +1,6 @@
 [project]
 name = "tiny-corpus-workbench"
-version = "0.0.0"
+version = "0.1.0"
 description = "An inspectable learning lab for document preparation before RAG"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -8,7 +8,20 @@ license = "MIT"
 authors = [
   { name = "tiny-corpus-workbench contributors" },
 ]
-dependencies = []
+dependencies = [
+  "docling==2.113.0",
+  "markitdown[docx,pdf]==0.1.6",
+]
+
+[dependency-groups]
+fixtures = [
+  "python-docx==1.2.0",
+  "reportlab==5.0.0",
+]
+test = [
+  { include-group = "fixtures" },
+  "jsonschema==4.26.0",
+]
 
 [project.urls]
 Repository = "https://github.com/jameswei/tiny-corpus-workbench"
