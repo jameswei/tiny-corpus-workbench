@@ -129,6 +129,7 @@ A separate implementation plan should:
 - define verification fixtures and expected outcomes
 - state a narrow implementation milestone and acceptance criteria
 
-That future plan should be reviewed and explicitly activated in `CURRENT.md`.
-This document should remain the historical record of the initial brainstorming
-verdict rather than becoming a live taskboard.
+Use these questions to shape a small first increment and confirm its scope with
+the project owner before implementation. This document should remain the
+historical record of the initial brainstorming verdict rather than becoming a
+live taskboard.

@@ -1,6 +1,9 @@
-# Current Project State
+# Handoff Snapshot
 
 **Last updated:** 2026-07-20
+
+This is an informational handoff, not a required agent workflow or taskboard.
+Future work may use whichever sound engineering practices fit the task.
 
 ## Status
 
@@ -12,7 +15,7 @@
 ## Document roles
 
 - `AGENTS.md` contains instructions and reading order for coding agents.
-- `CURRENT.md` is the source of truth for live state and the next action.
+- `CURRENT.md` is an informational snapshot for the next working session.
 - `README.md` is the evolving public description of the project.
 - `docs/proposal.md` preserves the agreed brainstorming verdict, rationale,
   research history, boundaries, and open questions. It is not a live taskboard.
@@ -33,11 +36,11 @@ Original sources and raw extraction artifacts remain immutable. Diagnosis does
 not authorize mutation, and interpretive refinements require explicit human
 confirmation.
 
-## Next session
+## Recommended next session
 
-Continue with planning, not implementation. Turn the candidate first milestone
-into a decision-complete plan by resolving the open questions recorded in
-`docs/proposal.md`, especially:
+Start by reviewing the candidate first milestone and the open questions in
+`docs/proposal.md`. A useful next step would be to choose one small coherent
+increment and define how to verify it. Relevant questions include:
 
 - the first golden fixture set
 - whether MarkItDown comparison is deferred
@@ -47,5 +50,6 @@ into a decision-complete plan by resolving the open questions recorded in
 - finding severities and human-approval states
 - exact milestone acceptance criteria
 
-Do not create an implementation skeleton or add runtime dependencies until the
-project owner reviews that plan and `CURRENT.md` is updated to activate it.
+Codex CLI does not need to adopt a preinstalled workflow or phase system. It
+should confirm the intended first increment with the project owner before
+adding product code or runtime dependencies.

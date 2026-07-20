@@ -1,17 +1,18 @@
 # Agent Entry Point
 
-Read these files before proposing or making changes:
+Before proposing or making changes, read:
 
-1. `CURRENT.md` for live project state and the next planning decision
-2. `README.md` for the evolving public project description
-3. `docs/proposal.md` for the agreed brainstorming verdict and history
+1. `README.md` for the evolving public project description
+2. `docs/proposal.md` for the agreed brainstorming verdict and history
+3. `CURRENT.md` for the latest handoff snapshot, when relevant
 
 `docs/proposal.md` is a historical decision record, not a live taskboard or
 implementation contract. Do not rewrite it to track routine progress.
 
-No implementation milestone is currently active. Do not begin product
-implementation until `CURRENT.md` names an explicitly accepted plan with a
-narrow milestone and acceptance criteria.
+No repository-specific agent framework or phase workflow is required. Use
+sound engineering practices appropriate to the task: inspect the current
+state, keep changes focused, verify relevant behavior, and update documentation
+when public behavior or project direction changes.
 
 Preserve these boundaries unless the user explicitly reviews and changes them:
 
@@ -26,6 +27,5 @@ Preserve these boundaries unless the user explicitly reviews and changes them:
 - Interpretive refinements require explicit human confirmation.
 
 Prefer readable, teachable mechanics over broad framework integration or
-production-grade completeness. Record new planning decisions in the active
-planning document named by `CURRENT.md`, and update `README.md` when the public
-project state changes.
+production-grade completeness. Confirm scope with the project owner before a
+change would materially broaden the project or create a public contract.

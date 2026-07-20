@@ -5,7 +5,7 @@ document preparation inspectable, trustworthy, and reversible.
 
 > **Project status:** planning stage. The initial brainstorming direction is
 > agreed, but no implementation milestone is active. See
-> [`CURRENT.md`](CURRENT.md) for live project state.
+> [`CURRENT.md`](CURRENT.md) for the latest handoff snapshot.
 
 ## Purpose
 
@@ -69,7 +69,7 @@ research history, and remaining open questions.
 ## Development
 
 No implementation environment or commands are defined yet. They will be added
-after a separate first-milestone plan is reviewed and accepted.
+when the first implementation increment is chosen.
 
 ## License
 
