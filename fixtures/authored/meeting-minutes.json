@@ -1,0 +1,15 @@
+{
+  "schema_version": "tcw.authored-fixture/v0.1",
+  "family": "meeting-minutes",
+  "document_id": "MM-2026-07-18",
+  "title": "Atlas Migration Weekly Minutes",
+  "date": "2026-07-18",
+  "url": "https://example.invalid/atlas-minutes",
+  "sections": [
+    {"heading": "Attendees", "bullets": ["Platform team", "Application team", "Release team"]},
+    {"heading": "Decisions", "bullets": ["Keep the pilot region unchanged.", "Complete rollback rehearsal before cutover."]},
+    {"heading": "Progress", "paragraphs": ["The data-copy rehearsal completed within the planned window."]},
+    {"heading": "Follow-ups", "numbered": ["Platform team validates capacity.", "Application team confirms smoke tests.", "Release team publishes the cutover note."]},
+    {"heading": "Milestones", "table": [["Milestone", "Owner", "Date"], ["Rollback rehearsal", "Platform", "2026-07-22"], ["Pilot cutover", "Release", "2026-07-25"]]}
+  ]
+}

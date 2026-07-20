@@ -1,0 +1,14 @@
+{
+  "schema_version": "tcw.authored-fixture/v0.1",
+  "family": "policy-memo",
+  "document_id": "PM-2026-04",
+  "title": "Remote Equipment Return Policy",
+  "date": "2026-07-15",
+  "url": "https://example.invalid/equipment-returns",
+  "sections": [
+    {"heading": "Purpose", "paragraphs": ["This memo defines the return process for company equipment used by remote staff."]},
+    {"heading": "Covered equipment", "paragraphs": ["Return all assigned items when an assignment ends."], "bullets": ["Laptop and power adapter", "External display", "Security key"]},
+    {"heading": "Return steps", "paragraphs": ["Use the following controlled sequence."], "numbered": ["Record each asset tag.", "Pack each item securely.", "Confirm receipt with Workplace Operations."]},
+    {"heading": "Service levels", "paragraphs": ["The current handling targets are shown below."], "table": [["Request", "Owner", "Target"], ["Shipping label", "Operations", "1 day"], ["Receipt confirmation", "Inventory", "2 days"]]}
+  ]
+}

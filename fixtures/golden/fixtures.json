@@ -1,0 +1,334 @@
+{
+  "fixtures": [
+    {
+      "anchors": {
+        "date": "2026-07-18",
+        "document_id": "MM-2026-07-18",
+        "url": "https://example.invalid/atlas-minutes"
+      },
+      "authored_source": {
+        "id": "meeting-minutes",
+        "path": "fixtures/authored/meeting-minutes.json",
+        "sha256": "6a7f80d73381ca6501e0b216f09ed031e530c34267a74015c285c119efd3a2e0"
+      },
+      "expected_docling_table_count": 1,
+      "family": "meeting-minutes",
+      "format": "docx",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "meeting-minutes-docx",
+      "license": "CC0-1.0",
+      "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/meeting-minutes.docx",
+      "sha256": "7f12bc9644e1ed8021aca47903a7fae5d72ab4f75d914f9d12dfae498f443a1e",
+      "size": 34935
+    },
+    {
+      "anchors": {
+        "date": "2026-07-18",
+        "document_id": "MM-2026-07-18",
+        "url": "https://example.invalid/atlas-minutes"
+      },
+      "authored_source": {
+        "id": "meeting-minutes",
+        "path": "fixtures/authored/meeting-minutes.json",
+        "sha256": "6a7f80d73381ca6501e0b216f09ed031e530c34267a74015c285c119efd3a2e0"
+      },
+      "expected_docling_table_count": 1,
+      "family": "meeting-minutes",
+      "format": "md",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "meeting-minutes-md",
+      "license": "CC0-1.0",
+      "media_type": "text/markdown",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/meeting-minutes.md",
+      "sha256": "365ae53bbd1ec88783f9cad8597211af637291837c3e98129420f45cb1529431",
+      "size": 655
+    },
+    {
+      "anchors": {
+        "date": "2026-07-18",
+        "document_id": "MM-2026-07-18",
+        "url": "https://example.invalid/atlas-minutes"
+      },
+      "authored_source": {
+        "id": "meeting-minutes",
+        "path": "fixtures/authored/meeting-minutes.json",
+        "sha256": "6a7f80d73381ca6501e0b216f09ed031e530c34267a74015c285c119efd3a2e0"
+      },
+      "expected_docling_table_count": 1,
+      "family": "meeting-minutes",
+      "format": "pdf",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "meeting-minutes-pdf",
+      "license": "CC0-1.0",
+      "media_type": "application/pdf",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/meeting-minutes.pdf",
+      "sha256": "ebd76d9c68fd6966a891142dc6b38f9bd3a6c1f744c6372570b6c086c93be27d",
+      "size": 2440
+    },
+    {
+      "anchors": {
+        "date": "2026-07-18",
+        "document_id": "MM-2026-07-18",
+        "url": "https://example.invalid/atlas-minutes"
+      },
+      "authored_source": {
+        "id": "meeting-minutes",
+        "path": "fixtures/authored/meeting-minutes.json",
+        "sha256": "6a7f80d73381ca6501e0b216f09ed031e530c34267a74015c285c119efd3a2e0"
+      },
+      "expected_docling_table_count": 0,
+      "family": "meeting-minutes",
+      "format": "txt",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "meeting-minutes-txt",
+      "license": "CC0-1.0",
+      "media_type": "text/plain",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/meeting-minutes.txt",
+      "sha256": "729231f06f8582c77d1b56616e8763a2a42f8114a8277648a0027ab5ebea9b46",
+      "size": 612
+    },
+    {
+      "anchors": {
+        "date": "2026-07-15",
+        "document_id": "PM-2026-04",
+        "url": "https://example.invalid/equipment-returns"
+      },
+      "authored_source": {
+        "id": "policy-memo",
+        "path": "fixtures/authored/policy-memo.json",
+        "sha256": "0473b17cf72ab8762dee739b7816d76188e53391e134b392f4cfc9da29f2a4ce"
+      },
+      "expected_docling_table_count": 1,
+      "family": "policy-memo",
+      "format": "docx",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "policy-memo-docx",
+      "license": "CC0-1.0",
+      "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/policy-memo.docx",
+      "sha256": "3a54761632e542a2ddbed090ab072698a61730bde9e41db4bbabd165c894824c",
+      "size": 35019
+    },
+    {
+      "anchors": {
+        "date": "2026-07-15",
+        "document_id": "PM-2026-04",
+        "url": "https://example.invalid/equipment-returns"
+      },
+      "authored_source": {
+        "id": "policy-memo",
+        "path": "fixtures/authored/policy-memo.json",
+        "sha256": "0473b17cf72ab8762dee739b7816d76188e53391e134b392f4cfc9da29f2a4ce"
+      },
+      "expected_docling_table_count": 1,
+      "family": "policy-memo",
+      "format": "md",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "policy-memo-md",
+      "license": "CC0-1.0",
+      "media_type": "text/markdown",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/policy-memo.md",
+      "sha256": "7d2fe694613a437af02d379f8b8ea627bc2f93425046182465bc4651f6913785",
+      "size": 718
+    },
+    {
+      "anchors": {
+        "date": "2026-07-15",
+        "document_id": "PM-2026-04",
+        "url": "https://example.invalid/equipment-returns"
+      },
+      "authored_source": {
+        "id": "policy-memo",
+        "path": "fixtures/authored/policy-memo.json",
+        "sha256": "0473b17cf72ab8762dee739b7816d76188e53391e134b392f4cfc9da29f2a4ce"
+      },
+      "expected_docling_table_count": 1,
+      "family": "policy-memo",
+      "format": "pdf",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "policy-memo-pdf",
+      "license": "CC0-1.0",
+      "media_type": "application/pdf",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/policy-memo.pdf",
+      "sha256": "6338a9667efc79061606fce260af226f88b20a74f76202bd71865d8eafe4173e",
+      "size": 2563
+    },
+    {
+      "anchors": {
+        "date": "2026-07-15",
+        "document_id": "PM-2026-04",
+        "url": "https://example.invalid/equipment-returns"
+      },
+      "authored_source": {
+        "id": "policy-memo",
+        "path": "fixtures/authored/policy-memo.json",
+        "sha256": "0473b17cf72ab8762dee739b7816d76188e53391e134b392f4cfc9da29f2a4ce"
+      },
+      "expected_docling_table_count": 0,
+      "family": "policy-memo",
+      "format": "txt",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "policy-memo-txt",
+      "license": "CC0-1.0",
+      "media_type": "text/plain",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/policy-memo.txt",
+      "sha256": "170904e81d98657ea9076965b722d29ea721c678df12a122b057de99cfed7930",
+      "size": 683
+    },
+    {
+      "anchors": {
+        "date": "2026-07-20",
+        "document_id": "RN-2.4.0",
+        "url": "https://example.invalid/northstar-2-4-0"
+      },
+      "authored_source": {
+        "id": "release-notice",
+        "path": "fixtures/authored/release-notice.json",
+        "sha256": "c3782605c49babf43fb6bdf5d9901f1a05a9641fa8c1669e4f1c1840cbfe4fe8"
+      },
+      "expected_docling_table_count": 1,
+      "family": "release-notice",
+      "format": "docx",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "release-notice-docx",
+      "license": "CC0-1.0",
+      "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/release-notice.docx",
+      "sha256": "b46fca502cfa9cd2d412f0bc9c9623ac94daf6c51a31edd9ff8c5399ee15f60b",
+      "size": 34895
+    },
+    {
+      "anchors": {
+        "date": "2026-07-20",
+        "document_id": "RN-2.4.0",
+        "url": "https://example.invalid/northstar-2-4-0"
+      },
+      "authored_source": {
+        "id": "release-notice",
+        "path": "fixtures/authored/release-notice.json",
+        "sha256": "c3782605c49babf43fb6bdf5d9901f1a05a9641fa8c1669e4f1c1840cbfe4fe8"
+      },
+      "expected_docling_table_count": 1,
+      "family": "release-notice",
+      "format": "md",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "release-notice-md",
+      "license": "CC0-1.0",
+      "media_type": "text/markdown",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/release-notice.md",
+      "sha256": "60f128be2c81cb7f3c8f93f23e210de6800a8dbc4695ba3a3912ff6a2621e04c",
+      "size": 529
+    },
+    {
+      "anchors": {
+        "date": "2026-07-20",
+        "document_id": "RN-2.4.0",
+        "url": "https://example.invalid/northstar-2-4-0"
+      },
+      "authored_source": {
+        "id": "release-notice",
+        "path": "fixtures/authored/release-notice.json",
+        "sha256": "c3782605c49babf43fb6bdf5d9901f1a05a9641fa8c1669e4f1c1840cbfe4fe8"
+      },
+      "expected_docling_table_count": 1,
+      "family": "release-notice",
+      "format": "pdf",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "release-notice-pdf",
+      "license": "CC0-1.0",
+      "media_type": "application/pdf",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/release-notice.pdf",
+      "sha256": "4cd0d9dee57c226731e590736618eb28a8200e51d36c8cb3a07eae9ff16164fa",
+      "size": 2392
+    },
+    {
+      "anchors": {
+        "date": "2026-07-20",
+        "document_id": "RN-2.4.0",
+        "url": "https://example.invalid/northstar-2-4-0"
+      },
+      "authored_source": {
+        "id": "release-notice",
+        "path": "fixtures/authored/release-notice.json",
+        "sha256": "c3782605c49babf43fb6bdf5d9901f1a05a9641fa8c1669e4f1c1840cbfe4fe8"
+      },
+      "expected_docling_table_count": 0,
+      "family": "release-notice",
+      "format": "txt",
+      "generator": {
+        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "name": "tools/generate_fixtures.py",
+        "schema": "tcw.authored-fixture/v0.1"
+      },
+      "id": "release-notice-txt",
+      "license": "CC0-1.0",
+      "media_type": "text/plain",
+      "ownership": "project-authored",
+      "path": "fixtures/golden/release-notice.txt",
+      "sha256": "0a4cdc6594cc7ce7db86a7f3199ba5d33266d0598bd7a55f5bc3f84a67a97a0a",
+      "size": 487
+    }
+  ],
+  "generator": {
+    "name": "tools/generate_fixtures.py",
+    "schema": "tcw.authored-fixture/v0.1"
+  },
+  "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+  "schema_version": "tcw.fixture-registry/v0.1"
+}
