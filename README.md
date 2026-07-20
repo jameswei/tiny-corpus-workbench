@@ -3,9 +3,9 @@
 `tiny-corpus-workbench` is a small, learning-by-doing project for making raw
 document preparation inspectable, trustworthy, and reversible.
 
-> **Project status:** proposal stage. The repository is initialized, but
-> implementation does not begin until the project proposal is reviewed and
-> accepted.
+> **Project status:** planning stage. The initial brainstorming direction is
+> agreed, but no implementation milestone is active. See
+> [`CURRENT.md`](CURRENT.md) for live project state.
 
 ## Purpose
 
@@ -62,14 +62,14 @@ systems and integration with them are outside the initial scope.
 - Make refinements deterministic, explicit, attributable, and reversible.
 - Require human confirmation for interpretive changes.
 
-These choices are the agreed starting direction, not yet an implementation
-contract. See the [draft project proposal](docs/proposal.md) for the review
-gate and remaining design decisions.
+These choices are the agreed starting direction, not an implementation
+contract. See the [brainstorming record](docs/proposal.md) for their rationale,
+research history, and remaining open questions.
 
 ## Development
 
 No implementation environment or commands are defined yet. They will be added
-after the proposal establishes the first milestone and acceptance criteria.
+after a separate first-milestone plan is reviewed and accepted.
 
 ## License
 

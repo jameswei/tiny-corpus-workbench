@@ -2,12 +2,16 @@
 
 Read these files before proposing or making changes:
 
-1. `README.md`
-2. `docs/proposal.md`
+1. `CURRENT.md` for live project state and the next planning decision
+2. `README.md` for the evolving public project description
+3. `docs/proposal.md` for the agreed brainstorming verdict and history
 
-The project is currently in proposal stage. Do not begin product
-implementation until `docs/proposal.md` is marked accepted and defines a
-narrow first milestone with acceptance criteria.
+`docs/proposal.md` is a historical decision record, not a live taskboard or
+implementation contract. Do not rewrite it to track routine progress.
+
+No implementation milestone is currently active. Do not begin product
+implementation until `CURRENT.md` names an explicitly accepted plan with a
+narrow milestone and acceptance criteria.
 
 Preserve these boundaries unless the user explicitly reviews and changes them:
 
@@ -22,5 +26,6 @@ Preserve these boundaries unless the user explicitly reviews and changes them:
 - Interpretive refinements require explicit human confirmation.
 
 Prefer readable, teachable mechanics over broad framework integration or
-production-grade completeness. Record design decisions in the proposal before
-turning them into code or public contracts.
+production-grade completeness. Record new planning decisions in the active
+planning document named by `CURRENT.md`, and update `README.md` when the public
+project state changes.

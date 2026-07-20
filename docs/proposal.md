@@ -1,6 +1,7 @@
 # Project Proposal: `tiny-corpus-workbench`
 
-**Status:** Draft; not accepted for implementation
+**Status:** Agreed brainstorming record; not an implementation contract
+**Role:** Initial decision, rationale, and research history
 **Project type:** Independent, learning-by-doing project
 **Last updated:** 2026-07-20
 
@@ -102,9 +103,10 @@ Reading-order changes, table reconstruction, semantic block merging or
 splitting, revision selection, and LLM-produced rewrites require explicit
 confirmation.
 
-## Decisions required before acceptance
+## Remaining open questions
 
-The proposal is not decision-complete until it resolves:
+The initial brainstorming intentionally left these questions for later
+planning:
 
 1. Which project-owned or permissively licensed documents form the first
    golden fixture set?
@@ -117,13 +119,16 @@ The proposal is not decision-complete until it resolves:
 6. Which finding severities and human-approval states are essential?
 7. What are the exact first-milestone acceptance criteria?
 
-## Proposal review gate
+## Suggested next step
 
-Implementation may begin only after this document:
+A separate implementation plan should:
 
-- resolves the decisions above
-- defines the initial artifacts and their ownership
-- identifies the exact diagnosis rules and refiners in scope
-- defines verification fixtures and expected outcomes
-- states a narrow implementation milestone and acceptance criteria
-- is explicitly marked **Accepted** by the project owner
+- resolve the open questions above
+- define the initial artifacts and their ownership
+- identify the exact diagnosis rules and refiners in scope
+- define verification fixtures and expected outcomes
+- state a narrow implementation milestone and acceptance criteria
+
+That future plan should be reviewed and explicitly activated in `CURRENT.md`.
+This document should remain the historical record of the initial brainstorming
+verdict rather than becoming a live taskboard.
