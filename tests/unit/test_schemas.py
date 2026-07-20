@@ -1,13 +1,33 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
+from unittest import mock
 
 from jsonschema import Draft202012Validator, ValidationError
 
+from tiny_corpus_workbench.cli import observe
+
 
 SCHEMAS = Path("src/tiny_corpus_workbench/schemas")
+
+
+def fake_docling(source: Path, destination: Path, model_root: Path):
+    destination.mkdir(parents=True)
+    (destination / "document.json").write_text(
+        '{"schema_name":"DoclingDocument","version":"1.10.0"}\n',
+        "utf-8",
+    )
+    (destination / "document.md").write_text("# view\n", "utf-8")
+    return "success", {"name": "DoclingDocument", "version": "1.10.0"}
+
+
+def fake_markitdown(source: Path, destination: Path):
+    destination.mkdir(parents=True)
+    (destination / "document.md").write_text("# view\n", "utf-8")
 
 
 class SchemaTests(unittest.TestCase):
@@ -29,6 +49,55 @@ class SchemaTests(unittest.TestCase):
             schema = json.loads((SCHEMAS / name).read_text("utf-8"))
             with self.subTest(schema=name), self.assertRaises(ValidationError):
                 Draft202012Validator(schema).validate({})
+
+    def test_manifest_requires_one_ordered_result_per_extractor(self) -> None:
+        schema = json.loads(
+            (SCHEMAS / "preparation-manifest-v0.1.schema.json").read_text("utf-8")
+        )
+        validator = Draft202012Validator(schema)
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.extractors.docling.convert", wraps=fake_docling
+        ), mock.patch(
+            "tiny_corpus_workbench.extractors.markitdown.convert", wraps=fake_markitdown
+        ):
+            code, published = observe(
+                "fixtures/golden/policy-memo.md", Path(directory), Path("unused")
+            )
+            self.assertEqual(int(code), 0)
+            manifest = json.loads((published / "manifest.json").read_text("utf-8"))
+
+        self.assertEqual(
+            [result["name"] for result in manifest["extractors"]],
+            ["docling", "markitdown"],
+        )
+        validator.validate(manifest)
+
+        invalid_manifests = []
+        duplicate_docling = deepcopy(manifest)
+        duplicate_docling["extractors"][1] = deepcopy(
+            duplicate_docling["extractors"][0]
+        )
+        invalid_manifests.append(duplicate_docling)
+
+        duplicate_markitdown = deepcopy(manifest)
+        duplicate_markitdown["extractors"][0] = deepcopy(
+            duplicate_markitdown["extractors"][1]
+        )
+        invalid_manifests.append(duplicate_markitdown)
+
+        for position in (0, 1):
+            missing_identity = deepcopy(manifest)
+            del missing_identity["extractors"][position]["name"]
+            invalid_manifests.append(missing_identity)
+
+            wrong_identity = deepcopy(manifest)
+            wrong_identity["extractors"][position]["name"] = "other"
+            invalid_manifests.append(wrong_identity)
+
+        for invalid in invalid_manifests:
+            with self.subTest(names=[item.get("name") for item in invalid["extractors"]]):
+                with self.assertRaises(ValidationError):
+                    validator.validate(invalid)
 
 
 if __name__ == "__main__":

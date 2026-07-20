@@ -17,7 +17,7 @@
     "configurations": {"$ref": "#/$defs/configurations"},
     "docling_document_schema": {"$ref": "#/$defs/documentSchema"},
     "models": {"$ref": "#/$defs/models"},
-    "extractors": {"type": "array", "prefixItems": [{"$ref": "#/$defs/extractor"}, {"$ref": "#/$defs/extractor"}], "items": false, "minItems": 2, "maxItems": 2},
+    "extractors": {"type": "array", "prefixItems": [{"allOf": [{"$ref": "#/$defs/extractor"}, {"type": "object", "properties": {"name": {"const": "docling"}}}]}, {"allOf": [{"$ref": "#/$defs/extractor"}, {"type": "object", "properties": {"name": {"const": "markitdown"}}}]}], "items": false, "minItems": 2, "maxItems": 2},
     "comparison": {"type": "object", "additionalProperties": false, "required": ["status", "path"], "properties": {"status": {"enum": ["COMPLETE", "INCOMPLETE", "NOT_AVAILABLE"]}, "path": {"const": "comparison.json"}}}
   },
   "$defs": {
