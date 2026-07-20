@@ -9,6 +9,8 @@ Future work may use whichever sound engineering practices fit the task.
 
 - The repository is initialized locally and on GitHub.
 - The initial brainstorming verdict is preserved in `docs/proposal.md`.
+- The major milestones from v0.0 through v1.0 are recorded in
+  `docs/roadmap.md`.
 - No implementation plan or milestone is active.
 - No product source code has been written.
 
@@ -18,7 +20,10 @@ Future work may use whichever sound engineering practices fit the task.
 - `CURRENT.md` is an informational snapshot for the next working session.
 - `README.md` is the evolving public description of the project.
 - `docs/proposal.md` preserves the agreed brainstorming verdict, rationale,
-  research history, boundaries, and open questions. It is not a live taskboard.
+  research history, boundaries, and questions left open at that stage. It is
+  not a live taskboard.
+- `docs/roadmap.md` records the intended major-version progression. It does
+  not activate a milestone or replace a milestone implementation plan.
 
 ## Settled boundary
 
@@ -38,18 +43,15 @@ confirmation.
 
 ## Recommended next session
 
-Start by reviewing the candidate first milestone and the open questions in
-`docs/proposal.md`. A useful next step would be to choose one small coherent
-increment and define how to verify it. Relevant questions include:
+Prepare a decision-complete plan for v0.1, Extraction Observatory, before
+adding product code or runtime dependencies. The roadmap fixes the milestone's
+direction; its implementation plan still needs to define:
 
-- the first golden fixture set
-- whether MarkItDown comparison is deferred
-- the first human-readable inspection format
-- revision and transformation serialization
+- the identities and licensing records for the twelve golden fixtures
+- exact CLI commands, exit behavior, and artifact directory layout
+- the preparation manifest and comparison-summary schemas
 - the pinned `DoclingDocument` compatibility boundary
-- finding severities and human-approval states
-- exact milestone acceptance criteria
+- expected outputs and acceptance checks for every fixture
 
-Codex CLI does not need to adopt a preinstalled workflow or phase system. It
-should confirm the intended first increment with the project owner before
-adding product code or runtime dependencies.
+No agent workflow is automatically activated by this repository. Confirm the
+v0.1 plan with the project owner before implementation begins.

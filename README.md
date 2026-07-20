@@ -4,8 +4,9 @@
 document preparation inspectable, trustworthy, and reversible.
 
 > **Project status:** planning stage. The initial brainstorming direction is
-> agreed, but no implementation milestone is active. See
-> [`CURRENT.md`](CURRENT.md) for the latest handoff snapshot.
+> agreed and the [project roadmap](docs/roadmap.md) is established, but no
+> implementation milestone is active. See [`CURRENT.md`](CURRENT.md) for the
+> latest handoff snapshot.
 
 ## Purpose
 
@@ -64,7 +65,9 @@ systems and integration with them are outside the initial scope.
 
 These choices are the agreed starting direction, not an implementation
 contract. See the [brainstorming record](docs/proposal.md) for their rationale,
-research history, and remaining open questions.
+research history, and questions left open at that stage. See the
+[project roadmap](docs/roadmap.md) for the planned progression from the
+planning baseline through a stable local workbench.
 
 ## Development
 
