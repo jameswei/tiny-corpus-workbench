@@ -58,13 +58,15 @@ version `1.10.0`.
 
 Implementation verification on 2026-07-21:
 
-- fast unit suite: 30 tests passed
-- full suite: 33 tests passed, including the mandatory spike, all twelve
+- fast unit suite: 31 tests passed
+- full suite: 34 tests passed, including the mandatory spike, all twelve
   fixtures through both extractors, same-lock JSON reload, expected table
   counts, anchor preservation, network denial, and byte-identical comparison
   summaries across isolated output roots
 - deterministic fixture regeneration and registry verification passed both
   locally and in a separate byte-identical `core.autocrlf=true` checkout
+- staged publication inventory checks passed for missing, changed, replaced,
+  symlinked, and unexpected content while preserving prior runs
 - schema validation, compile check, `git diff --check`, and the documented
   manual PDF observation passed
 

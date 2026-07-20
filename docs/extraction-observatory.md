@@ -87,7 +87,9 @@ There is no fuzzy score, semantic-equivalence claim, ranking, or quality label.
 Both adapters are attempted independently. A validated partial or failed
 attempt is still published with `INCOMPLETE` or `NOT_AVAILABLE` comparison
 evidence. A source mutation or integrity failure discards staging and publishes
-nothing.
+nothing. Immediately before publication, every staged regular file and
+directory must match the complete captured inventory; missing, changed,
+symlinked, replaced, or unexpected content aborts the run.
 
 ## Reruns and compatibility
 

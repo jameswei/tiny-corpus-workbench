@@ -13,7 +13,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from tiny_corpus_workbench.artifacts import AtomicObservation, canonical_json, inventory_models, write_json
+from tiny_corpus_workbench.artifacts import (
+    AtomicObservation,
+    canonical_json,
+    inventory_models,
+    verify_staged_observation,
+    write_json,
+)
 from tiny_corpus_workbench.comparison import make_comparison
 from tiny_corpus_workbench.domain import (
     ExitCode,
@@ -277,6 +283,31 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
             },
         }
         write_json(staging / "manifest.json", manifest)
+        staged_artifacts = [
+            artifact
+            for result in manifest["extractors"]
+            for artifact in result["artifacts"]
+        ]
+        # Top-level control artifacts cannot contain their own hashes. Capture
+        # verification-only descriptors after serialization so the published
+        # tree is nevertheless complete and byte-checked.
+        staged_artifacts.extend(
+            [
+                _artifact(
+                    staging / "comparison.json",
+                    staging,
+                    "comparison-summary",
+                    "application/json",
+                ),
+                _artifact(
+                    staging / "manifest.json",
+                    staging,
+                    "preparation-manifest",
+                    "application/json",
+                ),
+            ]
+        )
+        verify_staged_observation(staging, staged_artifacts)
         published = publisher.publish()
     return exit_code, published
 

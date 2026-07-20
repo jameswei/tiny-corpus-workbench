@@ -3,9 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from tiny_corpus_workbench.domain import IntegrityError, RuntimeContractError
@@ -65,6 +66,75 @@ def inventory_models(root: Path, *, required: bool) -> dict[str, Any]:
         raise RuntimeContractError(f"required Docling model artifacts are empty: {root}")
     inventory_hash = hashlib.sha256(canonical_json(files).rstrip(b"\n")).hexdigest()
     return {"required": True, "path": str(root), "inventory_hash": inventory_hash, "files": files}
+
+
+def verify_staged_observation(
+    root: Path, artifacts: list[dict[str, Any]]
+) -> None:
+    """Verify every staged path and captured byte descriptor before publish."""
+
+    expected_files: dict[str, dict[str, Any]] = {}
+    expected_directories: set[str] = set()
+    for artifact in artifacts:
+        relative = PurePosixPath(artifact["path"])
+        if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+            raise IntegrityError("staged artifact path is invalid")
+        key = relative.as_posix()
+        if key in expected_files:
+            raise IntegrityError("staged artifact inventory contains a duplicate path")
+        expected_files[key] = artifact
+        parent = relative.parent
+        while parent != PurePosixPath("."):
+            expected_directories.add(parent.as_posix())
+            parent = parent.parent
+
+    actual_files: set[str] = set()
+    actual_directories: set[str] = set()
+    try:
+        staged_paths = sorted(root.rglob("*"))
+        for path in staged_paths:
+            relative = path.relative_to(root).as_posix()
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                raise IntegrityError(f"staged artifact must not be a symlink: {relative}")
+            if stat.S_ISREG(mode):
+                actual_files.add(relative)
+            elif stat.S_ISDIR(mode):
+                actual_directories.add(relative)
+            else:
+                raise IntegrityError(
+                    f"staged artifact has an unsupported file kind: {relative}"
+                )
+    except IntegrityError:
+        raise
+    except OSError as error:
+        raise IntegrityError("staged artifact inventory is unreadable") from error
+
+    if actual_files != set(expected_files):
+        raise IntegrityError("staged artifact file inventory does not match the manifest")
+    if actual_directories != expected_directories:
+        raise IntegrityError(
+            "staged artifact directory inventory does not match the manifest"
+        )
+
+    for relative, artifact in expected_files.items():
+        path = root / relative
+        try:
+            mode = path.lstat().st_mode
+            if not stat.S_ISREG(mode) or stat.S_ISLNK(mode):
+                raise IntegrityError(
+                    f"staged artifact is not a regular file: {relative}"
+                )
+            if path.stat().st_size != artifact["size"]:
+                raise IntegrityError(f"staged artifact size changed: {relative}")
+            if sha256_file(path) != artifact["sha256"]:
+                raise IntegrityError(f"staged artifact hash changed: {relative}")
+        except IntegrityError:
+            raise
+        except OSError as error:
+            raise IntegrityError(
+                f"staged artifact became unavailable: {relative}"
+            ) from error
 
 
 def _rename_exclusive(source: Path, destination: Path) -> None:

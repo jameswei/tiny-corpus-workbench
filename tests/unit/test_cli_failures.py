@@ -48,6 +48,14 @@ def partial_success_docling(source: Path, destination: Path, model_root: Path):
     }
 
 
+def tree_snapshot(root: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
 class CliFailureTests(unittest.TestCase):
     def invoke(self, *arguments: str) -> tuple[int, str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
@@ -263,6 +271,73 @@ class CliFailureTests(unittest.TestCase):
             self.assertIn("internal failure", stderr)
             self.assertEqual(list(output.glob("*/*")), [])
             self.assertEqual(list(output.glob("*/.staging-*")), [])
+
+    def test_staged_inventory_failures_abort_without_changing_prior_runs(self) -> None:
+        original_verify = cli.verify_staged_observation
+        for operation in ("mutate", "missing", "replaced", "symlink", "unexpected"):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "output"
+                with mock.patch(
+                    "tiny_corpus_workbench.extractors.docling.convert",
+                    wraps=fake_docling,
+                ), mock.patch(
+                    "tiny_corpus_workbench.extractors.markitdown.convert",
+                    wraps=fake_markitdown,
+                ):
+                    baseline_code, baseline_stdout, baseline_stderr = self.invoke(
+                        "observe", str(FIXTURE), "--output-root", str(output)
+                    )
+                self.assertEqual(baseline_code, 0)
+                self.assertEqual(baseline_stderr, "")
+                baseline = Path(json.loads(baseline_stdout)["manifest"]).parent
+                baseline_snapshot = tree_snapshot(baseline)
+
+                def corrupt_then_verify(root, artifacts):
+                    if operation == "mutate":
+                        (root / "docling/document.md").write_text(
+                            "# changed after metadata capture\n", "utf-8"
+                        )
+                    elif operation == "missing":
+                        (root / "manifest.json").unlink()
+                    elif operation == "replaced":
+                        target = root / "comparison.json"
+                        target.unlink()
+                        target.mkdir()
+                    elif operation == "symlink":
+                        target = root / "markitdown/document.md"
+                        target.unlink()
+                        target.symlink_to(root / "comparison.json")
+                    else:
+                        (root / "unexpected.bin").write_bytes(b"unexpected")
+                    return original_verify(root, artifacts)
+
+                with mock.patch(
+                    "tiny_corpus_workbench.extractors.docling.convert",
+                    wraps=fake_docling,
+                ), mock.patch(
+                    "tiny_corpus_workbench.extractors.markitdown.convert",
+                    wraps=fake_markitdown,
+                ), mock.patch(
+                    "tiny_corpus_workbench.cli.verify_staged_observation",
+                    side_effect=corrupt_then_verify,
+                ):
+                    code, stdout, stderr = self.invoke(
+                        "observe", str(FIXTURE), "--output-root", str(output)
+                    )
+
+                self.assertEqual(code, 5)
+                self.assertEqual(stdout, "")
+                self.assertIn("staged artifact", stderr)
+                self.assertEqual(tree_snapshot(baseline), baseline_snapshot)
+                published = [
+                    path
+                    for path in output.glob("*/*")
+                    if not path.name.startswith(".staging-")
+                ]
+                self.assertEqual(
+                    [path.resolve() for path in published], [baseline.resolve()]
+                )
+                self.assertEqual(list(output.glob("*/.staging-*")), [])
 
 
 if __name__ == "__main__":
