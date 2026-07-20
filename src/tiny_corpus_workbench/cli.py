@@ -123,6 +123,12 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
     source = validate_source(source_value)
     lock = _lock_identity()
     source_path = Path(source.path)
+    try:
+        source_before = source_path.stat()
+    except OSError as error:
+        raise IntegrityError(
+            "SOURCE became unavailable after validation; observation discarded"
+        ) from error
     is_pdf = source.media_type == "application/pdf"
     model_error: StableError | None = None
     try:
@@ -205,7 +211,19 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
         finally:
             markitdown_result["duration_ms"] = (time.monotonic_ns() - started) // 1_000_000
 
-        if sha256_file(source_path) != source.sha256 or source_path.stat().st_size != source.size:
+        try:
+            source_after = source_path.stat()
+            source_hash_after = sha256_file(source_path)
+        except OSError as error:
+            raise IntegrityError(
+                "SOURCE became unavailable during extraction; observation discarded"
+            ) from error
+        if (
+            source_hash_after != source.sha256
+            or source_after.st_size != source.size
+            or source_after.st_dev != source_before.st_dev
+            or source_after.st_ino != source_before.st_ino
+        ):
             raise IntegrityError("SOURCE changed during extraction; observation discarded")
 
         docling_view = None

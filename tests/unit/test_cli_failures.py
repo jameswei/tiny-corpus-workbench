@@ -40,6 +40,14 @@ def partial_markitdown(source: Path, destination: Path):
     raise RuntimeError("failed after writing")
 
 
+def partial_success_docling(source: Path, destination: Path, model_root: Path):
+    fake_docling(source, destination, model_root)
+    return "partial_success", {
+        "name": "DoclingDocument",
+        "version": "1.10.0",
+    }
+
+
 class CliFailureTests(unittest.TestCase):
     def invoke(self, *arguments: str) -> tuple[int, str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
@@ -85,6 +93,33 @@ class CliFailureTests(unittest.TestCase):
                 actual = {path.relative_to(run).as_posix() for path in run.rglob("*") if path.is_file()}
                 self.assertEqual(actual, tracked)
                 self.assertFalse((run / failed_name).exists())
+
+    def test_docling_partial_success_maps_to_partial_cli_result(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.extractors.docling.convert",
+            wraps=partial_success_docling,
+        ), mock.patch(
+            "tiny_corpus_workbench.extractors.markitdown.convert",
+            wraps=fake_markitdown,
+        ):
+            code, stdout, stderr = self.invoke(
+                "observe", str(FIXTURE), "--output-root", directory
+            )
+            self.assertEqual(code, 3)
+            self.assertEqual(stderr, "")
+            self.assertEqual(len(stdout.splitlines()), 1)
+            summary = json.loads(stdout)
+            self.assertEqual(summary["status"], "PARTIAL_SUCCESS")
+            manifest = json.loads(Path(summary["manifest"]).read_text("utf-8"))
+            self.assertEqual(manifest["status"], "PARTIAL_SUCCESS")
+            self.assertEqual(
+                manifest["extractors"][0]["status"], "PARTIAL_SUCCESS"
+            )
+            self.assertEqual(
+                manifest["extractors"][0]["upstream_status"], "partial_success"
+            )
+            self.assertEqual(manifest["extractors"][1]["status"], "SUCCESS")
+            self.assertEqual(manifest["comparison"]["status"], "COMPLETE")
 
     def test_unrelated_pdf_models_are_invalid_runtime_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -172,6 +207,62 @@ class CliFailureTests(unittest.TestCase):
             self.assertEqual(stdout, "")
             self.assertIn("changed during extraction", stderr)
             self.assertEqual(list(output.glob("*/*")), [])
+
+    def test_source_deletion_and_replacement_are_integrity_failures(self) -> None:
+        for operation in ("delete", "replace"):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = root / "source.md"
+                source.write_text("# original\n", "utf-8")
+                output = root / "output"
+
+                def change_source(source_path: Path, destination: Path):
+                    fake_markitdown(source_path, destination)
+                    if operation == "delete":
+                        source_path.unlink()
+                    else:
+                        replacement = source_path.with_name("replacement.md")
+                        replacement.write_text("# replacement\n", "utf-8")
+                        replacement.replace(source_path)
+
+                with mock.patch(
+                    "tiny_corpus_workbench.extractors.docling.convert",
+                    wraps=fake_docling,
+                ), mock.patch(
+                    "tiny_corpus_workbench.extractors.markitdown.convert",
+                    wraps=change_source,
+                ):
+                    code, stdout, stderr = self.invoke(
+                        "observe", str(source), "--output-root", str(output)
+                    )
+                self.assertEqual(code, 5)
+                self.assertEqual(stdout, "")
+                self.assertIn("SOURCE", stderr)
+                self.assertIn("observation discarded", stderr)
+                self.assertEqual(list(output.glob("*/*")), [])
+                self.assertEqual(list(output.glob("*/.staging-*")), [])
+
+    def test_unexpected_internal_failure_discards_staging(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "output"
+            with mock.patch(
+                "tiny_corpus_workbench.extractors.docling.convert",
+                wraps=fake_docling,
+            ), mock.patch(
+                "tiny_corpus_workbench.extractors.markitdown.convert",
+                wraps=fake_markitdown,
+            ), mock.patch(
+                "tiny_corpus_workbench.cli._fixture_anchors",
+                side_effect=RuntimeError("unexpected test failure"),
+            ):
+                code, stdout, stderr = self.invoke(
+                    "observe", str(FIXTURE), "--output-root", str(output)
+                )
+            self.assertEqual(code, 1)
+            self.assertEqual(stdout, "")
+            self.assertIn("internal failure", stderr)
+            self.assertEqual(list(output.glob("*/*")), [])
+            self.assertEqual(list(output.glob("*/.staging-*")), [])
 
 
 if __name__ == "__main__":
