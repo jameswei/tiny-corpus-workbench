@@ -1,0 +1,18 @@
+[project]
+name = "tiny-corpus-workbench"
+version = "0.0.0"
+description = "An inspectable learning lab for document preparation before RAG"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+  { name = "tiny-corpus-workbench contributors" },
+]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/jameswei/tiny-corpus-workbench"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
