@@ -11,8 +11,8 @@ narrow first milestone with acceptance criteria.
 
 Preserve these boundaries unless the user explicitly reviews and changes them:
 
-- This is an independent sibling project, not a `tiny-rag-lab` phase.
-- Scope stops after extraction, canonical representation, and diagnosis with
+- Scope starts with raw documents and ends with a prepared document revision
+  produced through extraction, canonical representation, diagnosis, and
   controlled refinement.
 - Chunking, embeddings, indexing, retrieval, generation, and RAG evaluation
   are outside the initial project.

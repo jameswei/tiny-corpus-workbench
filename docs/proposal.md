@@ -1,7 +1,7 @@
 # Project Proposal: `tiny-corpus-workbench`
 
 **Status:** Draft; not accepted for implementation
-**Project type:** Independent, learning-by-doing sibling project
+**Project type:** Independent, learning-by-doing project
 **Last updated:** 2026-07-20
 
 ## Purpose
@@ -19,9 +19,10 @@ The project should make it possible to answer:
 
 It is not intended to become a production ingestion platform.
 
-## Relationship to downstream RAG
+## Lifecycle boundary
 
-This project covers an earlier lifecycle than `tiny-rag-lab`:
+This project covers document preparation from a raw source through a prepared
+revision:
 
 ```text
 raw document
@@ -29,12 +30,10 @@ raw document
     -> canonical working representation
     -> diagnosis and controlled refinement
     -> prepared document revision
-    -> optional downstream consumer
 ```
 
-`tiny-corpus-workbench` is not a `tiny-rag-lab` phase or component. The two
-projects may eventually demonstrate a handoff through stable artifacts, but no
-integration is part of the initial milestone.
+Prepared revisions may be consumed by other systems. Downstream processing and
+integration are outside the initial milestone.
 
 ## Agreed boundary
 

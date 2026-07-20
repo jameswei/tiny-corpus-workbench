@@ -1,8 +1,7 @@
 # tiny-corpus-workbench
 
-`tiny-corpus-workbench` is a small, learning-by-doing project for making the
-document-preparation lifecycle before RAG inspectable, trustworthy, and
-reversible.
+`tiny-corpus-workbench` is a small, learning-by-doing project for making raw
+document preparation inspectable, trustworthy, and reversible.
 
 > **Project status:** proposal stage. The repository is initialized, but
 > implementation does not begin until the project proposal is reviewed and
@@ -11,10 +10,9 @@ reversible.
 ## Purpose
 
 Documents can lose content, structure, reading order, provenance, or revision
-context before a RAG system ever chunks or indexes them. This project explores
-how to inspect extraction results, diagnose concrete quality problems, and
-apply controlled refinements without hiding or overwriting the original
-evidence.
+context before downstream systems process them. This project explores how to
+inspect extraction results, diagnose concrete quality problems, and apply
+controlled refinements without hiding or overwriting the original evidence.
 
 The intended lifecycle is:
 
@@ -45,11 +43,8 @@ The initial project covers three layers:
 It explicitly excludes chunking, embeddings, indexing, retrieval, reranking,
 generation, and RAG evaluation.
 
-This is an independent sibling project. It grew from discussions around the
-work that precedes `tiny-rag-lab`, but it is not a `tiny-rag-lab` phase,
-dependency, or implementation component. A prepared document may eventually
-be consumed by any downstream system; integration is outside the initial
-scope.
+The workbench ends at a prepared document revision. Consumption by downstream
+systems and integration with them are outside the initial scope.
 
 ## Initial direction
 
