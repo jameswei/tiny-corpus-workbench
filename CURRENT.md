@@ -11,11 +11,13 @@ Future work may use whichever sound engineering practices fit the task.
 - The initial brainstorming verdict is preserved in `docs/proposal.md`.
 - The major milestones from v0.0 through v1.0 are recorded in
   `docs/roadmap.md`.
-- Milestone v0.1, Extraction Observatory, is active on
+- Milestone v0.1, Extraction Observatory, is implemented on
   `milestone/v0.1-extraction-observatory`.
 - Its accepted implementation and review contract is
   `docs/plans/v0.1-extraction-observatory.md`.
-- No product source code has been written.
+- The local `tcw observe` CLI, schemas, twelve deterministic CC0 fixtures,
+  tests, and user guide are present. Fresh milestone review remains the next
+  gate before publication.
 
 ## Document roles
 
@@ -44,12 +46,29 @@ Original sources and raw extraction artifacts remain immutable. Diagnosis does
 not authorize mutation, and interpretive refinements require explicit human
 confirmation.
 
-## Active milestone
+## Current milestone
 
-Implement v0.1 according to `docs/plans/v0.1-extraction-observatory.md`. The
-first implementation gate is the mandatory dependency and extractor
-compatibility spike defined there. If it fails, stop rather than weakening the
-accepted two-extractor or offline-observation contract.
+Milestone v0.1 has been implemented according to
+`docs/plans/v0.1-extraction-observatory.md`. The mandatory compatibility spike
+passed with CPython 3.12 and the exact lock: four formats through both
+extractors, four reloadable Docling JSON artifacts, offline PDF conversion from
+the prefetched `layout` and `tableformer` files, and no observation-time
+network access. The emitted Docling schema identity is `DoclingDocument`
+version `1.10.0`.
+
+Implementation verification on 2026-07-21:
+
+- fast unit suite: 15 tests passed
+- full suite: 18 tests passed, including the mandatory spike, all twelve
+  fixtures through both extractors, same-lock JSON reload, expected table
+  counts, anchor preservation, network denial, and byte-identical comparison
+  summaries across isolated output roots
+- deterministic fixture regeneration and registry verification passed
+- schema validation, compile check, `git diff --check`, and the documented
+  manual PDF observation passed
+
+The next action is a fresh milestone review. Reviewer findings should return to
+the builder without changing the accepted contract silently.
 
 No repository-wide agent workflow is automatically activated. The current
 milestone is being run through the explicitly requested plan-build-review
