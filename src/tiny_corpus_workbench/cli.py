@@ -62,7 +62,12 @@ def _lock_identity() -> dict[str, Any]:
     lock = Path("uv.lock")
     if not lock.is_file():
         raise RuntimeContractError("uv.lock is required from the repository root")
-    installed = {name: importlib.metadata.version(name) for name in DEPENDENCIES}
+    try:
+        installed = {name: importlib.metadata.version(name) for name in DEPENDENCIES}
+    except Exception as error:
+        raise RuntimeContractError(
+            "required extractor package metadata is unavailable"
+        ) from error
     if installed != DEPENDENCIES:
         raise RuntimeContractError("installed extractor versions do not match the locked v0.1 contract")
     if sys.version_info[:2] != (3, 12):
@@ -159,6 +164,9 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
                     _artifact(staging / "docling/document.md", staging, "docling-markdown", "text/markdown"),
                 ]
             except Exception as error:
+                import shutil
+
+                shutil.rmtree(staging / "docling", ignore_errors=True)
                 from tiny_corpus_workbench.extractors.docling import DoclingSerializationError
 
                 code = (
@@ -187,6 +195,9 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
                 _artifact(staging / "markitdown/document.md", staging, "markitdown-markdown", "text/markdown")
             ]
         except Exception as error:
+            import shutil
+
+            shutil.rmtree(staging / "markitdown", ignore_errors=True)
             markitdown_result["error"] = StableError(
                 "MARKITDOWN_CONVERSION_FAILED",
                 "MarkItDown conversion failed for the validated local source",

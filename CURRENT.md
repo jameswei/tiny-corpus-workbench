@@ -58,8 +58,8 @@ version `1.10.0`.
 
 Implementation verification on 2026-07-21:
 
-- fast unit suite: 15 tests passed
-- full suite: 18 tests passed, including the mandatory spike, all twelve
+- fast unit suite: 23 tests passed
+- full suite: 26 tests passed, including the mandatory spike, all twelve
   fixtures through both extractors, same-lock JSON reload, expected table
   counts, anchor preservation, network denial, and byte-identical comparison
   summaries across isolated output roots

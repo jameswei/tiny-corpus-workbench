@@ -9,9 +9,11 @@ from pathlib import Path
 from unittest import mock
 
 from tiny_corpus_workbench import cli
+from tiny_corpus_workbench.artifacts import AtomicObservation
 
 
 FIXTURE = Path("fixtures/golden/policy-memo.md")
+PDF_FIXTURE = Path("fixtures/golden/policy-memo.pdf")
 
 
 def fake_docling(source: Path, destination: Path, model_root: Path):
@@ -24,6 +26,18 @@ def fake_docling(source: Path, destination: Path, model_root: Path):
 def fake_markitdown(source: Path, destination: Path):
     destination.mkdir(parents=True)
     (destination / "document.md").write_text("# view\n", "utf-8")
+
+
+def partial_docling(source: Path, destination: Path, model_root: Path):
+    destination.mkdir(parents=True)
+    (destination / "partial.json").write_text("partial", "utf-8")
+    raise RuntimeError("failed after writing")
+
+
+def partial_markitdown(source: Path, destination: Path):
+    destination.mkdir(parents=True)
+    (destination / "partial.md").write_text("partial", "utf-8")
+    raise RuntimeError("failed after writing")
 
 
 class CliFailureTests(unittest.TestCase):
@@ -55,6 +69,92 @@ class CliFailureTests(unittest.TestCase):
                 comparison = json.loads(Path(published["manifest"]).with_name("comparison.json").read_text("utf-8"))
                 self.assertEqual(manifest["comparison"]["status"], comparison_status)
                 self.assertEqual(comparison["status"], comparison_status)
+
+    def test_failed_extractors_remove_partial_untracked_files(self) -> None:
+        cases = ((partial_docling, fake_markitdown, "docling"), (fake_docling, partial_markitdown, "markitdown"))
+        for docling_behavior, markitdown_behavior, failed_name in cases:
+            with self.subTest(failed=failed_name), tempfile.TemporaryDirectory() as directory:
+                with mock.patch("tiny_corpus_workbench.extractors.docling.convert", wraps=docling_behavior), mock.patch("tiny_corpus_workbench.extractors.markitdown.convert", wraps=markitdown_behavior):
+                    code, stdout, _ = self.invoke("observe", str(FIXTURE), "--output-root", directory)
+                self.assertEqual(code, 3)
+                run = Path(json.loads(stdout)["manifest"]).parent
+                manifest = json.loads((run / "manifest.json").read_text("utf-8"))
+                tracked = {"manifest.json", "comparison.json"}
+                for result in manifest["extractors"]:
+                    tracked.update(artifact["path"] for artifact in result["artifacts"])
+                actual = {path.relative_to(run).as_posix() for path in run.rglob("*") if path.is_file()}
+                self.assertEqual(actual, tracked)
+                self.assertFalse((run / failed_name).exists())
+
+    def test_unrelated_pdf_models_are_invalid_runtime_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            models = root / "models"
+            models.mkdir()
+            (models / "unrelated.bin").write_bytes(b"not a model")
+            code, stdout, _ = self.invoke(
+                "observe",
+                str(PDF_FIXTURE),
+                "--output-root",
+                str(root / "output"),
+                "--docling-artifacts",
+                str(models),
+            )
+            self.assertEqual(code, 6)
+            manifest = json.loads(Path(json.loads(stdout)["manifest"]).read_text("utf-8"))
+            self.assertEqual(
+                manifest["extractors"][0]["error"]["code"],
+                "MODEL_ARTIFACTS_INVALID",
+            )
+
+    def test_non_pdf_ignores_irrelevant_bad_model_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            alias = root / "bad-model-link"
+            alias.symlink_to(root / "missing-target")
+            with mock.patch("tiny_corpus_workbench.extractors.docling.convert", wraps=fake_docling), mock.patch("tiny_corpus_workbench.extractors.markitdown.convert", wraps=fake_markitdown):
+                code, stdout, _ = self.invoke(
+                    "observe",
+                    str(FIXTURE),
+                    "--output-root",
+                    str(root / "output"),
+                    "--docling-artifacts",
+                    str(alias),
+                )
+            self.assertEqual(code, 0)
+            self.assertTrue(stdout)
+
+    def test_unavailable_dependency_metadata_is_runtime_exit(self) -> None:
+        with mock.patch("tiny_corpus_workbench.cli.importlib.metadata.version", side_effect=cli.importlib.metadata.PackageNotFoundError("docling")):
+            code, stdout, stderr = self.invoke("observe", str(FIXTURE))
+        self.assertEqual(code, 6)
+        self.assertEqual(stdout, "")
+        self.assertIn("package metadata is unavailable", stderr)
+
+    def test_publication_races_are_integrity_exit_without_replacement(self) -> None:
+        original_publish = AtomicObservation.publish
+        for with_content in (False, True):
+            with self.subTest(with_content=with_content), tempfile.TemporaryDirectory() as directory:
+                sentinel = b"existing"
+
+                def race_publish(publisher):
+                    publisher.destination.mkdir()
+                    if with_content:
+                        (publisher.destination / "sentinel").write_bytes(sentinel)
+                    return original_publish(publisher)
+
+                with mock.patch("tiny_corpus_workbench.extractors.docling.convert", wraps=fake_docling), mock.patch("tiny_corpus_workbench.extractors.markitdown.convert", wraps=fake_markitdown), mock.patch.object(AtomicObservation, "publish", autospec=True, side_effect=race_publish):
+                    code, stdout, stderr = self.invoke(
+                        "observe", str(FIXTURE), "--output-root", directory
+                    )
+                self.assertEqual(code, 5)
+                self.assertEqual(stdout, "")
+                self.assertIn("publication conflict", stderr)
+                destinations = [path for path in Path(directory).glob("*/*") if not path.name.startswith(".staging-")]
+                self.assertEqual(len(destinations), 1)
+                self.assertFalse((destinations[0] / "manifest.json").exists())
+                if with_content:
+                    self.assertEqual((destinations[0] / "sentinel").read_bytes(), sentinel)
 
     def test_source_mutation_discards_staging(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
