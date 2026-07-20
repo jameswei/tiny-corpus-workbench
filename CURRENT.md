@@ -63,7 +63,8 @@ Implementation verification on 2026-07-21:
   fixtures through both extractors, same-lock JSON reload, expected table
   counts, anchor preservation, network denial, and byte-identical comparison
   summaries across isolated output roots
-- deterministic fixture regeneration and registry verification passed
+- deterministic fixture regeneration and registry verification passed both
+  locally and in a separate byte-identical `core.autocrlf=true` checkout
 - schema validation, compile check, `git diff --check`, and the documented
   manual PDF observation passed
 

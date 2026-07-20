@@ -129,6 +129,14 @@ uv run --frozen --group fixtures python tools/verify_fixtures.py
 git diff --check
 ```
 
+The checkout-portability regression creates a separate temporary checkout with
+`core.autocrlf=true`, compares every fixture byte with its committed Git blob,
+and repeats both fixture checks there:
+
+```bash
+uv run --frozen --group fixtures python tools/verify_checkout_portability.py
+```
+
 Full checks after model prefetch:
 
 ```bash
