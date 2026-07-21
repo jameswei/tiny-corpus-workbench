@@ -96,7 +96,7 @@ class CliFailureTests(unittest.TestCase):
             (partial_success_docling, fake_markitdown, 3),
             (RuntimeError("docling failed"), RuntimeError("markitdown failed"), 4),
         )
-        original_validate = cli.validate_staged_schemas
+        original_validate = cli._validate_staged_schemas
         original_publish = AtomicObservation.publish
         for docling, markitdown, expected_code in cases:
             with self.subTest(
@@ -125,7 +125,7 @@ class CliFailureTests(unittest.TestCase):
                         None if isinstance(markitdown, Exception) else markitdown
                     ),
                 ), mock.patch.object(
-                    cli, "validate_staged_schemas", side_effect=validate
+                    cli, "_validate_staged_schemas", side_effect=validate
                 ), mock.patch.object(
                     AtomicObservation,
                     "publish",
@@ -151,7 +151,7 @@ class CliFailureTests(unittest.TestCase):
             wraps=fake_markitdown,
         ), mock.patch.object(
             cli,
-            "validate_staged_schemas",
+            "_validate_staged_schemas",
             side_effect=IntegrityError("staged manifest.json is invalid"),
         ), mock.patch.object(
             AtomicObservation, "publish", autospec=True

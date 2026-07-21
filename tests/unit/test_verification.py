@@ -882,18 +882,20 @@ class VerificationTests(unittest.TestCase):
     def test_verifier_runtime_and_unexpected_failures_have_exact_streams(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            original_import = __import__
-
-            def fail_verifier_import(name, *args, **kwargs):
-                if name == "tiny_corpus_workbench.verification":
-                    raise ImportError("jsonschema unavailable")
-                return original_import(name, *args, **kwargs)
-
-            with mock.patch("builtins.__import__", side_effect=fail_verifier_import):
+            with mock.patch.object(
+                cli,
+                "_verification_callable",
+                side_effect=RuntimeContractError(
+                    "bundled verification/schema runtime is unavailable or incompatible"
+                ),
+            ):
                 code, stdout, stderr = self.invoke("verify", str(root))
             self.assertEqual(code, 6)
             self.assertEqual(stdout, "")
-            self.assertEqual(stderr, "bundled verifier runtime is unavailable\n")
+            self.assertEqual(
+                stderr,
+                "bundled verification/schema runtime is unavailable or incompatible\n",
+            )
 
             with mock.patch(
                 "tiny_corpus_workbench.verification._schema",

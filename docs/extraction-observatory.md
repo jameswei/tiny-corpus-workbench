@@ -53,6 +53,10 @@ consume the same validated snapshot, which is removed before publication. A
 later change to the original source cannot mix extractor inputs and does not
 invalidate the completed observation.
 
+CLI parsing and input handling do not import the schema runtime eagerly. When
+observation reaches final schema validation, an unavailable or incompatible
+bundled verifier/schema runtime returns exit `6` without publishing a run.
+
 Each valid attempt prints one compact JSON line to stdout identifying the
 published manifest, run ID, and overall status. Diagnostics use stderr.
 
@@ -117,6 +121,10 @@ Verification is self-contained by default and does not import either extractor:
 ```bash
 uv run --frozen tcw verify OBSERVATION_DIRECTORY
 ```
+
+The verifier/schema runtime is loaded only for this command. If it is
+unavailable or incompatible, verification returns exit `6` with one sanitized
+diagnostic and no report.
 
 The command writes exactly one compact JSON report to stdout. `VERIFIED` means
 the supported schemas, expected paths, regular-file kinds, recorded sizes and

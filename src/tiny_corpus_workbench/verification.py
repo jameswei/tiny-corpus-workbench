@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.exceptions import ValidationError
 
 from tiny_corpus_workbench.artifacts import (
     REQUIRED_MODEL_FILES,
@@ -83,6 +84,28 @@ def _schema(name: str) -> dict[str, Any]:
 
 def _validator(schema: dict[str, Any]) -> Draft202012Validator:
     return Draft202012Validator(schema, format_checker=FORMAT_CHECKER)
+
+
+def _validation_errors(
+    schema: dict[str, Any], document: object
+) -> list[Any]:
+    try:
+        return list(_validator(schema).iter_errors(document))
+    except Exception as error:
+        raise RuntimeContractError(
+            "bundled verification/schema runtime is unavailable or incompatible"
+        ) from error
+
+
+def _validate_result(schema: dict[str, Any], document: object) -> None:
+    try:
+        _validator(schema).validate(document)
+    except ValidationError:
+        raise
+    except Exception as error:
+        raise RuntimeContractError(
+            "bundled verification/schema runtime is unavailable or incompatible"
+        ) from error
 
 
 def _issue(code: str, path: str | None, message: str) -> dict[str, Any]:
@@ -428,7 +451,7 @@ def validate_staged_schemas(root: Path) -> None:
             raise IntegrityError(
                 f"staged {filename} cannot be read as JSON"
             ) from error
-        if list(_validator(_schema(schema_name)).iter_errors(document)):
+        if _validation_errors(_schema(schema_name), document):
             raise IntegrityError(
                 f"staged {filename} does not conform to its schema"
             )
@@ -470,7 +493,7 @@ def verify_observation(
         elif manifest.get("schema_version") != "tcw.preparation-manifest/v0.1":
             issues.append(_issue("SCHEMA_UNSUPPORTED", "manifest.json", "manifest schema is unsupported"))
         else:
-            errors = list(_validator(manifest_schema).iter_errors(manifest))
+            errors = _validation_errors(manifest_schema, manifest)
             if errors:
                 issues.append(_issue("MANIFEST_INVALID", "manifest.json", "manifest does not conform to its schema"))
             else:
@@ -589,8 +612,8 @@ def verify_observation(
                         )
                     )
                 comparison = json.loads(comparison_path.read_text("utf-8"))
-                if not isinstance(comparison, dict) or list(
-                    _validator(comparison_schema).iter_errors(comparison)
+                if not isinstance(comparison, dict) or _validation_errors(
+                    comparison_schema, comparison
                 ):
                     issues.append(_issue("COMPARISON_INVALID", "comparison.json", "comparison does not conform to its schema"))
                 else:
@@ -685,7 +708,7 @@ def verify_observation(
             manifest.get("models") if isinstance(manifest, dict) else None,
         ),
     }
-    _validator(result_schema).validate(report)
+    _validate_result(result_schema, report)
     return report
 
 

@@ -34,7 +34,6 @@ from tiny_corpus_workbench.domain import (
 )
 from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
 from tiny_corpus_workbench.source import SourceSnapshot, sha256_file
-from tiny_corpus_workbench.verification import validate_staged_schemas
 
 
 DOCLING_CONFIG = {
@@ -51,6 +50,26 @@ MARKITDOWN_CONFIG = {
     "llm_client": False,
     "text_hints": "extension-media-type-utf8",
 }
+
+
+def _verification_callable(name: str) -> Any:
+    try:
+        from tiny_corpus_workbench import verification as module
+
+        function = getattr(module, name)
+    except Exception as error:
+        raise RuntimeContractError(
+            "bundled verification/schema runtime is unavailable or incompatible"
+        ) from error
+    if not callable(function):
+        raise RuntimeContractError(
+            "bundled verification/schema runtime is unavailable or incompatible"
+        )
+    return function
+
+
+def _validate_staged_schemas(root: Path) -> None:
+    _verification_callable("validate_staged_schemas")(root)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -380,7 +399,7 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
                     raise IntegrityError(
                         "Docling model inventory changed during extraction"
                     )
-            validate_staged_schemas(staging)
+            _validate_staged_schemas(staging)
             verify_staged_observation(staging, staged_artifacts)
             published = publisher.publish()
             return exit_code, published
@@ -392,9 +411,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "verify":
         try:
-            from tiny_corpus_workbench.verification import verify_command
-        except Exception:
-            print("bundled verifier runtime is unavailable", file=sys.stderr)
+            verify_command = _verification_callable("verify_command")
+        except RuntimeContractError as error:
+            print(sanitize_message(error), file=sys.stderr)
             return int(ExitCode.RUNTIME)
 
         return verify_command(
