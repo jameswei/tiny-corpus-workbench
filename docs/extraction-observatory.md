@@ -119,6 +119,13 @@ artifact corruption reports `INTEGRITY_MISMATCH`; an uninterpretable manifest,
 identity, or reference reports `BROKEN`. Both failure states exit `5` and leave
 the observation unchanged.
 
+Structural checks include RFC 3339 timestamp syntax, nonnegative integral
+durations, and single-line sanitized errors. For a usable Docling result, the
+manifest schema name and version must match the identity inside the intact
+`docling/document.json`, and its exact-lock compatibility statement must be
+exact. A failed Docling result records no document schema identity: its name,
+version, and compatibility fields are `null`.
+
 Current provenance checks are opt-in and advisory:
 
 ```bash
@@ -154,6 +161,12 @@ process, and filesystem. It does not provide signatures, attribution, trusted
 timestamps, ACL enforcement, or detection of a coordinated rewrite of a
 manifest and all referenced artifacts. Deliberate same-user mutation timed
 after final staged verification is also outside this trusted-local model.
+
+`VERIFIED` is limited to structural validity, persisted artifact integrity, and
+the semantic relationships enumerated above. It does not authenticate a
+non-derivable metadata value. For example, replacing one valid `created_at`
+timestamp with another valid RFC 3339 timestamp cannot be distinguished from
+the original local record and is not a v0.1 verification failure.
 
 ## Observe exit codes
 

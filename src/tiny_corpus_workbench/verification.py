@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import stat
 import sys
+from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 
 from tiny_corpus_workbench.artifacts import (
     REQUIRED_MODEL_FILES,
@@ -16,11 +18,20 @@ from tiny_corpus_workbench.artifacts import (
     inventory_models,
 )
 from tiny_corpus_workbench.comparison import make_comparison
-from tiny_corpus_workbench.domain import RuntimeContractError, sanitize_message
+from tiny_corpus_workbench.domain import (
+    DOCLING_DOCUMENT_COMPATIBILITY,
+    RuntimeContractError,
+    sanitize_message,
+)
 from tiny_corpus_workbench.source import sha256_file
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
+RFC3339_DATE_TIME = re.compile(
+    r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})"
+    r"(?:\.\d+)?(?:[Zz]|[+-](\d{2}):(\d{2}))$"
+)
+FORMAT_CHECKER = FormatChecker()
 BROKEN_CODES = {
     "MANIFEST_MISSING",
     "MANIFEST_INVALID",
@@ -35,6 +46,29 @@ BROKEN_CODES = {
 }
 
 
+@FORMAT_CHECKER.checks("date-time")
+def _is_rfc3339_date_time(value: object) -> bool:
+    if not isinstance(value, str):
+        return True
+    match = RFC3339_DATE_TIME.fullmatch(value)
+    if match is None:
+        return False
+    year, month, day, hour, minute, second, offset_hour, offset_minute = (
+        int(part) if part is not None else 0 for part in match.groups()
+    )
+    try:
+        date(year, month, day)
+    except ValueError:
+        return False
+    return (
+        hour <= 23
+        and minute <= 59
+        and second <= 60
+        and offset_hour <= 23
+        and offset_minute <= 59
+    )
+
+
 def _schema(name: str) -> dict[str, Any]:
     try:
         value = json.loads((SCHEMA_ROOT / name).read_text("utf-8"))
@@ -42,6 +76,10 @@ def _schema(name: str) -> dict[str, Any]:
         return value
     except Exception as error:
         raise RuntimeContractError("bundled verification schema is unavailable") from error
+
+
+def _validator(schema: dict[str, Any]) -> Draft202012Validator:
+    return Draft202012Validator(schema, format_checker=FORMAT_CHECKER)
 
 
 def _issue(code: str, path: str | None, message: str) -> dict[str, Any]:
@@ -173,6 +211,28 @@ def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
                 "Docling upstream and extractor statuses disagree",
             )
         )
+    document_schema = manifest["docling_document_schema"]
+    if docling["status"] == "FAILED":
+        if any(document_schema[key] is not None for key in ("name", "version", "compatibility")):
+            issues.append(
+                _issue(
+                    "REFERENCE_MISMATCH",
+                    "manifest.json",
+                    "failed Docling result must not claim document schema identity",
+                )
+            )
+    elif (
+        document_schema["name"] is None
+        or document_schema["version"] is None
+        or document_schema["compatibility"] != DOCLING_DOCUMENT_COMPATIBILITY
+    ):
+        issues.append(
+            _issue(
+                "REFERENCE_MISMATCH",
+                "manifest.json",
+                "usable Docling result requires its exact schema compatibility identity",
+            )
+        )
     markitdown = results["markitdown"]
     if markitdown["status"] == "PARTIAL_SUCCESS" or markitdown["upstream_status"] is not None:
         issues.append(
@@ -258,6 +318,72 @@ def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     return issues
 
 
+def _docling_document_schema_issues(
+    root: Path,
+    manifest: dict[str, Any],
+    actual_files: set[str],
+) -> list[dict[str, Any]]:
+    result = manifest["extractors"][0]
+    if result["status"] == "FAILED":
+        return []
+    descriptor = next(
+        (
+            item
+            for item in result["artifacts"]
+            if item["role"] == "docling-document-json"
+        ),
+        None,
+    )
+    if descriptor is None or descriptor["path"] not in actual_files:
+        return []
+    path = root / descriptor["path"]
+    try:
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+            return []
+        raw = path.read_bytes()
+    except OSError:
+        return []
+    if (
+        len(raw) != descriptor["size"]
+        or hashlib.sha256(raw).hexdigest() != descriptor["sha256"]
+    ):
+        return []
+    try:
+        document = json.loads(raw)
+    except (UnicodeError, json.JSONDecodeError):
+        return [
+            _issue(
+                "SCHEMA_INVALID",
+                descriptor["path"],
+                "Docling document schema identity cannot be read",
+            )
+        ]
+    if not isinstance(document, dict) or not isinstance(
+        document.get("schema_name"), str
+    ) or not isinstance(document.get("version"), str):
+        return [
+            _issue(
+                "SCHEMA_INVALID",
+                descriptor["path"],
+                "Docling document schema identity is invalid",
+            )
+        ]
+    recorded = manifest["docling_document_schema"]
+    if (
+        recorded["name"] != document["schema_name"]
+        or recorded["version"] != document["version"]
+    ):
+        return [
+            _issue(
+                "REFERENCE_MISMATCH",
+                descriptor["path"],
+                "Docling document schema identity differs from the manifest",
+            )
+        ]
+    return []
+
+
 def verify_observation(
     root: Path,
     source: Path | None = None,
@@ -285,7 +411,7 @@ def verify_observation(
         if manifest.get("schema_version") != "tcw.preparation-manifest/v0.1":
             issues.append(_issue("SCHEMA_UNSUPPORTED", "manifest.json", "manifest schema is unsupported"))
         else:
-            errors = list(Draft202012Validator(manifest_schema).iter_errors(manifest))
+            errors = list(_validator(manifest_schema).iter_errors(manifest))
             if errors:
                 issues.append(_issue("MANIFEST_INVALID", "manifest.json", "manifest does not conform to its schema"))
 
@@ -369,6 +495,8 @@ def verify_observation(
             except OSError:
                 issues.append(_issue("FILE_KIND_INVALID", relative, "persisted file cannot be read"))
 
+        issues.extend(_docling_document_schema_issues(root, manifest, actual_files))
+
         overall, comparison_status = _expected_statuses(manifest)
         if manifest["status"] != overall or manifest["comparison"]["status"] != comparison_status:
             issues.append(_issue("STATUS_MISMATCH", None, "manifest statuses are inconsistent"))
@@ -398,7 +526,7 @@ def verify_observation(
                         )
                     )
                 comparison = json.loads(comparison_path.read_text("utf-8"))
-                if list(Draft202012Validator(comparison_schema).iter_errors(comparison)):
+                if list(_validator(comparison_schema).iter_errors(comparison)):
                     issues.append(_issue("COMPARISON_INVALID", "comparison.json", "comparison does not conform to its schema"))
                     comparison = None
             except (OSError, UnicodeError, json.JSONDecodeError):
@@ -484,7 +612,7 @@ def verify_observation(
         "source_state": _advisory_source(source, manifest.get("source") if manifest else None),
         "model_state": _advisory_models(model_root, manifest.get("models") if manifest else None),
     }
-    Draft202012Validator(result_schema).validate(report)
+    _validator(result_schema).validate(report)
     return report
 
 

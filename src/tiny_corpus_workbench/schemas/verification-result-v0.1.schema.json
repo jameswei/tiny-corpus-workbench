@@ -12,7 +12,7 @@
     "model_state": {"$ref": "#/$defs/modelAdvisory"}
   },
   "$defs": {
-    "issue": {"type": "object", "additionalProperties": false, "required": ["code", "path", "message"], "properties": {"code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}, "path": {"type": ["string", "null"]}, "message": {"type": "string", "maxLength": 500}}},
+    "issue": {"type": "object", "additionalProperties": false, "required": ["code", "path", "message"], "properties": {"code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}, "path": {"type": ["string", "null"]}, "message": {"type": "string", "minLength": 1, "maxLength": 500, "pattern": "^(?![\\s\\S]*[\\u0000-\\u001F\\u007F-\\u009F])[\\s\\S]*$"}}},
     "artifactResult": {"type": "object", "additionalProperties": false, "required": ["status", "issues"], "properties": {"status": {"enum": ["VERIFIED", "INTEGRITY_MISMATCH", "BROKEN"]}, "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}}}},
     "advisory": {"type": "object", "additionalProperties": false, "required": ["status"], "properties": {"status": {"enum": ["MATCH", "CHANGED", "MISSING", "ERROR", "NOT_CHECKED"]}}},
     "modelAdvisory": {"type": "object", "additionalProperties": false, "required": ["status"], "properties": {"status": {"enum": ["MATCH", "CHANGED", "MISSING", "ERROR", "NOT_CHECKED", "NOT_APPLICABLE"]}}}

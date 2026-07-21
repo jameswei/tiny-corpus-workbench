@@ -67,8 +67,8 @@ version `1.10.0`.
 
 Implementation and local-integrity amendment verification on 2026-07-21:
 
-- fast unit suite: 50 tests passed
-- full suite: 53 tests passed, including the mandatory spike, all twelve
+- fast unit suite: 52 tests passed
+- full suite: 55 tests passed, including the mandatory spike, all twelve
   fixtures through both extractors, same-lock JSON reload, expected table
   counts, anchor preservation, network denial, and byte-identical comparison
   summaries across isolated output roots
@@ -80,6 +80,9 @@ Implementation and local-integrity amendment verification on 2026-07-21:
   concurrency, and verifier corruption/advisory tests passed
 - schema-valid provenance/status/artifact mutations are rejected as broken,
   and equivalent model inventories match across different absolute roots
+- RFC 3339 timestamps, durations, sanitized errors, and persisted Docling
+  schema identity are structurally and semantically verified; valid changes to
+  non-derivable metadata remain explicitly outside authenticity claims
 - schema validation, compile check, `git diff --check`, and the documented
   manual PDF observation plus `tcw verify` checks passed
 

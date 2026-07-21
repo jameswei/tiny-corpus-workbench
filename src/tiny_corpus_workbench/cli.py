@@ -23,6 +23,7 @@ from tiny_corpus_workbench.artifacts import (
 )
 from tiny_corpus_workbench.comparison import make_comparison
 from tiny_corpus_workbench.domain import (
+    DOCLING_DOCUMENT_COMPATIBILITY,
     ExitCode,
     InputError,
     IntegrityError,
@@ -190,7 +191,7 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
         with publisher as staging:
             docling_result = _result("docling", DEPENDENCIES["docling"])
             markitdown_result = _result("markitdown", DEPENDENCIES["markitdown"])
-            schema = {"name": "DoclingDocument", "version": "unknown"}
+            schema = {"name": None, "version": None}
 
             if model_error is not None:
                 docling_result["error"] = model_error.to_dict()
@@ -324,7 +325,11 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
                 },
                 "docling_document_schema": {
                     **schema,
-                    "compatibility": "reloadable only with the exact uv.lock environment that created this artifact",
+                    "compatibility": (
+                        DOCLING_DOCUMENT_COMPATIBILITY
+                        if schema["name"] is not None
+                        else None
+                    ),
                 },
                 "models": models,
                 "extractors": [docling_result, markitdown_result],

@@ -5,6 +5,11 @@ from enum import IntEnum
 from typing import Any
 
 
+DOCLING_DOCUMENT_COMPATIBILITY = (
+    "reloadable only with the exact uv.lock environment that created this artifact"
+)
+
+
 class ExitCode(IntEnum):
     SUCCESS = 0
     INTERNAL = 1

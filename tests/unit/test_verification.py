@@ -112,6 +112,14 @@ class VerificationTests(unittest.TestCase):
                         report["artifact_integrity"],
                         {"issues": [], "status": "VERIFIED"},
                     )
+                    if index == 2:
+                        manifest = json.loads(
+                            (published / "manifest.json").read_text("utf-8")
+                        )
+                        self.assertEqual(
+                            manifest["docling_document_schema"],
+                            {"name": None, "version": None, "compatibility": None},
+                        )
                     schema = json.loads(RESULT_SCHEMA.read_text("utf-8"))
                     Draft202012Validator(schema).validate(report)
 
@@ -443,6 +451,136 @@ class VerificationTests(unittest.TestCase):
                             for issue in report["artifact_integrity"]["issues"]
                         },
                     )
+
+    def test_structural_and_docling_schema_mutations_are_broken(self) -> None:
+        cases = {
+            "schema-name": ("success", "REFERENCE_MISMATCH"),
+            "schema-version": ("success", "REFERENCE_MISMATCH"),
+            "schema-compatibility": ("success", "MANIFEST_INVALID"),
+            "invalid-timestamp": ("success", "MANIFEST_INVALID"),
+            "impossible-date": ("success", "MANIFEST_INVALID"),
+            "missing-timezone": ("success", "MANIFEST_INVALID"),
+            "invalid-offset": ("success", "MANIFEST_INVALID"),
+            "negative-duration": ("success", "MANIFEST_INVALID"),
+            "fractional-duration": ("success", "MANIFEST_INVALID"),
+            "multiline-error": ("failed", "MANIFEST_INVALID"),
+            "trailing-newline-error": ("failed", "MANIFEST_INVALID"),
+            "control-error": ("failed", "MANIFEST_INVALID"),
+            "empty-error": ("failed", "MANIFEST_INVALID"),
+            "overlong-error": ("failed", "MANIFEST_INVALID"),
+            "failed-schema-claim": ("failed", "REFERENCE_MISMATCH"),
+            "document-schema-name": ("success", "REFERENCE_MISMATCH"),
+            "document-schema-version": ("success", "REFERENCE_MISMATCH"),
+            "document-invalid-json": ("success", "SCHEMA_INVALID"),
+            "document-missing-identity": ("success", "SCHEMA_INVALID"),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, success = self.observation(root / "success")
+            _, failed = self.observation(root / "failed", fail, fail)
+            baselines = {"success": success, "failed": failed}
+            for operation, (kind, expected_code) in cases.items():
+                with self.subTest(operation=operation):
+                    baseline = baselines[kind]
+                    copied = root / operation / baseline.name
+                    copied.parent.mkdir()
+                    shutil.copytree(baseline, copied)
+                    manifest_path = copied / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    if operation == "schema-name":
+                        manifest["docling_document_schema"]["name"] = "Other"
+                    elif operation == "schema-version":
+                        manifest["docling_document_schema"]["version"] = "9.9.9"
+                    elif operation == "schema-compatibility":
+                        manifest["docling_document_schema"]["compatibility"] = (
+                            "reloadable anywhere"
+                        )
+                    elif operation == "invalid-timestamp":
+                        manifest["created_at"] = "2026-99-99 12:00"
+                    elif operation == "impossible-date":
+                        manifest["created_at"] = "2026-02-30T12:00:00Z"
+                    elif operation == "missing-timezone":
+                        manifest["created_at"] = "2026-07-21T12:00:00"
+                    elif operation == "invalid-offset":
+                        manifest["created_at"] = "2026-07-21T12:00:00+24:00"
+                    elif operation == "negative-duration":
+                        manifest["extractors"][0]["duration_ms"] = -1
+                    elif operation == "fractional-duration":
+                        manifest["extractors"][1]["duration_ms"] = 1.5
+                    elif operation == "multiline-error":
+                        manifest["extractors"][0]["error"]["message"] = (
+                            "first line\nsecond line"
+                        )
+                    elif operation == "trailing-newline-error":
+                        manifest["extractors"][0]["error"]["message"] = (
+                            "trailing newline\n"
+                        )
+                    elif operation == "control-error":
+                        manifest["extractors"][1]["error"]["message"] = (
+                            "control\u0001message"
+                        )
+                    elif operation == "empty-error":
+                        manifest["extractors"][0]["error"]["message"] = ""
+                    elif operation == "overlong-error":
+                        manifest["extractors"][0]["error"]["message"] = "x" * 501
+                    elif operation == "failed-schema-claim":
+                        manifest["docling_document_schema"]["name"] = (
+                            "DoclingDocument"
+                        )
+                    else:
+                        document_path = copied / "docling/document.json"
+                        if operation == "document-invalid-json":
+                            raw = b"{"
+                        else:
+                            document = json.loads(document_path.read_text("utf-8"))
+                            if operation == "document-schema-name":
+                                document["schema_name"] = "Other"
+                            elif operation == "document-schema-version":
+                                document["version"] = "9.9.9"
+                            else:
+                                del document["schema_name"]
+                            raw = json.dumps(document).encode("utf-8")
+                        document_path.write_bytes(raw)
+                        descriptor = next(
+                            item
+                            for item in manifest["extractors"][0]["artifacts"]
+                            if item["role"] == "docling-document-json"
+                        )
+                        descriptor["size"] = len(raw)
+                        descriptor["sha256"] = hashlib.sha256(raw).hexdigest()
+                    manifest_path.write_text(json.dumps(manifest), "utf-8")
+
+                    code, report, stdout, stderr = self.verify(copied)
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(len(stdout.splitlines()), 1)
+                    self.assertEqual(
+                        report["artifact_integrity"]["status"], "BROKEN"
+                    )
+                    self.assertIn(
+                        expected_code,
+                        {
+                            issue["code"]
+                            for issue in report["artifact_integrity"]["issues"]
+                        },
+                    )
+
+    def test_valid_nonderivable_timestamp_change_remains_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, baseline = self.observation(root / "baseline")
+            copied = root / "valid-created-at" / baseline.name
+            copied.parent.mkdir()
+            shutil.copytree(baseline, copied)
+            manifest_path = copied / "manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["created_at"] = "2000-01-01T00:00:00Z"
+            manifest_path.write_text(json.dumps(manifest), "utf-8")
+
+            code, report, _, stderr = self.verify(copied)
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            self.assertEqual(report["artifact_integrity"]["status"], "VERIFIED")
 
     def test_missing_optional_targets_are_reports_but_bad_root_is_usage_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
