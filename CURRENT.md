@@ -20,6 +20,9 @@ Future work may use whichever sound engineering practices fit the task.
 - The owner accepted a local-integrity amendment defining observations as
   application-immutable and locally tamper-evident, adding private source
   snapshots, PDF model stability checks, and read-only `tcw verify`.
+- The owner further narrowed v0.1 `VERIFIED` to structural validity, artifact
+  integrity, and explicitly derivable semantic consistency. Authenticity and
+  future fingerprint/anchoring mechanisms remain outside v0.1.
 - The accepted amendment is implemented locally: both adapters consume one
   owner-only source snapshot, PDF models are checked before and after
   extraction, persisted comparison bytes are inventoried, and the standalone
@@ -80,9 +83,9 @@ Implementation and local-integrity amendment verification on 2026-07-21:
 - schema validation, compile check, `git diff --check`, and the documented
   manual PDF observation plus `tcw verify` checks passed
 
-The next action is a fresh milestone review against Section 13 after the
-amendment implementation verification is complete. The CLI binary remains
-`tcw`.
+The next action is to implement the final Section 13.8/13.13 verifier
+clarification, rerun verification, and start a fresh milestone review. The CLI
+binary remains `tcw`.
 
 No repository-wide agent workflow is automatically activated. The current
 milestone is being run through the explicitly requested plan-build-review
