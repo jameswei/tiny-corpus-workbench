@@ -260,6 +260,15 @@ class VerificationTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(report["model_state"]["status"], "MATCH")
 
+            equivalent_models = root / "equivalent-models"
+            shutil.copytree(models, equivalent_models)
+            code, report, _, _ = self.verify(
+                published, "--docling-artifacts", str(equivalent_models)
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(report["artifact_integrity"]["status"], "VERIFIED")
+            self.assertEqual(report["model_state"]["status"], "MATCH")
+
             target = models / REQUIRED_MODEL_FILES[0]
             original = target.read_bytes()
             target.write_bytes(b"changed")
@@ -290,6 +299,150 @@ class VerificationTests(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             self.assertEqual(report["model_state"]["status"], "NOT_APPLICABLE")
+
+    def test_schema_valid_manifest_contract_mutations_are_broken(self) -> None:
+        cases = {
+            "docling-version": "REFERENCE_MISMATCH",
+            "markitdown-version": "REFERENCE_MISMATCH",
+            "docling-upstream": "STATUS_MISMATCH",
+            "docling-status": "STATUS_MISMATCH",
+            "docling-failed": "STATUS_MISMATCH",
+            "markitdown-failed": "STATUS_MISMATCH",
+            "models-required": "STATUS_MISMATCH",
+            "model-error-runtime": "STATUS_MISMATCH",
+            "markitdown-error-code": "STATUS_MISMATCH",
+            "artifact-role": "REFERENCE_MISMATCH",
+            "artifact-media": "REFERENCE_MISMATCH",
+            "artifact-path": "REFERENCE_MISMATCH",
+            "comparison-status": "STATUS_MISMATCH",
+            "comparison-size": "REFERENCE_MISMATCH",
+            "comparison-hash": "REFERENCE_MISMATCH",
+        }
+        schema = json.loads(
+            Path(
+                "src/tiny_corpus_workbench/schemas/preparation-manifest-v0.1.schema.json"
+            ).read_text("utf-8")
+        )
+        validator = Draft202012Validator(schema)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, baseline = self.observation(root / "baseline")
+            for operation, expected_code in cases.items():
+                with self.subTest(operation=operation):
+                    copied = root / operation / baseline.name
+                    copied.parent.mkdir()
+                    shutil.copytree(baseline, copied)
+                    manifest_path = copied / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    if operation == "docling-version":
+                        manifest["extractors"][0]["version"] = "0.1.6"
+                    elif operation == "markitdown-version":
+                        manifest["extractors"][1]["version"] = "2.113.0"
+                    elif operation == "docling-upstream":
+                        manifest["extractors"][0]["upstream_status"] = (
+                            "partial_success"
+                        )
+                    elif operation == "docling-status":
+                        manifest["extractors"][0]["status"] = "PARTIAL_SUCCESS"
+                    elif operation == "docling-failed":
+                        manifest["extractors"][0]["status"] = "FAILED"
+                    elif operation == "markitdown-failed":
+                        manifest["extractors"][1]["status"] = "FAILED"
+                    elif operation == "models-required":
+                        manifest["models"]["required"] = True
+                    elif operation == "model-error-runtime":
+                        manifest["extractors"][0]["error"] = {
+                            "code": "MODEL_ARTIFACTS_MISSING",
+                            "message": "mutated runtime state",
+                        }
+                    elif operation == "markitdown-error-code":
+                        manifest["extractors"][1]["error"] = {
+                            "code": "DOCLING_CONVERSION_FAILED",
+                            "message": "wrong extractor error",
+                        }
+                    elif operation == "artifact-role":
+                        manifest["extractors"][0]["artifacts"][0]["role"] = (
+                            "docling-markdown"
+                        )
+                    elif operation == "artifact-media":
+                        manifest["extractors"][0]["artifacts"][0][
+                            "media_type"
+                        ] = "text/markdown"
+                    elif operation == "artifact-path":
+                        manifest["extractors"][0]["artifacts"][0]["path"] = (
+                            "markitdown/document.md"
+                        )
+                    elif operation == "comparison-status":
+                        manifest["comparison"]["status"] = "INCOMPLETE"
+                    elif operation == "comparison-size":
+                        manifest["comparison"]["size"] += 1
+                    else:
+                        manifest["comparison"]["sha256"] = "0" * 64
+                    validator.validate(manifest)
+                    manifest_path.write_text(json.dumps(manifest), "utf-8")
+
+                    code, report, stdout, stderr = self.verify(copied)
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(len(stdout.splitlines()), 1)
+                    self.assertEqual(
+                        report["artifact_integrity"]["status"], "BROKEN"
+                    )
+                    self.assertIn(
+                        expected_code,
+                        {
+                            issue["code"]
+                            for issue in report["artifact_integrity"]["issues"]
+                        },
+                    )
+
+    def test_pdf_model_runtime_manifest_mutations_are_broken(self) -> None:
+        schema = json.loads(
+            Path(
+                "src/tiny_corpus_workbench/schemas/preparation-manifest-v0.1.schema.json"
+            ).read_text("utf-8")
+        )
+        validator = Draft202012Validator(schema)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            models = root / "models"
+            create_models(models)
+            _, complete = self.observation(
+                root / "complete", source=PDF_SOURCE, models=models
+            )
+            _, missing = self.observation(
+                root / "missing", source=PDF_SOURCE, models=root / "absent"
+            )
+            cases = ((complete, "required"), (missing, "runtime-error"))
+            for baseline, operation in cases:
+                with self.subTest(operation=operation):
+                    copied = root / operation / baseline.name
+                    copied.parent.mkdir()
+                    shutil.copytree(baseline, copied)
+                    manifest_path = copied / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    if operation == "required":
+                        manifest["models"]["required"] = False
+                    else:
+                        manifest["extractors"][0]["error"]["code"] = (
+                            "DOCLING_CONVERSION_FAILED"
+                        )
+                    validator.validate(manifest)
+                    manifest_path.write_text(json.dumps(manifest), "utf-8")
+
+                    code, report, _, stderr = self.verify(copied)
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(
+                        report["artifact_integrity"]["status"], "BROKEN"
+                    )
+                    self.assertIn(
+                        "STATUS_MISMATCH",
+                        {
+                            issue["code"]
+                            for issue in report["artifact_integrity"]["issues"]
+                        },
+                    )
 
     def test_missing_optional_targets_are_reports_but_bad_root_is_usage_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -10,6 +10,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from tiny_corpus_workbench.artifacts import (
+    REQUIRED_MODEL_FILES,
     canonical_json,
     compute_observation_id,
     inventory_models,
@@ -91,7 +92,11 @@ def _advisory_models(
         current = inventory_models(model_root, required=True)
     except RuntimeContractError:
         return {"status": "ERROR"}
-    return {"status": "MATCH" if current == recorded else "CHANGED"}
+    same_inventory = (
+        current["inventory_hash"] == recorded.get("inventory_hash")
+        and current["files"] == recorded.get("files")
+    )
+    return {"status": "MATCH" if same_inventory else "CHANGED"}
 
 
 def _expected_statuses(manifest: dict[str, Any]) -> tuple[str, str]:
@@ -105,6 +110,152 @@ def _expected_statuses(manifest: dict[str, Any]) -> tuple[str, str]:
     usable = sum(status in ("SUCCESS", "PARTIAL_SUCCESS") for status in statuses)
     comparison = "COMPLETE" if usable == 2 else "INCOMPLETE" if usable == 1 else "NOT_AVAILABLE"
     return overall, comparison
+
+
+EXPECTED_ARTIFACTS = {
+    "docling": (
+        ("docling/document.json", "docling-document-json", "application/json"),
+        ("docling/document.md", "docling-markdown", "text/markdown"),
+    ),
+    "markitdown": (
+        ("markitdown/document.md", "markitdown-markdown", "text/markdown"),
+    ),
+}
+
+
+def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    """Check cross-field contracts that JSON Schema cannot express safely."""
+
+    issues: list[dict[str, Any]] = []
+    dependencies = manifest["runtime"]["dependencies"]
+    results = {result["name"]: result for result in manifest["extractors"]}
+    for name, result in results.items():
+        if result["version"] != dependencies[name]:
+            issues.append(
+                _issue(
+                    "REFERENCE_MISMATCH",
+                    "manifest.json",
+                    f"{name} version differs from runtime dependency",
+                )
+            )
+
+        expected_artifacts = (
+            EXPECTED_ARTIFACTS[name]
+            if result["status"] in ("SUCCESS", "PARTIAL_SUCCESS")
+            else ()
+        )
+        actual_artifacts = tuple(
+            (item["path"], item["role"], item["media_type"])
+            for item in result["artifacts"]
+        )
+        if len(actual_artifacts) != len(expected_artifacts) or set(
+            actual_artifacts
+        ) != set(expected_artifacts):
+            issues.append(
+                _issue(
+                    "REFERENCE_MISMATCH",
+                    "manifest.json",
+                    f"{name} artifact contract is inconsistent",
+                )
+            )
+
+    docling = results["docling"]
+    expected_upstream = {
+        "SUCCESS": "success",
+        "PARTIAL_SUCCESS": "partial_success",
+        "FAILED": None,
+    }[docling["status"]]
+    if docling["upstream_status"] != expected_upstream:
+        issues.append(
+            _issue(
+                "STATUS_MISMATCH",
+                "manifest.json",
+                "Docling upstream and extractor statuses disagree",
+            )
+        )
+    markitdown = results["markitdown"]
+    if markitdown["status"] == "PARTIAL_SUCCESS" or markitdown["upstream_status"] is not None:
+        issues.append(
+            _issue(
+                "STATUS_MISMATCH",
+                "manifest.json",
+                "MarkItDown status contract is inconsistent",
+            )
+        )
+
+    is_pdf = manifest["source"]["media_type"] == "application/pdf"
+    models = manifest["models"]
+    if models["required"] != is_pdf:
+        issues.append(
+            _issue(
+                "STATUS_MISMATCH",
+                "manifest.json",
+                "model applicability differs from source media type",
+            )
+        )
+    model_error_codes = {"MODEL_ARTIFACTS_MISSING", "MODEL_ARTIFACTS_INVALID"}
+    docling_error = docling["error"]
+    has_model_error = (
+        docling_error is not None and docling_error["code"] in model_error_codes
+    )
+    inventory_available = bool(models["files"]) and models["inventory_hash"] is not None
+    expected_model_error = is_pdf and not inventory_available
+    if has_model_error != expected_model_error:
+        issues.append(
+            _issue(
+                "STATUS_MISMATCH",
+                "manifest.json",
+                "model inventory and Docling runtime state disagree",
+            )
+        )
+    if not is_pdf and (models["files"] or models["inventory_hash"] is not None):
+        issues.append(
+            _issue(
+                "REFERENCE_MISMATCH",
+                "manifest.json",
+                "non-PDF observation contains a model inventory",
+            )
+        )
+    model_paths = {item["path"] for item in models["files"]}
+    if any(_safe_relative(path) is None for path in model_paths):
+        issues.append(
+            _issue(
+                "UNSAFE_REFERENCE",
+                "manifest.json",
+                "model inventory contains an unsafe path",
+            )
+        )
+    if is_pdf and inventory_available and not set(REQUIRED_MODEL_FILES).issubset(
+        model_paths
+    ):
+        issues.append(
+            _issue(
+                "REFERENCE_MISMATCH",
+                "manifest.json",
+                "PDF model inventory omits required artifacts",
+            )
+        )
+
+    allowed_errors = {
+        "docling": {
+            "MODEL_ARTIFACTS_MISSING",
+            "MODEL_ARTIFACTS_INVALID",
+            "DOCLING_CONVERSION_FAILED",
+            "DOCLING_SERIALIZATION_FAILED",
+        },
+        "markitdown": {"MARKITDOWN_CONVERSION_FAILED"},
+    }
+    for name, result in results.items():
+        error = result["error"]
+        if error is not None and error["code"] not in allowed_errors[name]:
+            issues.append(
+                _issue(
+                    "STATUS_MISMATCH",
+                    "manifest.json",
+                    f"{name} error code is inconsistent",
+                )
+            )
+    return issues
 
 
 def verify_observation(
@@ -150,6 +301,7 @@ def verify_observation(
         )
         if computed_id != manifest["observation_id"]:
             issues.append(_issue("OBSERVATION_ID_MISMATCH", None, "observation_id does not match recorded provenance"))
+        issues.extend(_manifest_contract_issues(manifest))
 
         model_files = manifest["models"]["files"]
         if model_files != sorted(model_files, key=lambda item: item["path"]) or len({item["path"] for item in model_files}) != len(model_files):
@@ -232,6 +384,19 @@ def verify_observation(
         comparison: dict[str, Any] | None = None
         if manifest["comparison"]["path"] in actual_files:
             try:
+                comparison_bytes = comparison_path.read_bytes()
+                if (
+                    len(comparison_bytes) != manifest["comparison"]["size"]
+                    or hashlib.sha256(comparison_bytes).hexdigest()
+                    != manifest["comparison"]["sha256"]
+                ):
+                    issues.append(
+                        _issue(
+                            "REFERENCE_MISMATCH",
+                            "comparison.json",
+                            "comparison descriptor differs from persisted bytes",
+                        )
+                    )
                 comparison = json.loads(comparison_path.read_text("utf-8"))
                 if list(Draft202012Validator(comparison_schema).iter_errors(comparison)):
                     issues.append(_issue("COMPARISON_INVALID", "comparison.json", "comparison does not conform to its schema"))

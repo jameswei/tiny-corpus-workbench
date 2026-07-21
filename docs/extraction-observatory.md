@@ -130,7 +130,9 @@ uv run --frozen tcw verify OBSERVATION_DIRECTORY \
 The source state is `MATCH`, `CHANGED`, `MISSING`, or `ERROR`. The PDF model
 state uses the same states; a non-PDF observation is `NOT_APPLICABLE`. Without
 an option the corresponding state is `NOT_CHECKED`. These advisories never
-change historical artifact integrity or the verifier exit code.
+change historical artifact integrity or the verifier exit code. Model matching
+uses the canonical relative-path, size, and hash inventory, so an equivalent
+model inventory may be checked from a different absolute directory.
 
 ## Reruns and compatibility
 
