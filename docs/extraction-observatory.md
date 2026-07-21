@@ -42,7 +42,8 @@ uv run --frozen tcw observe SOURCE \
 `SOURCE` must be one regular local file ending in `.pdf`, `.docx`, `.md`, or
 `.txt`. Directories, stdin, URLs, FIFOs, extension/content mismatches, invalid
 OOXML, non-UTF-8 text, and NUL-containing text are rejected before extraction.
-There is no directory or batch command.
+Empty Markdown and text files are also rejected because the manifest requires a
+positive source size. There is no directory or batch command.
 
 Before capture, `tcw` checks CPython 3.12, the exact locked package versions,
 and every adapter API used for conversion and serialization. It then opens the
@@ -104,9 +105,10 @@ Both adapters are attempted independently. A validated partial or failed
 attempt is still published with `INCOMPLETE` or `NOT_AVAILABLE` comparison
 evidence. A source mutation during snapshot capture or another integrity
 failure discards staging and publishes nothing. Immediately before publication,
+the persisted manifest and comparison must satisfy their bundled schemas, and
 every staged regular file and directory must match the complete captured
-inventory; missing, changed, symlinked, replaced, or unexpected content aborts
-the run.
+inventory. Invalid schemas or missing, changed, symlinked, replaced, or
+unexpected content abort the run.
 
 ## Verify a published observation
 
@@ -121,7 +123,9 @@ the supported schemas, expected paths, regular-file kinds, recorded sizes and
 hashes, observation identity, statuses, and internal references agree. Ordinary
 artifact corruption reports `INTEGRITY_MISMATCH`; an uninterpretable manifest,
 identity, or reference reports `BROKEN`. Both failure states exit `5` and leave
-the observation unchanged.
+the observation unchanged. Decoded JSON with a null, scalar, array, or malformed
+nested shape also completes as `BROKEN`; it is never treated as an absent value
+or an internal verifier failure.
 
 Structural checks include RFC 3339 timestamp syntax, nonnegative integral
 durations, and single-line sanitized errors. For a usable Docling result, the

@@ -10,6 +10,7 @@ from unittest import mock
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import AtomicObservation
+from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.extractors.docling import DoclingSerializationError
 
 
@@ -69,6 +70,104 @@ class CliFailureTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(stdout, "")
         self.assertIn("unsupported media type", stderr)
+
+    def test_empty_markdown_and_text_publish_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "output"
+            for name in ("empty.md", "empty.txt"):
+                source = root / name
+                source.touch()
+                with self.subTest(name=name):
+                    code, stdout, stderr = self.invoke(
+                        "observe",
+                        str(source),
+                        "--output-root",
+                        str(output),
+                    )
+                    self.assertEqual(code, 2)
+                    self.assertEqual(stdout, "")
+                    self.assertIn("must not be empty", stderr)
+                    self.assertEqual(list(output.glob("*/*")), [])
+
+    def test_every_published_outcome_is_schema_validated_before_publish(self) -> None:
+        cases = (
+            (fake_docling, fake_markitdown, 0),
+            (partial_success_docling, fake_markitdown, 3),
+            (RuntimeError("docling failed"), RuntimeError("markitdown failed"), 4),
+        )
+        original_validate = cli.validate_staged_schemas
+        original_publish = AtomicObservation.publish
+        for docling, markitdown, expected_code in cases:
+            with self.subTest(
+                expected_code=expected_code
+            ), tempfile.TemporaryDirectory() as directory:
+                validated = set()
+
+                def validate(root):
+                    original_validate(root)
+                    validated.add(root)
+
+                def publish(publisher):
+                    self.assertIn(publisher.staging, validated)
+                    return original_publish(publisher)
+
+                with mock.patch(
+                    "tiny_corpus_workbench.extractors.docling.convert",
+                    side_effect=docling if isinstance(docling, Exception) else None,
+                    wraps=None if isinstance(docling, Exception) else docling,
+                ), mock.patch(
+                    "tiny_corpus_workbench.extractors.markitdown.convert",
+                    side_effect=(
+                        markitdown if isinstance(markitdown, Exception) else None
+                    ),
+                    wraps=(
+                        None if isinstance(markitdown, Exception) else markitdown
+                    ),
+                ), mock.patch.object(
+                    cli, "validate_staged_schemas", side_effect=validate
+                ), mock.patch.object(
+                    AtomicObservation,
+                    "publish",
+                    autospec=True,
+                    side_effect=publish,
+                ):
+                    code, stdout, stderr = self.invoke(
+                        "observe",
+                        str(FIXTURE),
+                        "--output-root",
+                        directory,
+                    )
+                self.assertEqual(code, expected_code)
+                self.assertEqual(stderr, "")
+                self.assertTrue(stdout)
+
+    def test_staged_schema_failure_prevents_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.extractors.docling.convert",
+            wraps=fake_docling,
+        ), mock.patch(
+            "tiny_corpus_workbench.extractors.markitdown.convert",
+            wraps=fake_markitdown,
+        ), mock.patch.object(
+            cli,
+            "validate_staged_schemas",
+            side_effect=IntegrityError("staged manifest.json is invalid"),
+        ), mock.patch.object(
+            AtomicObservation, "publish", autospec=True
+        ) as publish:
+            output = Path(directory) / "output"
+            code, stdout, stderr = self.invoke(
+                "observe",
+                str(FIXTURE),
+                "--output-root",
+                str(output),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stdout, "")
+            self.assertIn("staged manifest.json is invalid", stderr)
+            publish.assert_not_called()
+            self.assertEqual(list(output.glob("*/*")), [])
 
     def test_each_single_failure_and_total_failure_publish_evidence(self) -> None:
         cases = ((RuntimeError("docling failed"), fake_markitdown, 3, "INCOMPLETE"), (fake_docling, RuntimeError("markitdown failed"), 3, "INCOMPLETE"), (RuntimeError("docling failed"), RuntimeError("markitdown failed"), 4, "NOT_AVAILABLE"))

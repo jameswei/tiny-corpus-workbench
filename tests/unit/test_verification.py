@@ -91,6 +91,18 @@ def rewrite_observation_identity(root: Path, manifest: dict) -> None:
     (root / "manifest.json").write_bytes(canonical_json(manifest))
 
 
+def write_comparison_with_descriptor(root: Path, comparison: object) -> None:
+    comparison_bytes = canonical_json(comparison)
+    (root / "comparison.json").write_bytes(comparison_bytes)
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text("utf-8"))
+    manifest["comparison"]["size"] = len(comparison_bytes)
+    manifest["comparison"]["sha256"] = hashlib.sha256(
+        comparison_bytes
+    ).hexdigest()
+    manifest_path.write_bytes(canonical_json(manifest))
+
+
 class VerificationTests(unittest.TestCase):
     def invoke(self, *arguments: str) -> tuple[int, str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
@@ -230,6 +242,179 @@ class VerificationTests(unittest.TestCase):
                     self.assertEqual(code, 5)
                     self.assertEqual(stderr, "")
                     self.assertEqual(report["artifact_integrity"]["status"], "BROKEN")
+
+    def test_manifest_root_json_types_complete_as_broken(self) -> None:
+        values = (
+            ("null", None),
+            ("boolean", True),
+            ("number", 1),
+            ("string", "manifest"),
+            ("array", []),
+            ("wrong-object", {}),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, baseline = self.observation(root / "baseline")
+            advisory_root = root / "advisory"
+            advisory_root.mkdir()
+            for label, value in values:
+                with self.subTest(label=label):
+                    copied = root / label / baseline.name
+                    copied.parent.mkdir()
+                    shutil.copytree(baseline, copied)
+                    (copied / "manifest.json").write_bytes(canonical_json(value))
+                    code, report, stdout, stderr = self.verify(
+                        copied,
+                        "--source",
+                        str(SOURCE),
+                        "--docling-artifacts",
+                        str(advisory_root),
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(len(stdout.splitlines()), 1)
+                    self.assertEqual(
+                        report["artifact_integrity"]["status"], "BROKEN"
+                    )
+                    self.assertEqual(report["source_state"]["status"], "ERROR")
+                    self.assertEqual(report["model_state"]["status"], "ERROR")
+
+    def test_malformed_manifest_nested_types_complete_with_safe_advisories(self) -> None:
+        cases = (
+            ("source-null", ("source",), None),
+            ("runtime-boolean", ("runtime",), True),
+            ("models-number", ("models",), 1),
+            ("extractors-string", ("extractors",), "extractors"),
+            ("comparison-array", ("comparison",), []),
+            ("source-wrong-object", ("source",), {}),
+            ("dependencies-array", ("runtime", "dependencies"), []),
+            ("extractor-elements", ("extractors",), [None, None]),
+            ("model-files-object", ("models", "files"), {}),
+            ("comparison-wrong-object", ("comparison",), {}),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, baseline = self.observation(root / "baseline")
+            advisory_root = root / "advisory"
+            advisory_root.mkdir()
+            for label, path, value in cases:
+                with self.subTest(label=label):
+                    copied = root / label / baseline.name
+                    copied.parent.mkdir()
+                    shutil.copytree(baseline, copied)
+                    manifest_path = copied / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    target = manifest
+                    for part in path[:-1]:
+                        target = target[part]
+                    target[path[-1]] = value
+                    manifest_path.write_bytes(canonical_json(manifest))
+
+                    code, report, stdout, stderr = self.verify(
+                        copied,
+                        "--source",
+                        str(SOURCE),
+                        "--docling-artifacts",
+                        str(advisory_root),
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(len(stdout.splitlines()), 1)
+                    self.assertEqual(
+                        report["artifact_integrity"]["status"], "BROKEN"
+                    )
+                    expected_source = (
+                        "ERROR" if path[0] == "source" else "MATCH"
+                    )
+                    expected_model = (
+                        "ERROR" if label == "models-number" else "NOT_APPLICABLE"
+                    )
+                    self.assertEqual(
+                        report["source_state"]["status"], expected_source
+                    )
+                    self.assertEqual(
+                        report["model_state"]["status"], expected_model
+                    )
+
+    def test_invalid_manifest_preserves_missing_and_not_checked_advisories(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, baseline = self.observation(root / "baseline")
+            (baseline / "manifest.json").write_bytes(canonical_json(None))
+
+            code, report, _, stderr = self.verify(baseline)
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(report["source_state"]["status"], "NOT_CHECKED")
+            self.assertEqual(report["model_state"]["status"], "NOT_CHECKED")
+
+            code, report, _, stderr = self.verify(
+                baseline,
+                "--source",
+                str(root / "missing.md"),
+                "--docling-artifacts",
+                str(root / "missing-models"),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(report["source_state"]["status"], "MISSING")
+            self.assertEqual(report["model_state"]["status"], "MISSING")
+
+    def test_comparison_root_and_nested_json_types_complete_as_broken(self) -> None:
+        top_values = (
+            ("null", None),
+            ("boolean", False),
+            ("number", 1),
+            ("string", "comparison"),
+            ("array", []),
+            ("wrong-object", {}),
+        )
+        nested_values = (
+            ("source-null", ("source",), None),
+            ("views-boolean", ("views",), True),
+            ("deltas-number", ("deltas",), 1),
+            ("anchors-string", ("anchors",), "anchors"),
+            ("docling-view-array", ("views", "docling"), []),
+            ("source-wrong-object", ("source",), {}),
+            ("views-wrong-object", ("views",), {}),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, baseline = self.observation(root / "baseline")
+            for label, value in top_values:
+                with self.subTest(kind="root", label=label):
+                    copied = root / f"root-{label}" / baseline.name
+                    copied.parent.mkdir()
+                    shutil.copytree(baseline, copied)
+                    write_comparison_with_descriptor(copied, value)
+                    code, report, stdout, stderr = self.verify(copied)
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(len(stdout.splitlines()), 1)
+                    self.assertEqual(
+                        report["artifact_integrity"]["status"], "BROKEN"
+                    )
+
+            for label, path, value in nested_values:
+                with self.subTest(kind="nested", label=label):
+                    copied = root / f"nested-{label}" / baseline.name
+                    copied.parent.mkdir()
+                    shutil.copytree(baseline, copied)
+                    comparison = json.loads(
+                        (copied / "comparison.json").read_text("utf-8")
+                    )
+                    target = comparison
+                    for part in path[:-1]:
+                        target = target[part]
+                    target[path[-1]] = value
+                    write_comparison_with_descriptor(copied, comparison)
+                    code, report, stdout, stderr = self.verify(copied)
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(len(stdout.splitlines()), 1)
+                    self.assertEqual(
+                        report["artifact_integrity"]["status"], "BROKEN"
+                    )
 
     def test_verifier_does_not_change_observation_bytes_modes_or_mtimes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

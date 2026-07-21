@@ -67,8 +67,8 @@ version `1.10.0`.
 
 Implementation and local-integrity amendment verification on 2026-07-21:
 
-- fast unit suite: 57 tests passed
-- full suite: 60 tests passed, including the mandatory spike, all twelve
+- fast unit suite: 65 tests passed
+- full suite: 68 tests passed, including the mandatory spike, all twelve
   fixtures through both extractors, same-lock JSON reload, expected table
   counts, anchor preservation, network denial, and byte-identical comparison
   summaries across isolated output roots
@@ -88,6 +88,8 @@ Implementation and local-integrity amendment verification on 2026-07-21:
   model path
 - the exact three-package runtime mapping is shared by observation and
   verification; changed, missing, and unexpected dependency entries are broken
+- malformed decoded manifest/comparison shapes complete as broken reports, and
+  staged evidence is schema-valid before publication; empty text is rejected
 - schema validation, compile check, `git diff --check`, and the documented
   manual PDF observation plus `tcw verify` checks passed
 

@@ -34,6 +34,7 @@ from tiny_corpus_workbench.domain import (
 )
 from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
 from tiny_corpus_workbench.source import SourceSnapshot, sha256_file
+from tiny_corpus_workbench.verification import validate_staged_schemas
 
 
 DOCLING_CONFIG = {
@@ -379,6 +380,7 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
                     raise IntegrityError(
                         "Docling model inventory changed during extraction"
                     )
+            validate_staged_schemas(staging)
             verify_staged_observation(staging, staged_artifacts)
             published = publisher.publish()
             return exit_code, published

@@ -20,6 +20,7 @@ from tiny_corpus_workbench.artifacts import (
 from tiny_corpus_workbench.comparison import make_comparison
 from tiny_corpus_workbench.domain import (
     DOCLING_DOCUMENT_COMPATIBILITY,
+    IntegrityError,
     RuntimeContractError,
     sanitize_message,
 )
@@ -33,6 +34,7 @@ RFC3339_DATE_TIME = re.compile(
     r"(?:\.\d+)?(?:[Zz]|[+-](\d{2}):(\d{2}))$"
 )
 FORMAT_CHECKER = FormatChecker()
+_LOAD_FAILED = object()
 BROKEN_CODES = {
     "MANIFEST_MISSING",
     "MANIFEST_INVALID",
@@ -96,7 +98,7 @@ def _safe_relative(value: Any) -> str | None:
     return path.as_posix()
 
 
-def _advisory_source(source: Path | None, recorded: dict[str, Any] | None) -> dict[str, str]:
+def _advisory_source(source: Path | None, recorded: object) -> dict[str, str]:
     if source is None:
         return {"status": "NOT_CHECKED"}
     try:
@@ -105,7 +107,11 @@ def _advisory_source(source: Path | None, recorded: dict[str, Any] | None) -> di
         metadata = source.stat()
         if not stat.S_ISREG(metadata.st_mode):
             return {"status": "ERROR"}
-        if recorded is None:
+        if (
+            not isinstance(recorded, dict)
+            or type(recorded.get("size")) is not int
+            or not isinstance(recorded.get("sha256"), str)
+        ):
             return {"status": "ERROR"}
         current = (metadata.st_size, sha256_file(source))
         expected = (recorded["size"], recorded["sha256"])
@@ -117,15 +123,20 @@ def _advisory_source(source: Path | None, recorded: dict[str, Any] | None) -> di
 
 
 def _advisory_models(
-    model_root: Path | None, recorded: dict[str, Any] | None
+    model_root: Path | None, recorded: object
 ) -> dict[str, str]:
     if model_root is None:
         return {"status": "NOT_CHECKED"}
-    if recorded is not None and not recorded.get("required"):
+    if isinstance(recorded, dict) and recorded.get("required") is False:
         return {"status": "NOT_APPLICABLE"}
     if not model_root.exists() and not model_root.is_symlink():
         return {"status": "MISSING"}
-    if recorded is None:
+    if (
+        not isinstance(recorded, dict)
+        or recorded.get("required") is not True
+        or not isinstance(recorded.get("inventory_hash"), str)
+        or not isinstance(recorded.get("files"), list)
+    ):
         return {"status": "ERROR"}
     try:
         current = inventory_models(model_root, required=True)
@@ -404,6 +415,25 @@ def _docling_document_schema_issues(
     return []
 
 
+def validate_staged_schemas(root: Path) -> None:
+    """Reject staged evidence that does not satisfy both public schemas."""
+
+    for filename, schema_name in (
+        ("manifest.json", "preparation-manifest-v0.1.schema.json"),
+        ("comparison.json", "comparison-summary-v0.1.schema.json"),
+    ):
+        try:
+            document = json.loads((root / filename).read_text("utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise IntegrityError(
+                f"staged {filename} cannot be read as JSON"
+            ) from error
+        if list(_validator(_schema(schema_name)).iter_errors(document)):
+            raise IntegrityError(
+                f"staged {filename} does not conform to its schema"
+            )
+
+
 def verify_observation(
     root: Path,
     source: Path | None = None,
@@ -413,7 +443,8 @@ def verify_observation(
     comparison_schema = _schema("comparison-summary-v0.1.schema.json")
     result_schema = _schema("verification-result-v0.1.schema.json")
     issues: list[dict[str, Any]] = []
-    manifest: dict[str, Any] | None = None
+    manifest: object = _LOAD_FAILED
+    valid_manifest: dict[str, Any] | None = None
     manifest_path = root / "manifest.json"
 
     try:
@@ -427,15 +458,26 @@ def verify_observation(
     except (OSError, UnicodeError, json.JSONDecodeError):
         issues.append(_issue("MANIFEST_INVALID", "manifest.json", "manifest cannot be read as JSON"))
 
-    if manifest is not None:
-        if manifest.get("schema_version") != "tcw.preparation-manifest/v0.1":
+    if manifest is not _LOAD_FAILED:
+        if not isinstance(manifest, dict):
+            issues.append(
+                _issue(
+                    "MANIFEST_INVALID",
+                    "manifest.json",
+                    "manifest JSON root must be an object",
+                )
+            )
+        elif manifest.get("schema_version") != "tcw.preparation-manifest/v0.1":
             issues.append(_issue("SCHEMA_UNSUPPORTED", "manifest.json", "manifest schema is unsupported"))
         else:
             errors = list(_validator(manifest_schema).iter_errors(manifest))
             if errors:
                 issues.append(_issue("MANIFEST_INVALID", "manifest.json", "manifest does not conform to its schema"))
+            else:
+                valid_manifest = manifest
 
-    if manifest is not None and not any(issue["code"] in {"SCHEMA_UNSUPPORTED", "MANIFEST_INVALID"} for issue in issues):
+    if valid_manifest is not None:
+        manifest = valid_manifest
         if root.name != manifest["run_id"]:
             issues.append(_issue("RUN_ID_MISMATCH", None, "directory basename does not match run_id"))
         computed_id = compute_observation_id(
@@ -529,7 +571,8 @@ def verify_observation(
                 issues.append(_issue("STATUS_MISMATCH", None, f"{result['name']} success evidence is inconsistent"))
 
         comparison_path = root / manifest["comparison"]["path"]
-        comparison: dict[str, Any] | None = None
+        comparison: object = _LOAD_FAILED
+        valid_comparison: dict[str, Any] | None = None
         if manifest["comparison"]["path"] in actual_files:
             try:
                 comparison_bytes = comparison_path.read_bytes()
@@ -546,12 +589,16 @@ def verify_observation(
                         )
                     )
                 comparison = json.loads(comparison_path.read_text("utf-8"))
-                if list(_validator(comparison_schema).iter_errors(comparison)):
+                if not isinstance(comparison, dict) or list(
+                    _validator(comparison_schema).iter_errors(comparison)
+                ):
                     issues.append(_issue("COMPARISON_INVALID", "comparison.json", "comparison does not conform to its schema"))
-                    comparison = None
+                else:
+                    valid_comparison = comparison
             except (OSError, UnicodeError, json.JSONDecodeError):
                 issues.append(_issue("COMPARISON_INVALID", "comparison.json", "comparison cannot be read as JSON"))
-        if comparison is not None:
+        if valid_comparison is not None:
+            comparison = valid_comparison
             if comparison["observation_id"] != manifest["observation_id"]:
                 issues.append(_issue("REFERENCE_MISMATCH", "comparison.json", "comparison observation_id differs"))
             expected_source = {key: manifest["source"][key] for key in ("sha256", "media_type", "fixture_id")}
@@ -629,8 +676,14 @@ def verify_observation(
         "schema_version": "tcw.verification-result/v0.1",
         "observation_directory": str(root.resolve()),
         "artifact_integrity": {"status": artifact_status, "issues": issues},
-        "source_state": _advisory_source(source, manifest.get("source") if manifest else None),
-        "model_state": _advisory_models(model_root, manifest.get("models") if manifest else None),
+        "source_state": _advisory_source(
+            source,
+            manifest.get("source") if isinstance(manifest, dict) else None,
+        ),
+        "model_state": _advisory_models(
+            model_root,
+            manifest.get("models") if isinstance(manifest, dict) else None,
+        ),
     }
     _validator(result_schema).validate(report)
     return report

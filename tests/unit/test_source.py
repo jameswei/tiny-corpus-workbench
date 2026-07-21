@@ -40,6 +40,17 @@ class SourceValidationTests(unittest.TestCase):
                 with self.subTest(name=name), self.assertRaises(InputError):
                     validate_source(path)
 
+    def test_rejects_empty_markdown_and_text(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("empty.md", "empty.txt"):
+                path = root / name
+                path.touch()
+                with self.subTest(name=name), self.assertRaisesRegex(
+                    InputError, "must not be empty"
+                ):
+                    validate_source(path)
+
 
 if __name__ == "__main__":
     unittest.main()

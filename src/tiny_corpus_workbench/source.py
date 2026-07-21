@@ -58,6 +58,8 @@ def _validate_content(path: Path, suffix: str) -> None:
         except (OSError, zipfile.BadZipFile) as error:
             raise InputError("DOCX content is invalid") from error
         return
+    if path.stat().st_size == 0:
+        raise InputError("Markdown and text inputs must not be empty")
     try:
         text = path.read_text("utf-8", errors="strict")
     except UnicodeDecodeError as error:
