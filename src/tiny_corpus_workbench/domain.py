@@ -8,6 +8,9 @@ from typing import Any
 DOCLING_DOCUMENT_COMPATIBILITY = (
     "reloadable only with the exact uv.lock environment that created this artifact"
 )
+_CONTROL_CHARACTER_TRANSLATION = str.maketrans(
+    {codepoint: " " for codepoint in (*range(0x20), *range(0x7F, 0xA0))}
+)
 
 
 class ExitCode(IntEnum):
@@ -24,6 +27,9 @@ class ExitCode(IntEnum):
 class StableError:
     code: str
     message: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "message", sanitize_message(self.message))
 
     def to_dict(self) -> dict[str, str]:
         return asdict(self)
@@ -61,5 +67,5 @@ class SourceIdentity:
 
 
 def sanitize_message(value: BaseException | str) -> str:
-    message = str(value).replace("\r", " ").replace("\n", " ")
+    message = str(value).translate(_CONTROL_CHARACTER_TRANSLATION)
     return " ".join(message.split())[:500] or "unspecified failure"

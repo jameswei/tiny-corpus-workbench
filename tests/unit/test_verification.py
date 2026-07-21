@@ -899,7 +899,9 @@ class VerificationTests(unittest.TestCase):
 
             with mock.patch(
                 "tiny_corpus_workbench.verification._schema",
-                side_effect=RuntimeContractError("schema runtime unavailable"),
+                side_effect=RuntimeContractError(
+                    "schema\x01 runtime\x80 unavailable"
+                ),
             ):
                 code, stdout, stderr = self.invoke("verify", str(root))
             self.assertEqual(code, 6)
@@ -908,7 +910,9 @@ class VerificationTests(unittest.TestCase):
 
             with mock.patch(
                 "tiny_corpus_workbench.verification.verify_observation",
-                side_effect=RuntimeError("unexpected\nverifier failure"),
+                side_effect=RuntimeError(
+                    "unexpected\x00\x9f\nverifier failure"
+                ),
             ):
                 code, stdout, stderr = self.invoke("verify", str(root))
             self.assertEqual(code, 1)

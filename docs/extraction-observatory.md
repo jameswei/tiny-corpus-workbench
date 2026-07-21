@@ -114,6 +114,11 @@ every staged regular file and directory must match the complete captured
 inventory. Invalid schemas or missing, changed, symlinked, replaced, or
 unexpected content abort the run.
 
+Persisted and printed failure messages replace every C0/C1 control character,
+including tabs and DEL, before whitespace collapse and the 500-character
+limit. Safe Unicode remains readable, and an all-control message uses a
+nonempty fallback.
+
 ## Verify a published observation
 
 Verification is self-contained by default and does not import either extractor:

@@ -8,6 +8,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+from jsonschema import Draft202012Validator
+
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import AtomicObservation
 from tiny_corpus_workbench.domain import IntegrityError
@@ -272,6 +274,60 @@ class CliFailureTests(unittest.TestCase):
                 "MODEL_ARTIFACTS_INVALID",
             )
 
+    def test_missing_pdf_model_path_control_is_sanitized_and_published(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.extractors.docling.convert",
+            wraps=fake_docling,
+        ) as docling, mock.patch(
+            "tiny_corpus_workbench.extractors.markitdown.convert",
+            wraps=fake_markitdown,
+        ):
+            root = Path(directory)
+            code, stdout, stderr = self.invoke(
+                "observe",
+                str(PDF_FIXTURE),
+                "--output-root",
+                str(root / "output"),
+                "--docling-artifacts",
+                str(root / "missing\x01models"),
+            )
+            self.assertEqual(code, 6)
+            self.assertEqual(stderr, "")
+            self.assertEqual(len(stdout.splitlines()), 1)
+            summary = json.loads(stdout)
+            manifest_path = Path(summary["manifest"])
+            self.assertTrue(manifest_path.is_file())
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            schema = json.loads(
+                Path(
+                    "src/tiny_corpus_workbench/schemas/"
+                    "preparation-manifest-v0.1.schema.json"
+                ).read_text("utf-8")
+            )
+            Draft202012Validator(schema).validate(manifest)
+            error = manifest["extractors"][0]["error"]
+            self.assertEqual(error["code"], "MODEL_ARTIFACTS_MISSING")
+            self.assertTrue(error["message"])
+            self.assertLessEqual(len(error["message"]), 500)
+            self.assertFalse(
+                any(
+                    ord(character) < 0x20
+                    or 0x7F <= ord(character) <= 0x9F
+                    for character in error["message"]
+                )
+            )
+            self.assertNotIn("Traceback", stdout)
+            docling.assert_not_called()
+            verify_code, verify_stdout, verify_stderr = self.invoke(
+                "verify", str(manifest_path.parent)
+            )
+            self.assertEqual(verify_code, 0)
+            self.assertEqual(verify_stderr, "")
+            self.assertEqual(
+                json.loads(verify_stdout)["artifact_integrity"]["status"],
+                "VERIFIED",
+            )
+
     def test_non_pdf_ignores_irrelevant_bad_model_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -392,14 +448,17 @@ class CliFailureTests(unittest.TestCase):
                 wraps=fake_markitdown,
             ), mock.patch(
                 "tiny_corpus_workbench.cli._fixture_anchors",
-                side_effect=RuntimeError("unexpected test failure"),
+                side_effect=RuntimeError("unexpected\x01\x80 test\nfailure"),
             ):
                 code, stdout, stderr = self.invoke(
                     "observe", str(FIXTURE), "--output-root", str(output)
                 )
             self.assertEqual(code, 1)
             self.assertEqual(stdout, "")
-            self.assertIn("internal failure", stderr)
+            self.assertEqual(
+                stderr,
+                "internal failure: unexpected test failure\n",
+            )
             self.assertEqual(list(output.glob("*/*")), [])
             self.assertEqual(list(output.glob("*/.staging-*")), [])
 
