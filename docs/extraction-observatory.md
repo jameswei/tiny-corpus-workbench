@@ -44,12 +44,13 @@ uv run --frozen tcw observe SOURCE \
 OOXML, non-UTF-8 text, and NUL-containing text are rejected before extraction.
 There is no directory or batch command.
 
-Before capture, `tcw` checks the exact locked package versions and both adapter
-APIs. It then opens the non-symlink source once and copies it into an owner-only
-private snapshot. The descriptor metadata must remain stable throughout that
-copy. Both extractors consume the same validated snapshot, which is removed
-before publication. A later change to the original source cannot mix extractor
-inputs and does not invalidate the completed observation.
+Before capture, `tcw` checks CPython 3.12, the exact locked package versions,
+and every adapter API used for conversion and serialization. It then opens the
+non-symlink source once and copies it into an owner-only private snapshot. The
+descriptor metadata must remain stable throughout that copy. Both extractors
+consume the same validated snapshot, which is removed before publication. A
+later change to the original source cannot mix extractor inputs and does not
+invalidate the completed observation.
 
 Each valid attempt prints one compact JSON line to stdout identifying the
 published manifest, run ID, and overall status. Diagnostics use stderr.
@@ -135,8 +136,9 @@ uv run --frozen tcw verify OBSERVATION_DIRECTORY \
 ```
 
 The source state is `MATCH`, `CHANGED`, `MISSING`, or `ERROR`. The PDF model
-state uses the same states; a non-PDF observation is `NOT_APPLICABLE`. Without
-an option the corresponding state is `NOT_CHECKED`. These advisories never
+state uses the same states; a non-PDF observation is `NOT_APPLICABLE` whenever
+a model path is supplied, even if that path is missing or invalid. Without an
+option the corresponding state is `NOT_CHECKED`. These advisories never
 change historical artifact integrity or the verifier exit code. Model matching
 uses the canonical relative-path, size, and hash inventory, so an equivalent
 model inventory may be checked from a different absolute directory.

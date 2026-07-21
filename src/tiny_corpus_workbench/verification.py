@@ -120,12 +120,12 @@ def _advisory_models(
 ) -> dict[str, str]:
     if model_root is None:
         return {"status": "NOT_CHECKED"}
+    if recorded is not None and not recorded.get("required"):
+        return {"status": "NOT_APPLICABLE"}
     if not model_root.exists() and not model_root.is_symlink():
         return {"status": "MISSING"}
     if recorded is None:
         return {"status": "ERROR"}
-    if not recorded.get("required"):
-        return {"status": "NOT_APPLICABLE"}
     try:
         current = inventory_models(model_root, required=True)
     except RuntimeContractError:
@@ -166,6 +166,17 @@ def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
 
     issues: list[dict[str, Any]] = []
     dependencies = manifest["runtime"]["dependencies"]
+    runtime = manifest["runtime"]
+    if runtime["implementation"] != "CPython" or re.fullmatch(
+        r"3\.12(?:\.\d+)?(?:[a-z]+\d*)?", runtime["python"]
+    ) is None:
+        issues.append(
+            _issue(
+                "REFERENCE_MISMATCH",
+                "manifest.json",
+                "recorded Python runtime differs from the fixed CPython 3.12 contract",
+            )
+        )
     results = {result["name"]: result for result in manifest["extractors"]}
     for name, result in results.items():
         if result["version"] != dependencies[name]:

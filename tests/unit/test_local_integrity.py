@@ -15,6 +15,7 @@ from tiny_corpus_workbench.artifacts import REQUIRED_MODEL_FILES, inventory_mode
 from tiny_corpus_workbench.domain import IntegrityError, RuntimeContractError
 from tiny_corpus_workbench.source import SourceSnapshot
 import tiny_corpus_workbench.source as source_module
+import tiny_corpus_workbench.extractors.docling as docling_adapter
 
 
 MARKDOWN_FIXTURE = Path("fixtures/golden/policy-memo.md")
@@ -149,6 +150,43 @@ class LocalIntegrityTests(unittest.TestCase):
                 self.assertEqual(code, 6)
                 self.assertEqual(stdout, "")
                 self.assertIn("preflight", stderr)
+                capture.assert_not_called()
+
+    def test_missing_docling_serialization_apis_fail_before_capture(self) -> None:
+        for method in ("save_as_json", "save_as_markdown", "model_dump"):
+            with self.subTest(method=method), mock.patch.object(
+                docling_adapter.DoclingDocument, method, None
+            ), mock.patch.object(
+                SourceSnapshot, "capture", autospec=True
+            ) as capture:
+                code, stdout, stderr = self.invoke(
+                    "observe", str(MARKDOWN_FIXTURE)
+                )
+                self.assertEqual(code, 6)
+                self.assertEqual(stdout, "")
+                self.assertIn("preflight", stderr)
+                capture.assert_not_called()
+
+    def test_non_cpython_or_non_312_runtime_fails_before_capture(self) -> None:
+        cases = (
+            mock.patch(
+                "tiny_corpus_workbench.cli.platform.python_implementation",
+                return_value="PyPy",
+            ),
+            mock.patch(
+                "tiny_corpus_workbench.cli.sys.version_info", (3, 13, 0)
+            ),
+        )
+        for index, runtime_patch in enumerate(cases):
+            with self.subTest(index=index), runtime_patch, mock.patch.object(
+                SourceSnapshot, "capture", autospec=True
+            ) as capture:
+                code, stdout, stderr = self.invoke(
+                    "observe", str(MARKDOWN_FIXTURE)
+                )
+                self.assertEqual(code, 6)
+                self.assertEqual(stdout, "")
+                self.assertIn("CPython 3.12", stderr)
                 capture.assert_not_called()
 
     def test_pdf_model_changes_between_inventories_fail(self) -> None:

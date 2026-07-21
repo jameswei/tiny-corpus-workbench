@@ -7,6 +7,7 @@ from docling.datamodel.accelerator_options import AcceleratorDevice, Accelerator
 from docling.datamodel.base_models import ConversionStatus, InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling_core.types.doc import DoclingDocument
 
 
 class DoclingConversionError(RuntimeError):
@@ -24,6 +25,9 @@ def preflight() -> None:
         callable(PdfFormatOption),
         callable(AcceleratorOptions),
         callable(getattr(DocumentConverter, "convert", None)),
+        callable(getattr(DoclingDocument, "save_as_json", None)),
+        callable(getattr(DoclingDocument, "save_as_markdown", None)),
+        callable(getattr(DoclingDocument, "model_dump", None)),
         hasattr(InputFormat, "PDF"),
         hasattr(ConversionStatus, "SUCCESS"),
         hasattr(ConversionStatus, "PARTIAL_SUCCESS"),

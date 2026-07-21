@@ -84,7 +84,10 @@ def _lock_identity() -> dict[str, Any]:
         ) from error
     if installed != DEPENDENCIES:
         raise RuntimeContractError("installed extractor versions do not match the locked v0.1 contract")
-    if sys.version_info[:2] != (3, 12):
+    if platform.python_implementation() != "CPython" or sys.version_info[:2] != (
+        3,
+        12,
+    ):
         raise RuntimeContractError("the v0.1 acceptance runtime is CPython 3.12")
     try:
         lock_hash = sha256_file(lock)

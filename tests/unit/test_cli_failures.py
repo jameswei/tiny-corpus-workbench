@@ -10,6 +10,7 @@ from unittest import mock
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import AtomicObservation
+from tiny_corpus_workbench.extractors.docling import DoclingSerializationError
 
 
 FIXTURE = Path("fixtures/golden/policy-memo.md")
@@ -128,6 +129,28 @@ class CliFailureTests(unittest.TestCase):
             )
             self.assertEqual(manifest["extractors"][1]["status"], "SUCCESS")
             self.assertEqual(manifest["comparison"]["status"], "COMPLETE")
+
+    def test_serialization_failure_after_preflight_retains_extraction_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.extractors.docling.convert",
+            side_effect=DoclingSerializationError("serialization failed"),
+        ), mock.patch(
+            "tiny_corpus_workbench.extractors.markitdown.convert",
+            wraps=fake_markitdown,
+        ):
+            code, stdout, stderr = self.invoke(
+                "observe", str(FIXTURE), "--output-root", directory
+            )
+            self.assertEqual(code, 3)
+            self.assertEqual(stderr, "")
+            manifest = json.loads(
+                Path(json.loads(stdout)["manifest"]).read_text("utf-8")
+            )
+            self.assertEqual(manifest["extractors"][0]["status"], "FAILED")
+            self.assertEqual(
+                manifest["extractors"][0]["error"]["code"],
+                "DOCLING_SERIALIZATION_FAILED",
+            )
 
     def test_unrelated_pdf_models_are_invalid_runtime_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

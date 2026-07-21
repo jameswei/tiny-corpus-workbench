@@ -67,8 +67,8 @@ version `1.10.0`.
 
 Implementation and local-integrity amendment verification on 2026-07-21:
 
-- fast unit suite: 52 tests passed
-- full suite: 55 tests passed, including the mandatory spike, all twelve
+- fast unit suite: 55 tests passed
+- full suite: 58 tests passed, including the mandatory spike, all twelve
   fixtures through both extractors, same-lock JSON reload, expected table
   counts, anchor preservation, network denial, and byte-identical comparison
   summaries across isolated output roots
@@ -83,12 +83,15 @@ Implementation and local-integrity amendment verification on 2026-07-21:
 - RFC 3339 timestamps, durations, sanitized errors, and persisted Docling
   schema identity are structurally and semantically verified; valid changes to
   non-derivable metadata remain explicitly outside authenticity claims
+- observation preflight covers CPython 3.12 and every Docling serialization API
+  used, while non-PDF model advisories remain `NOT_APPLICABLE` for any supplied
+  model path
 - schema validation, compile check, `git diff --check`, and the documented
   manual PDF observation plus `tcw verify` checks passed
 
-The next action is to implement the final Section 13.8/13.13 verifier
-clarification, rerun verification, and start a fresh milestone review. The CLI
-binary remains `tcw`.
+The accepted v0.1 implementation and final Section 13.8/13.13 clarification are
+complete locally. The next action is a fresh milestone review. The CLI binary
+remains `tcw`.
 
 No repository-wide agent workflow is automatically activated. The current
 milestone is being run through the explicitly requested plan-build-review

@@ -302,11 +302,22 @@ class VerificationTests(unittest.TestCase):
             self.assertEqual(report["model_state"]["status"], "ERROR")
 
             _, markdown = self.observation(root / "markdown-observation")
-            code, report, _, _ = self.verify(
-                markdown, "--docling-artifacts", str(models)
-            )
-            self.assertEqual(code, 0)
-            self.assertEqual(report["model_state"]["status"], "NOT_APPLICABLE")
+            for model_path in (
+                models,
+                root / "missing-non-pdf-models",
+                invalid,
+            ):
+                with self.subTest(non_pdf_model_path=model_path):
+                    code, report, _, _ = self.verify(
+                        markdown, "--docling-artifacts", str(model_path)
+                    )
+                    self.assertEqual(code, 0)
+                    self.assertEqual(
+                        report["artifact_integrity"]["status"], "VERIFIED"
+                    )
+                    self.assertEqual(
+                        report["model_state"]["status"], "NOT_APPLICABLE"
+                    )
 
     def test_schema_valid_manifest_contract_mutations_are_broken(self) -> None:
         cases = {
@@ -457,6 +468,8 @@ class VerificationTests(unittest.TestCase):
             "schema-name": ("success", "REFERENCE_MISMATCH"),
             "schema-version": ("success", "REFERENCE_MISMATCH"),
             "schema-compatibility": ("success", "MANIFEST_INVALID"),
+            "runtime-implementation": ("success", "MANIFEST_INVALID"),
+            "runtime-version": ("success", "MANIFEST_INVALID"),
             "invalid-timestamp": ("success", "MANIFEST_INVALID"),
             "impossible-date": ("success", "MANIFEST_INVALID"),
             "missing-timezone": ("success", "MANIFEST_INVALID"),
@@ -495,6 +508,10 @@ class VerificationTests(unittest.TestCase):
                         manifest["docling_document_schema"]["compatibility"] = (
                             "reloadable anywhere"
                         )
+                    elif operation == "runtime-implementation":
+                        manifest["runtime"]["implementation"] = "PyPy"
+                    elif operation == "runtime-version":
+                        manifest["runtime"]["python"] = "9.9.9"
                     elif operation == "invalid-timestamp":
                         manifest["created_at"] = "2026-99-99 12:00"
                     elif operation == "impossible-date":
