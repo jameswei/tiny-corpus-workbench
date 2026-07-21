@@ -56,7 +56,8 @@ systems and integration with them are outside the initial scope.
   format-aware extraction.
 - Use `DoclingDocument` as the canonical working representation and retain its
   lossless JSON artifact.
-- Keep source files and raw extraction artifacts immutable.
+- Keep source files unchanged and published raw extraction artifacts
+  application-immutable.
 - Record findings with stable identifiers, affected document-item references,
   and concrete evidence.
 - Separate diagnosis from authorization to change a document.
@@ -82,6 +83,9 @@ uv run --frozen tcw observe fixtures/golden/policy-memo.pdf
 Model download is an explicit setup step. Observation itself is local and
 offline: OCR, plugins, remote services, and LLM clients are disabled, and a
 missing PDF model inventory causes a recorded failure instead of a download.
+Each observation uses one private source snapshot for both extractors and is
+locally tamper-evident under the trusted-local limits documented in the user
+guide. Published runs can be checked read-only with `tcw verify`.
 
 The repository includes exactly twelve deterministic CC0 fixtures generated
 from three project-authored document families. The full setup, artifact,

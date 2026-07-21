@@ -49,6 +49,7 @@ class SourceIdentity:
     size: int
     sha256: str
     fixture_id: str | None
+    capture_method: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

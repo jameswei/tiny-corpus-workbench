@@ -20,6 +20,10 @@ Future work may use whichever sound engineering practices fit the task.
 - The owner accepted a local-integrity amendment defining observations as
   application-immutable and locally tamper-evident, adding private source
   snapshots, PDF model stability checks, and read-only `tcw verify`.
+- The accepted amendment is implemented locally: both adapters consume one
+  owner-only source snapshot, PDF models are checked before and after
+  extraction, persisted comparison bytes are inventoried, and the standalone
+  verifier checks published observations plus opt-in provenance advisories.
 
 ## Document roles
 
@@ -58,10 +62,10 @@ the prefetched `layout` and `tableformer` files, and no observation-time
 network access. The emitted Docling schema identity is `DoclingDocument`
 version `1.10.0`.
 
-Implementation verification on 2026-07-21:
+Implementation and local-integrity amendment verification on 2026-07-21:
 
-- fast unit suite: 31 tests passed
-- full suite: 34 tests passed, including the mandatory spike, all twelve
+- fast unit suite: 48 tests passed
+- full suite: 51 tests passed, including the mandatory spike, all twelve
   fixtures through both extractors, same-lock JSON reload, expected table
   counts, anchor preservation, network denial, and byte-identical comparison
   summaries across isolated output roots
@@ -69,12 +73,14 @@ Implementation verification on 2026-07-21:
   locally and in a separate byte-identical `core.autocrlf=true` checkout
 - staged publication inventory checks passed for missing, changed, replaced,
   symlinked, and unexpected content while preserving prior runs
+- source snapshot, extractor preflight, PDF model-stability, neutral
+  concurrency, and verifier corruption/advisory tests passed
 - schema validation, compile check, `git diff --check`, and the documented
-  manual PDF observation passed
+  manual PDF observation plus `tcw verify` checks passed
 
-The next action is implementation of the accepted amendment in Section 13 of
-the milestone plan, followed by full verification and a fresh milestone
-review. The CLI binary remains `tcw`.
+The next action is a fresh milestone review against Section 13 after the
+amendment implementation verification is complete. The CLI binary remains
+`tcw`.
 
 No repository-wide agent workflow is automatically activated. The current
 milestone is being run through the explicitly requested plan-build-review

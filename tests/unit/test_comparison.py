@@ -17,6 +17,7 @@ class ComparisonTests(unittest.TestCase):
         docling = b"# Title\n\n- one\n1. two\n| A | B |\nhttps://example.invalid/x\n"
         markitdown = b"Title\n\n- one\nhttps://example.invalid/x\n"
         result = make_comparison(
+            "f" * 64,
             {"sha256": "a" * 64, "media_type": "text/markdown", "fixture_id": None},
             {"url": "https://example.invalid/x"},
             (docling, hashlib.sha256(docling).hexdigest()),
@@ -30,6 +31,7 @@ class ComparisonTests(unittest.TestCase):
 
     def test_unavailable_views_have_no_deltas(self) -> None:
         result = make_comparison(
+            "f" * 64,
             {"sha256": "a" * 64, "media_type": "text/plain", "fixture_id": None},
             {},
             None,

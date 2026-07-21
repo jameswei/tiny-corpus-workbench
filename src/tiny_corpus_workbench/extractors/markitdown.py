@@ -11,6 +11,13 @@ HINTS = {
 }
 
 
+def preflight() -> None:
+    if not callable(MarkItDown) or not callable(StreamInfo):
+        raise RuntimeError("MarkItDown adapter API is incompatible")
+    if not callable(getattr(MarkItDown, "convert_local", None)):
+        raise RuntimeError("MarkItDown convert_local API is unavailable")
+
+
 def convert(source: Path, destination: Path) -> None:
     kwargs = {"stream_info": HINTS[source.suffix.lower()]} if source.suffix.lower() in HINTS else {}
     result = MarkItDown(enable_plugins=False).convert_local(source, **kwargs)

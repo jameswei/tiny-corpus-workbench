@@ -199,24 +199,34 @@ class CliFailureTests(unittest.TestCase):
                 if with_content:
                     self.assertEqual((destinations[0] / "sentinel").read_bytes(), sentinel)
 
-    def test_source_mutation_discards_staging(self) -> None:
+    def test_original_source_change_after_capture_does_not_mix_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "source.md"
             source.write_text("# original\n", "utf-8")
+            adapter_inputs = []
 
-            def mutate(source_path: Path, destination: Path):
+            def docling_then_mutate(source_path: Path, destination: Path, model_root: Path):
+                adapter_inputs.append((source_path, source_path.read_bytes()))
+                result = fake_docling(source_path, destination, model_root)
+                source.write_text("# changed\n", "utf-8")
+                return result
+
+            def record_markitdown(source_path: Path, destination: Path):
+                adapter_inputs.append((source_path, source_path.read_bytes()))
                 fake_markitdown(source_path, destination)
-                source_path.write_text("# changed\n", "utf-8")
 
             output = Path(directory) / "output"
-            with mock.patch("tiny_corpus_workbench.extractors.docling.convert", wraps=fake_docling), mock.patch("tiny_corpus_workbench.extractors.markitdown.convert", wraps=mutate):
+            with mock.patch("tiny_corpus_workbench.extractors.docling.convert", wraps=docling_then_mutate), mock.patch("tiny_corpus_workbench.extractors.markitdown.convert", wraps=record_markitdown):
                 code, stdout, stderr = self.invoke("observe", str(source), "--output-root", str(output))
-            self.assertEqual(code, 5)
-            self.assertEqual(stdout, "")
-            self.assertIn("changed during extraction", stderr)
-            self.assertEqual(list(output.glob("*/*")), [])
+            self.assertEqual(code, 0)
+            self.assertTrue(stdout)
+            self.assertEqual(stderr, "")
+            self.assertEqual(adapter_inputs[0], adapter_inputs[1])
+            self.assertNotEqual(adapter_inputs[0][0].resolve(), source.resolve())
+            self.assertEqual(adapter_inputs[0][1], b"# original\n")
+            self.assertFalse(adapter_inputs[0][0].exists())
 
-    def test_source_deletion_and_replacement_are_integrity_failures(self) -> None:
+    def test_original_deletion_or_replacement_after_capture_does_not_fail(self) -> None:
         for operation in ("delete", "replace"):
             with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -227,11 +237,11 @@ class CliFailureTests(unittest.TestCase):
                 def change_source(source_path: Path, destination: Path):
                     fake_markitdown(source_path, destination)
                     if operation == "delete":
-                        source_path.unlink()
+                        source.unlink()
                     else:
-                        replacement = source_path.with_name("replacement.md")
+                        replacement = source.with_name("replacement.md")
                         replacement.write_text("# replacement\n", "utf-8")
-                        replacement.replace(source_path)
+                        replacement.replace(source)
 
                 with mock.patch(
                     "tiny_corpus_workbench.extractors.docling.convert",
@@ -243,11 +253,10 @@ class CliFailureTests(unittest.TestCase):
                     code, stdout, stderr = self.invoke(
                         "observe", str(source), "--output-root", str(output)
                     )
-                self.assertEqual(code, 5)
-                self.assertEqual(stdout, "")
-                self.assertIn("SOURCE", stderr)
-                self.assertIn("observation discarded", stderr)
-                self.assertEqual(list(output.glob("*/*")), [])
+                self.assertEqual(code, 0)
+                self.assertTrue(stdout)
+                self.assertEqual(stderr, "")
+                self.assertEqual(len(list(output.glob("*/*"))), 1)
                 self.assertEqual(list(output.glob("*/.staging-*")), [])
 
     def test_unexpected_internal_failure_discards_staging(self) -> None:

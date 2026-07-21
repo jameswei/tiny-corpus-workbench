@@ -3,9 +3,10 @@
   "$id": "https://example.invalid/tcw/comparison-summary-v0.1.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "normalization_algorithm", "source", "anchors", "status", "views", "deltas"],
+  "required": ["schema_version", "observation_id", "normalization_algorithm", "source", "anchors", "status", "views", "deltas"],
   "properties": {
     "schema_version": {"const": "tcw.comparison-summary/v0.1"},
+    "observation_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "normalization_algorithm": {"const": "tcw-markdown-normalize-v1"},
     "source": {"type": "object", "additionalProperties": false, "required": ["sha256", "media_type", "fixture_id"], "properties": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "media_type": {"type": "string"}, "fixture_id": {"type": ["string", "null"]}}},
     "anchors": {"type": "object", "additionalProperties": {"type": "string"}},

@@ -2826,6 +2826,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "docling" },
+    { name = "jsonschema" },
     { name = "markitdown", extra = ["docx", "pdf"] },
 ]
 
@@ -2835,7 +2836,6 @@ fixtures = [
     { name = "reportlab" },
 ]
 test = [
-    { name = "jsonschema" },
     { name = "python-docx" },
     { name = "reportlab" },
 ]
@@ -2843,6 +2843,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "docling", specifier = "==2.113.0" },
+    { name = "jsonschema", specifier = "==4.26.0" },
     { name = "markitdown", extras = ["docx", "pdf"], specifier = "==0.1.6" },
 ]
 
@@ -2852,7 +2853,6 @@ fixtures = [
     { name = "reportlab", specifier = "==5.0.0" },
 ]
 test = [
-    { name = "jsonschema", specifier = "==4.26.0" },
     { name = "python-docx", specifier = "==1.2.0" },
     { name = "reportlab", specifier = "==5.0.0" },
 ]

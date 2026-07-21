@@ -17,6 +17,21 @@ class DoclingSerializationError(RuntimeError):
     pass
 
 
+def preflight() -> None:
+    required = (
+        callable(DocumentConverter),
+        callable(PdfPipelineOptions),
+        callable(PdfFormatOption),
+        callable(AcceleratorOptions),
+        callable(getattr(DocumentConverter, "convert", None)),
+        hasattr(InputFormat, "PDF"),
+        hasattr(ConversionStatus, "SUCCESS"),
+        hasattr(ConversionStatus, "PARTIAL_SUCCESS"),
+    )
+    if not all(required):
+        raise RuntimeError("Docling adapter API is incompatible")
+
+
 def convert(source: Path, destination: Path, model_root: Path) -> tuple[str, dict[str, str]]:
     options = PdfPipelineOptions(
         artifacts_path=model_root.resolve(),

@@ -44,6 +44,13 @@ uv run --frozen tcw observe SOURCE \
 OOXML, non-UTF-8 text, and NUL-containing text are rejected before extraction.
 There is no directory or batch command.
 
+Before capture, `tcw` checks the exact locked package versions and both adapter
+APIs. It then opens the non-symlink source once and copies it into an owner-only
+private snapshot. The descriptor metadata must remain stable throughout that
+copy. Both extractors consume the same validated snapshot, which is removed
+before publication. A later change to the original source cannot mix extractor
+inputs and does not invalidate the completed observation.
+
 Each valid attempt prints one compact JSON line to stdout identifying the
 published manifest, run ID, and overall status. Diagnostics use stderr.
 
@@ -58,6 +65,11 @@ extension/media-type/UTF-8 hints for Markdown and text.
 Missing PDF models fail with evidence; observation never downloads them.
 Born-digital documents are the v0.1 target. Scans and OCR-heavy workflows are
 outside this milestone.
+
+For PDF input, the complete sorted model inventory is checked before extraction
+and again immediately before final staged verification. An added, removed,
+replaced, changed, unreadable, or newly symlinked model file aborts publication.
+Non-PDF observations do not inventory the model directory.
 
 ## Published observation
 
@@ -74,7 +86,7 @@ build/extraction-observatory/<source-key>/<run-id>/
 
 `manifest.json` records source identity and hash, the exact dependency and
 lockfile environment, fixed configurations, model inventory, extractor
-results, artifact hashes, stable errors, and immutability markers.
+results, artifact hashes, stable errors, and `application_immutable` markers.
 `docling/document.json` is the unmodified output of Docling's
 `save_as_json()`.
 
@@ -86,23 +98,62 @@ There is no fuzzy score, semantic-equivalence claim, ranking, or quality label.
 
 Both adapters are attempted independently. A validated partial or failed
 attempt is still published with `INCOMPLETE` or `NOT_AVAILABLE` comparison
-evidence. A source mutation or integrity failure discards staging and publishes
-nothing. Immediately before publication, every staged regular file and
-directory must match the complete captured inventory; missing, changed,
-symlinked, replaced, or unexpected content aborts the run.
+evidence. A source mutation during snapshot capture or another integrity
+failure discards staging and publishes nothing. Immediately before publication,
+every staged regular file and directory must match the complete captured
+inventory; missing, changed, symlinked, replaced, or unexpected content aborts
+the run.
+
+## Verify a published observation
+
+Verification is self-contained by default and does not import either extractor:
+
+```bash
+uv run --frozen tcw verify OBSERVATION_DIRECTORY
+```
+
+The command writes exactly one compact JSON report to stdout. `VERIFIED` means
+the supported schemas, expected paths, regular-file kinds, recorded sizes and
+hashes, observation identity, statuses, and internal references agree. Ordinary
+artifact corruption reports `INTEGRITY_MISMATCH`; an uninterpretable manifest,
+identity, or reference reports `BROKEN`. Both failure states exit `5` and leave
+the observation unchanged.
+
+Current provenance checks are opt-in and advisory:
+
+```bash
+uv run --frozen tcw verify OBSERVATION_DIRECTORY --source SOURCE
+uv run --frozen tcw verify OBSERVATION_DIRECTORY \
+  --docling-artifacts .cache/docling/models
+```
+
+The source state is `MATCH`, `CHANGED`, `MISSING`, or `ERROR`. The PDF model
+state uses the same states; a non-PDF observation is `NOT_APPLICABLE`. Without
+an option the corresponding state is `NOT_CHECKED`. These advisories never
+change historical artifact integrity or the verifier exit code.
 
 ## Reruns and compatibility
 
 Every invocation creates a new UTC/randomized run ID. Published directories
 are never reused, overwritten, repaired, or modified by the application. A
-rerun preserves all earlier evidence.
+rerun preserves all earlier evidence. Rebuilding means running `tcw observe`
+again to create a new observation; `tcw verify` never repairs or quarantines a
+run.
 
 Docling JSON compatibility is promised only for the exact `uv.lock`
 environment that created an artifact. Dependency or model changes create new
 observations; they do not migrate old ones. For a run, inspect the source, run
 directory, committed lockfile, and recorded local model inventory together.
 
-## Exit codes
+“Application-immutable” describes `tcw` behavior, not filesystem enforcement.
+The local hashes and verifier make runs tamper-evident for ordinary corruption
+and uncoordinated changes. v0.1 trusts the local user, operating system, Python
+process, and filesystem. It does not provide signatures, attribution, trusted
+timestamps, ACL enforcement, or detection of a coordinated rewrite of a
+manifest and all referenced artifacts. Deliberate same-user mutation timed
+after final staged verification is also outside this trusted-local model.
+
+## Observe exit codes
 
 | Code | Meaning |
 | --- | --- |
@@ -113,6 +164,11 @@ directory, committed lockfile, and recorded local model inventory together.
 | `4` | Neither extractor produced a usable view. |
 | `5` | Source mutation, publication conflict, or artifact-integrity failure. |
 | `6` | Locked runtime, dependency, or required model artifacts unavailable or incompatible. |
+
+`tcw verify` uses `0` for `VERIFIED`, `2` for an invalid observation-directory
+argument, `5` for `INTEGRITY_MISMATCH` or `BROKEN`, `6` when its bundled schema
+runtime is unavailable or incompatible, and `1` for an unexpected verifier
+failure. Advisory source and model states do not affect those codes.
 
 ## Fixtures and verification
 

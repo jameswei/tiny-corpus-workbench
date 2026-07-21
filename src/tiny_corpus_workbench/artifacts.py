@@ -26,6 +26,23 @@ def canonical_json(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 
+def compute_observation_id(
+    source: dict[str, Any],
+    dependencies: dict[str, str],
+    configurations: dict[str, Any],
+    lock_sha256: str,
+    model_inventory_hash: str | None,
+) -> str:
+    identity = {
+        "source": {key: source[key] for key in ("sha256", "size", "media_type")},
+        "extractors": dependencies,
+        "configurations": configurations,
+        "lock_sha256": lock_sha256,
+        "model_inventory_hash": model_inventory_hash,
+    }
+    return hashlib.sha256(canonical_json(identity).rstrip(b"\n")).hexdigest()
+
+
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(canonical_json(value))
@@ -39,33 +56,71 @@ def inventory_models(root: Path, *, required: bool) -> dict[str, Any]:
             "inventory_hash": None,
             "files": [],
         }
-    if root.is_symlink():
-        raise RuntimeContractError("Docling model artifact root must not be a symlink")
-    root = root.resolve()
-    if not root.is_dir():
-        raise RuntimeContractError(f"required Docling model artifacts are missing: {root}")
-    for relative in REQUIRED_MODEL_FILES:
-        path = root / relative
-        if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+    try:
+        if root.is_symlink():
             raise RuntimeContractError(
-                f"required Docling model artifact is missing or invalid: {relative}"
+                "Docling model artifact root must not be a symlink"
             )
-    files = []
-    for path in sorted(root.rglob("*")):
-        if path.is_symlink():
-            raise RuntimeContractError("Docling model artifacts must not contain symlinks")
-        if path.is_file():
-            files.append(
-                {
-                    "path": path.relative_to(root).as_posix(),
-                    "size": path.stat().st_size,
-                    "sha256": sha256_file(path),
-                }
+        root = root.resolve()
+        if not root.is_dir():
+            raise RuntimeContractError(
+                f"required Docling model artifacts are missing: {root}"
             )
+        for relative in REQUIRED_MODEL_FILES:
+            path = root / relative
+            if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+                raise RuntimeContractError(
+                    f"required Docling model artifact is missing or invalid: {relative}"
+                )
+        files = []
+        for path in sorted(root.rglob("*")):
+            if path.is_symlink():
+                raise RuntimeContractError(
+                    "Docling model artifacts must not contain symlinks"
+                )
+            if path.is_file():
+                files.append(
+                    {
+                        "path": path.relative_to(root).as_posix(),
+                        "size": path.stat().st_size,
+                        "sha256": sha256_file(path),
+                    }
+                )
+    except RuntimeContractError:
+        raise
+    except OSError as error:
+        raise RuntimeContractError("Docling model artifacts are unreadable") from error
     if not files:
         raise RuntimeContractError(f"required Docling model artifacts are empty: {root}")
     inventory_hash = hashlib.sha256(canonical_json(files).rstrip(b"\n")).hexdigest()
     return {"required": True, "path": str(root), "inventory_hash": inventory_hash, "files": files}
+
+
+def model_filesystem_identity(root: Path) -> tuple[tuple[Any, ...], ...]:
+    """Capture ephemeral identity used only to detect replacement during a run."""
+
+    identity = []
+    try:
+        for path in sorted(root.resolve().rglob("*")):
+            if path.is_symlink():
+                raise RuntimeContractError(
+                    "Docling model artifacts must not contain symlinks"
+                )
+            if path.is_file():
+                metadata = path.stat()
+                identity.append(
+                    (
+                        path.relative_to(root.resolve()).as_posix(),
+                        metadata.st_dev,
+                        metadata.st_ino,
+                        metadata.st_size,
+                        metadata.st_mtime_ns,
+                        metadata.st_ctime_ns,
+                    )
+                )
+    except OSError as error:
+        raise RuntimeContractError("Docling model artifacts are unreadable") from error
+    return tuple(identity)
 
 
 def verify_staged_observation(

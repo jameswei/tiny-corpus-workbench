@@ -15,7 +15,7 @@
       "family": "meeting-minutes",
       "format": "docx",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -42,7 +42,7 @@
       "family": "meeting-minutes",
       "format": "md",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -69,7 +69,7 @@
       "family": "meeting-minutes",
       "format": "pdf",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -96,7 +96,7 @@
       "family": "meeting-minutes",
       "format": "txt",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -123,7 +123,7 @@
       "family": "policy-memo",
       "format": "docx",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -150,7 +150,7 @@
       "family": "policy-memo",
       "format": "md",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -177,7 +177,7 @@
       "family": "policy-memo",
       "format": "pdf",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -204,7 +204,7 @@
       "family": "policy-memo",
       "format": "txt",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -231,7 +231,7 @@
       "family": "release-notice",
       "format": "docx",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -258,7 +258,7 @@
       "family": "release-notice",
       "format": "md",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -285,7 +285,7 @@
       "family": "release-notice",
       "format": "pdf",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -312,7 +312,7 @@
       "family": "release-notice",
       "format": "txt",
       "generator": {
-        "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+        "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
         "name": "tools/generate_fixtures.py",
         "schema": "tcw.authored-fixture/v0.1"
       },
@@ -329,6 +329,6 @@
     "name": "tools/generate_fixtures.py",
     "schema": "tcw.authored-fixture/v0.1"
   },
-  "lockfile_sha256": "e2ca9f36c689c843024559350b82809ffec2d0b45fa762e5de4e1f1d0198b38b",
+  "lockfile_sha256": "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09",
   "schema_version": "tcw.fixture-registry/v0.1"
 }

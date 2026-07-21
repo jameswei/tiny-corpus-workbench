@@ -52,6 +52,7 @@ def _metrics(text: str, anchors: dict[str, str], artifact_hash: str) -> dict[str
 
 
 def make_comparison(
+    observation_id: str,
     source: dict[str, Any],
     anchors: dict[str, str],
     docling: tuple[bytes, str] | None,
@@ -79,6 +80,7 @@ def make_comparison(
         deltas = None
     return {
         "schema_version": "tcw.comparison-summary/v0.1",
+        "observation_id": observation_id,
         "normalization_algorithm": "tcw-markdown-normalize-v1",
         "source": {
             "sha256": source["sha256"],

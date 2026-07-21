@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/verification-result-v0.1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "observation_directory", "artifact_integrity", "source_state", "model_state"],
+  "properties": {
+    "schema_version": {"const": "tcw.verification-result/v0.1"},
+    "observation_directory": {"type": "string"},
+    "artifact_integrity": {"$ref": "#/$defs/artifactResult"},
+    "source_state": {"$ref": "#/$defs/advisory"},
+    "model_state": {"$ref": "#/$defs/modelAdvisory"}
+  },
+  "$defs": {
+    "issue": {"type": "object", "additionalProperties": false, "required": ["code", "path", "message"], "properties": {"code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}, "path": {"type": ["string", "null"]}, "message": {"type": "string", "maxLength": 500}}},
+    "artifactResult": {"type": "object", "additionalProperties": false, "required": ["status", "issues"], "properties": {"status": {"enum": ["VERIFIED", "INTEGRITY_MISMATCH", "BROKEN"]}, "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}}}},
+    "advisory": {"type": "object", "additionalProperties": false, "required": ["status"], "properties": {"status": {"enum": ["MATCH", "CHANGED", "MISSING", "ERROR", "NOT_CHECKED"]}}},
+    "modelAdvisory": {"type": "object", "additionalProperties": false, "required": ["status"], "properties": {"status": {"enum": ["MATCH", "CHANGED", "MISSING", "ERROR", "NOT_CHECKED", "NOT_APPLICABLE"]}}}
+  }
+}
