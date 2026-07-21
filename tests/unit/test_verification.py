@@ -14,8 +14,13 @@ from unittest import mock
 from jsonschema import Draft202012Validator
 
 from tiny_corpus_workbench import cli
-from tiny_corpus_workbench.artifacts import REQUIRED_MODEL_FILES
+from tiny_corpus_workbench.artifacts import (
+    REQUIRED_MODEL_FILES,
+    canonical_json,
+    compute_observation_id,
+)
 from tiny_corpus_workbench.domain import RuntimeContractError
+from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
@@ -65,6 +70,25 @@ def snapshot(root: Path) -> dict[str, tuple[int, int, bytes]]:
         for path in sorted(root.rglob("*"))
         if path.is_file()
     }
+
+
+def rewrite_observation_identity(root: Path, manifest: dict) -> None:
+    observation_id = compute_observation_id(
+        manifest["source"],
+        manifest["runtime"]["dependencies"],
+        manifest["configurations"],
+        manifest["runtime"]["lockfile"]["sha256"],
+        manifest["models"]["inventory_hash"],
+    )
+    manifest["observation_id"] = observation_id
+    comparison_path = root / "comparison.json"
+    comparison = json.loads(comparison_path.read_text("utf-8"))
+    comparison["observation_id"] = observation_id
+    comparison_bytes = canonical_json(comparison)
+    comparison_path.write_bytes(comparison_bytes)
+    manifest["comparison"]["size"] = len(comparison_bytes)
+    manifest["comparison"]["sha256"] = hashlib.sha256(comparison_bytes).hexdigest()
+    (root / "manifest.json").write_bytes(canonical_json(manifest))
 
 
 class VerificationTests(unittest.TestCase):
@@ -414,6 +438,55 @@ class VerificationTests(unittest.TestCase):
                             for issue in report["artifact_integrity"]["issues"]
                         },
                     )
+
+    def test_every_runtime_dependency_mapping_mutation_is_broken(self) -> None:
+        cases = []
+        for name in RUNTIME_DEPENDENCIES:
+            cases.append((f"changed-{name}", "change", name))
+            cases.append((f"missing-{name}", "remove", name))
+        cases.append(("unexpected-dependency", "add", "unexpected"))
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, baseline = self.observation(root / "baseline")
+            for operation, mutation, name in cases:
+                with self.subTest(operation=operation):
+                    copied = root / operation / baseline.name
+                    copied.parent.mkdir()
+                    shutil.copytree(baseline, copied)
+                    manifest_path = copied / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    dependencies = manifest["runtime"]["dependencies"]
+                    if mutation == "change":
+                        dependencies[name] = "9.9.9"
+                    elif mutation == "remove":
+                        del dependencies[name]
+                    else:
+                        dependencies[name] = "9.9.9"
+                    rewrite_observation_identity(copied, manifest)
+
+                    code, report, stdout, stderr = self.verify(copied)
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(len(stdout.splitlines()), 1)
+                    self.assertEqual(
+                        report["artifact_integrity"]["status"], "BROKEN"
+                    )
+                    self.assertIn(
+                        "MANIFEST_INVALID",
+                        {
+                            issue["code"]
+                            for issue in report["artifact_integrity"]["issues"]
+                        },
+                    )
+                    if operation == "changed-docling-core":
+                        self.assertEqual(
+                            {
+                                issue["code"]
+                                for issue in report["artifact_integrity"]["issues"]
+                            },
+                            {"MANIFEST_INVALID"},
+                        )
 
     def test_pdf_model_runtime_manifest_mutations_are_broken(self) -> None:
         schema = json.loads(

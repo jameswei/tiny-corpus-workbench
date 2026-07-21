@@ -10,6 +10,7 @@ from unittest import mock
 from jsonschema import Draft202012Validator, ValidationError
 
 from tiny_corpus_workbench.cli import observe
+from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
 
 
 SCHEMAS = Path("src/tiny_corpus_workbench/schemas")
@@ -149,6 +150,30 @@ class SchemaTests(unittest.TestCase):
             with self.subTest(names=[item.get("name") for item in invalid["extractors"]]):
                 with self.assertRaises(ValidationError):
                     validator.validate(invalid)
+
+    def test_manifest_dependency_schema_matches_runtime_contract(self) -> None:
+        schema = json.loads(
+            (SCHEMAS / "preparation-manifest-v0.1.schema.json").read_text("utf-8")
+        )
+        dependency_schema = schema["$defs"]["runtime"]["properties"][
+            "dependencies"
+        ]
+        manifest, _ = real_observation_documents()
+
+        self.assertFalse(dependency_schema["additionalProperties"])
+        self.assertEqual(
+            dependency_schema["required"], list(RUNTIME_DEPENDENCIES)
+        )
+        self.assertEqual(
+            {
+                name: contract["const"]
+                for name, contract in dependency_schema["properties"].items()
+            },
+            dict(RUNTIME_DEPENDENCIES),
+        )
+        self.assertEqual(
+            manifest["runtime"]["dependencies"], dict(RUNTIME_DEPENDENCIES)
+        )
 
     def test_manifest_nested_objects_are_closed_and_required(self) -> None:
         schema = json.loads(

@@ -23,6 +23,7 @@ from tiny_corpus_workbench.domain import (
     RuntimeContractError,
     sanitize_message,
 )
+from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
 from tiny_corpus_workbench.source import sha256_file
 
 
@@ -175,6 +176,14 @@ def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
                 "REFERENCE_MISMATCH",
                 "manifest.json",
                 "recorded Python runtime differs from the fixed CPython 3.12 contract",
+            )
+        )
+    if dependencies != RUNTIME_DEPENDENCIES:
+        issues.append(
+            _issue(
+                "REFERENCE_MISMATCH",
+                "manifest.json",
+                "recorded dependencies differ from the fixed runtime contract",
             )
         )
     results = {result["name"]: result for result in manifest["extractors"]}

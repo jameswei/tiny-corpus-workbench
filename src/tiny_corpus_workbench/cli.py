@@ -32,14 +32,10 @@ from tiny_corpus_workbench.domain import (
     WorkbenchError,
     sanitize_message,
 )
+from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
 from tiny_corpus_workbench.source import SourceSnapshot, sha256_file
 
 
-DEPENDENCIES = {
-    "docling": "2.113.0",
-    "docling-core": "2.87.1",
-    "markitdown": "0.1.6",
-}
 DOCLING_CONFIG = {
     "accelerator": "cpu",
     "ocr": False,
@@ -77,12 +73,14 @@ def _lock_identity() -> dict[str, Any]:
     if not lock.is_file():
         raise RuntimeContractError("uv.lock is required from the repository root")
     try:
-        installed = {name: importlib.metadata.version(name) for name in DEPENDENCIES}
+        installed = {
+            name: importlib.metadata.version(name) for name in RUNTIME_DEPENDENCIES
+        }
     except Exception as error:
         raise RuntimeContractError(
             "required extractor package metadata is unavailable"
         ) from error
-    if installed != DEPENDENCIES:
+    if installed != RUNTIME_DEPENDENCIES:
         raise RuntimeContractError("installed extractor versions do not match the locked v0.1 contract")
     if platform.python_implementation() != "CPython" or sys.version_info[:2] != (
         3,
@@ -154,7 +152,7 @@ def _result(name: str, version: str) -> dict[str, Any]:
 def _observation_id(source: dict[str, Any], lock: dict[str, Any], models: dict[str, Any]) -> str:
     return compute_observation_id(
         source,
-        DEPENDENCIES,
+        lock["dependencies"],
         {"docling": DOCLING_CONFIG, "markitdown": MARKITDOWN_CONFIG},
         lock["sha256"],
         models["inventory_hash"],
@@ -192,8 +190,12 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
         run_id = f"{now.strftime('%Y%m%dT%H%M%S.%fZ')}-{uuid.uuid4().hex[:12]}"
         publisher = AtomicObservation(output_root, source.key, run_id)
         with publisher as staging:
-            docling_result = _result("docling", DEPENDENCIES["docling"])
-            markitdown_result = _result("markitdown", DEPENDENCIES["markitdown"])
+            docling_result = _result(
+                "docling", RUNTIME_DEPENDENCIES["docling"]
+            )
+            markitdown_result = _result(
+                "markitdown", RUNTIME_DEPENDENCIES["markitdown"]
+            )
             schema = {"name": None, "version": None}
 
             if model_error is not None:

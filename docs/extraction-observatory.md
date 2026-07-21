@@ -88,6 +88,9 @@ build/extraction-observatory/<source-key>/<run-id>/
 `manifest.json` records source identity and hash, the exact dependency and
 lockfile environment, fixed configurations, model inventory, extractor
 results, artifact hashes, stable errors, and `application_immutable` markers.
+The fixed runtime dependency mapping is `docling==2.113.0`,
+`docling-core==2.87.1`, and `markitdown==0.1.6`; verification rejects a changed,
+missing, or additional entry.
 `docling/document.json` is the unmodified output of Docling's
 `save_as_json()`.
 
