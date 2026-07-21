@@ -11,13 +11,15 @@ Future work may use whichever sound engineering practices fit the task.
 - The initial brainstorming verdict is preserved in `docs/proposal.md`.
 - The major milestones from v0.0 through v1.0 are recorded in
   `docs/roadmap.md`.
-- Milestone v0.1, Extraction Observatory, is implemented on
+- Milestone v0.1, Extraction Observatory, is active on
   `milestone/v0.1-extraction-observatory`.
 - Its accepted implementation and review contract is
   `docs/plans/v0.1-extraction-observatory.md`.
-- The local `tcw observe` CLI, schemas, twelve deterministic CC0 fixtures,
-  tests, and user guide are present. Fresh milestone review remains the next
-  gate before publication.
+- The initial `tcw observe` implementation, schemas, twelve deterministic CC0
+  fixtures, tests, and user guide are present.
+- The owner accepted a local-integrity amendment defining observations as
+  application-immutable and locally tamper-evident, adding private source
+  snapshots, PDF model stability checks, and read-only `tcw verify`.
 
 ## Document roles
 
@@ -70,8 +72,9 @@ Implementation verification on 2026-07-21:
 - schema validation, compile check, `git diff --check`, and the documented
   manual PDF observation passed
 
-The next action is a fresh milestone review. Reviewer findings should return to
-the builder without changing the accepted contract silently.
+The next action is implementation of the accepted amendment in Section 13 of
+the milestone plan, followed by full verification and a fresh milestone
+review. The CLI binary remains `tcw`.
 
 No repository-wide agent workflow is automatically activated. The current
 milestone is being run through the explicitly requested plan-build-review
