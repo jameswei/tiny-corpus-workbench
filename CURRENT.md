@@ -109,8 +109,9 @@ linting, the 70-test fast checks, checkout-portability regression, explicit
 model download, and 73-test full suite pass. A fresh milestone reviewer returned
 `PASS` for the publication amendment on 2026-07-22. Actual GitHub-hosted runs
 passed on the reviewed branch. The branch is published in
-[draft PR #1](https://github.com/jameswei/tiny-corpus-workbench/pull/1), whose
-current hosted check state is authoritative. No merge has been performed.
+[PR #1](https://github.com/jameswei/tiny-corpus-workbench/pull/1). GitHub's PR,
+check, and default-branch state is authoritative for publication and merge
+status.
 
 No repository-wide agent workflow is automatically activated. The current
 milestone is being run through the explicitly requested plan-build-review
