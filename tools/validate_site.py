@@ -18,7 +18,7 @@ EXPECTED_FILES = {
     "index.html",
     "styles.css",
 }
-CANONICAL_URL = "https://jameswei.github.io/tiny-corpus-workbench/"
+CANONICAL_URL = "https://lifeplayer.space/tiny-corpus-workbench/"
 FORBIDDEN_ELEMENTS = {
     "button",
     "embed",

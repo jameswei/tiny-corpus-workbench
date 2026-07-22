@@ -31,7 +31,7 @@ Future work may use whichever sound engineering practices fit the task.
   extraction, persisted comparison bytes are inventoried, and the standalone
   verifier checks published observations plus opt-in provenance advisories.
 - The project website is a separate, static publication surface at
-  `https://jameswei.github.io/tiny-corpus-workbench/`. It explains the released
+  `https://lifeplayer.space/tiny-corpus-workbench/`. It explains the released
   workbench and points readers to the repository documentation; it does not
   process documents or change the roadmap milestone state.
 - GitHub Pages deployment and GitHub Actions runs are authoritative for the

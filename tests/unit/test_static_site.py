@@ -13,7 +13,7 @@ from urllib.parse import urljoin
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 VALIDATOR = REPOSITORY_ROOT / "tools" / "validate_site.py"
 SOURCE_SITE = REPOSITORY_ROOT / "site"
-CANONICAL_URL = "https://jameswei.github.io/tiny-corpus-workbench/"
+CANONICAL_URL = "https://lifeplayer.space/tiny-corpus-workbench/"
 
 
 class LinkCollector(HTMLParser):
@@ -67,7 +67,7 @@ class StaticSiteValidationTests(unittest.TestCase):
         )
         self.assertEqual(
             urljoin(
-                "https://jameswei.github.io/tiny-corpus-workbench/missing/path/",
+                "https://lifeplayer.space/tiny-corpus-workbench/missing/path/",
                 CANONICAL_URL,
             ),
             CANONICAL_URL,
