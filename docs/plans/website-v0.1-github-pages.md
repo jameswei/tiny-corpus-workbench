@@ -6,6 +6,8 @@
 
 **Validator contract revised:** 2026-07-23
 
+**Public copy revised:** 2026-07-23
+
 **Branch:** `feat/github-pages`
 
 ## 1. Outcome
@@ -18,8 +20,8 @@ https://jameswei.github.io/tiny-corpus-workbench/
 ```
 
 The website is a project presentation and learning surface. It explains the
-current v0.1.0 Extraction Observatory, its artifact model, its integrity
-boundary, and how to start. It does not process documents.
+Extraction Observatory, its artifact model, its integrity boundary, the
+project's evolving direction, and how to start. It does not process documents.
 
 This work is an internal publication milestone. It does not activate or
 complete a roadmap milestone, change the package version, create a tag or
@@ -76,7 +78,7 @@ The single page contains six compact sections.
 
 ### 4.1 Header and hero
 
-- Use a `v0.1.0` eyebrow.
+- Use a version-neutral `Extraction Observatory` eyebrow.
 - Use the heading: "Inspect extraction before downstream systems inherit it."
 - Use no more than two introductory sentences.
 - Provide "Try it" and "View GitHub" actions.
@@ -99,11 +101,12 @@ Label the source as unchanged, the snapshot as temporary, Docling JSON as
 canonical, and Markdown views as derived. State that the private snapshot is
 removed before publication.
 
-### 4.3 v0.1 and artifact anatomy
+### 4.3 Current capabilities and artifact anatomy
 
-Summarize the released surface: supported fixture formats, twelve deterministic
-fixtures, offline observation after model prefetch, and the `observe` and
-`verify` commands. Show the exact five-file published observation layout:
+Summarize the current implemented surface without version or release wording:
+supported fixture formats, twelve deterministic fixtures, offline observation
+after model prefetch, and the `observe` and `verify` commands. Show the exact
+five-file published observation layout:
 
 ```text
 manifest.json
@@ -128,12 +131,15 @@ tamper-proof operation.
 ### 4.5 Quick start and learning
 
 Use the existing three-command setup and observation path from the README.
-Link to the Extraction Observatory guide and the v0.1 learner module.
+Link to the Extraction Observatory guide and learner module without a version
+label in the visible link text.
 
-### 4.6 Status and footer
+### 4.6 Project direction and footer
 
-State that v0.1.0 is available and v0.2 through v1.0 are planned. Link to the
-release, roadmap, repository, and license.
+Explain that the project will evolve from extraction observation toward
+diagnosis and controlled refinement. Link to the roadmap, repository, learning
+material, and license. Do not show a version, release, or milestone range in
+the public page copy.
 
 Section introductions contain no more than two sentences. Cards contain no
 more than three bullets. Major claims are not duplicated across sections.
@@ -188,8 +194,8 @@ motion.
 
 - Make site asset paths relative so the site works at the GitHub Pages project
   subpath.
-- Use absolute HTTPS URLs for repository, guide, lesson, release, roadmap, and
-  license navigation.
+- Use absolute HTTPS URLs for repository, guide, lesson, roadmap, and license
+  navigation.
 - Set the canonical URL to the GitHub Pages URL.
 - Give the custom 404 page `noindex` metadata and a clear link to the site
   home.
@@ -346,8 +352,9 @@ site, rather than to arbitrary HTML or CSS mutations.
 - The accepted plan is saved before implementation.
 - The site is semantic, responsive, keyboard accessible, visually restrained,
   and usable at all specified viewport widths.
-- It accurately represents v0.1.0 and the project's integrity and scope
-  boundaries.
+- It accurately represents the currently implemented capabilities and the
+  project's integrity and scope boundaries without tying the landing page copy
+  to a version or release.
 - Source review and browser request logging confirm that the committed site has
   none of the forbidden application behavior or external runtime dependencies.
 - The validator and its negative-path tests pass.
