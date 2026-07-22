@@ -1,6 +1,6 @@
 # Handoff Snapshot
 
-**Last updated:** 2026-07-21
+**Last updated:** 2026-07-22
 
 This is an informational handoff, not a required agent workflow or taskboard.
 Future work may use whichever sound engineering practices fit the task.
@@ -11,8 +11,8 @@ Future work may use whichever sound engineering practices fit the task.
 - The initial brainstorming verdict is preserved in `docs/proposal.md`.
 - The major milestones from v0.0 through v1.0 are recorded in
   `docs/roadmap.md`.
-- Milestone v0.1, Extraction Observatory, is active on
-  `milestone/v0.1-extraction-observatory`.
+- Milestone v0.1, Extraction Observatory, is implemented and has passed its
+  milestone review on `milestone/v0.1-extraction-observatory`.
 - Its accepted implementation and review contract is
   `docs/plans/v0.1-extraction-observatory.md`.
 - The initial `tcw observe` implementation, schemas, twelve deterministic CC0
@@ -100,8 +100,10 @@ Implementation and local-integrity amendment verification on 2026-07-21:
   manual PDF observation plus `tcw verify` checks passed
 
 The accepted v0.1 implementation and final Section 13.8/13.13/13.14
-clarifications are complete locally. The next action is a focused guide update
-followed by a fresh milestone review. The CLI binary remains `tcw`.
+clarifications are complete locally. A fresh milestone reviewer returned
+`PASS` on 2026-07-22 after the guide alignment and Unicode line-separator
+regressions. The CLI binary remains `tcw`. The next action is the owner's
+publication decision; nothing has been pushed and no pull request is open.
 
 No repository-wide agent workflow is automatically activated. The current
 milestone is being run through the explicitly requested plan-build-review
