@@ -8,10 +8,9 @@ document preparation inspectable, trustworthy, and reversible.
 This table is an append-only record of completed milestones. Add one row after
 each milestone is complete.
 
-| Version | Milestone | State | Evidence |
-| --- | --- | --- | --- |
-| v0.0 | Planning Baseline | Complete | [Proposal](docs/proposal.md) and [roadmap](docs/roadmap.md) |
-| v0.1 | Extraction Observatory | Released | [v0.1.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0) and [user guide](docs/extraction-observatory.md) |
+| Version | Milestone |
+| --- | --- |
+| [v0.1.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0) | Extraction Observatory |
 
 ## Purpose
 
