@@ -102,8 +102,10 @@ Implementation and local-integrity amendment verification on 2026-07-21:
 The accepted v0.1 implementation and final Section 13.8/13.13/13.14
 clarifications are complete locally. A fresh milestone reviewer returned
 `PASS` on 2026-07-22 after the guide alignment and Unicode line-separator
-regressions. The CLI binary remains `tcw`. The next action is the owner's
-publication decision; nothing has been pushed and no pull request is open.
+regressions. The CLI binary remains `tcw`. The owner then accepted Section 14,
+a clean-checkout GitHub Actions prerequisite that must be implemented and
+reviewed before publication. Nothing has been pushed and no pull request is
+open.
 
 No repository-wide agent workflow is automatically activated. The current
 milestone is being run through the explicitly requested plan-build-review
