@@ -8,6 +8,8 @@
 
 **Public copy revised:** 2026-07-23; roadmap end-state presentation
 
+**Pages domain alignment revised:** 2026-07-23
+
 **Branch:** `feat/github-pages`
 
 ## 1. Outcome
@@ -16,7 +18,7 @@ Publish a modern, concise, minimal static website for
 `tiny-corpus-workbench` at:
 
 ```text
-https://jameswei.github.io/tiny-corpus-workbench/
+https://lifeplayer.space/tiny-corpus-workbench/
 ```
 
 The website is a project presentation and learning surface. It presents the
@@ -40,7 +42,8 @@ The first website version is static and dependency-free at runtime. It has:
 - no document upload or processing
 - no API or server component
 - no form, search, analytics, cookies, or user tracking
-- no custom domain
+- no new project-specific custom domain; use the `lifeplayer.space` domain
+  already configured for the owner's `jameswei.github.io` user site
 - no runtime fetches
 - no external fonts, style sheets, JavaScript, or content delivery networks
 - no JavaScript requirement
@@ -203,7 +206,8 @@ motion.
   subpath.
 - Use absolute HTTPS URLs for repository, guide, lesson, roadmap, and license
   navigation.
-- Set the canonical URL to the GitHub Pages URL.
+- Set the canonical URL to the inherited GitHub Pages project URL:
+  `https://lifeplayer.space/tiny-corpus-workbench/`.
 - Give the custom 404 page `noindex` metadata and a clear link to the site
   home.
 - Add a visible Website link near project status in `README.md` without adding
@@ -330,8 +334,8 @@ site, rather than to arbitrary HTML or CSS mutations.
   through a new pull request rather than bypassing branch protection or
   publishing manually.
 - If implementation needs a server, client-side application, external runtime
-  dependency, custom domain, or changed project boundary, return for owner
-  approval.
+  dependency, new project-specific custom domain, or changed project boundary,
+  return for owner approval.
 
 ## 11. Review and publication gates
 
@@ -349,8 +353,10 @@ site, rather than to arbitrary HTML or CSS mutations.
 7. Never merge automatically. The owner performs or explicitly authorizes a
    squash merge.
 8. Confirm that the merge-triggered Pages deployment uses the merged commit.
-   Verify the HTTPS home page, CSS and favicon under the project subpath,
-   anchors and navigation, custom 404 behavior, and desktop and mobile layout.
+   Verify the HTTPS home page at the inherited `lifeplayer.space` project path,
+   CSS and favicon under the project subpath, anchors and navigation, custom
+   404 behavior, and desktop and mobile layout. Enable HTTPS enforcement for
+   the activated project site after the certificate is ready.
 9. Only after live verification and explicit approval, set the repository
    homepage to the live Pages URL.
 
@@ -376,4 +382,4 @@ site, rather than to arbitrary HTML or CSS mutations.
 - README, package metadata, CURRENT, and repository homepage point to the live
   site at the appropriate gates.
 - The package remains v0.1.0, with no new tag, release, roadmap activation,
-  custom domain, or API.
+  new project-specific custom domain, or API.
