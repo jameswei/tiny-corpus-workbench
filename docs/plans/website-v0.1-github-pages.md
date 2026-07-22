@@ -6,7 +6,7 @@
 
 **Validator contract revised:** 2026-07-23
 
-**Public copy revised:** 2026-07-23
+**Public copy revised:** 2026-07-23; roadmap end-state presentation
 
 **Branch:** `feat/github-pages`
 
@@ -19,9 +19,10 @@ Publish a modern, concise, minimal static website for
 https://jameswei.github.io/tiny-corpus-workbench/
 ```
 
-The website is a project presentation and learning surface. It explains the
-Extraction Observatory, its artifact model, its integrity boundary, the
-project's evolving direction, and how to start. It does not process documents.
+The website is a project presentation and learning surface. It presents the
+roadmap's complete raw-source-to-prepared-revision workbench as one coherent
+product story, rather than as a version or release status page. It also gives
+readers an honest local entry point and does not process documents itself.
 
 This work is an internal publication milestone. It does not activate or
 complete a roadmap milestone, change the package version, create a tag or
@@ -78,68 +79,74 @@ The single page contains six compact sections.
 
 ### 4.1 Header and hero
 
-- Use a version-neutral `Extraction Observatory` eyebrow.
-- Use the heading: "Inspect extraction before downstream systems inherit it."
+- Use the eyebrow: `Local document preparation workbench`.
+- Use the heading: "Prepare documents without losing the evidence."
 - Use no more than two introductory sentences.
-- Provide "Try it" and "View GitHub" actions.
-- State: "This site explains the project. It does not process documents."
+- Provide "Start locally" and "View GitHub" actions.
+- State that the site describes the workbench and does not process documents.
 
 ### 4.2 Purpose and workflow
 
-Explain why extraction evidence must be inspected before downstream use. Show
-this workflow with semantic HTML and CSS:
+Explain the complete project boundary as one evidence-preserving lifecycle.
+Show this workflow with semantic HTML and CSS:
 
 ```text
 original source
-    -> validated private snapshot
-    -> Docling / MarkItDown branches
-    -> manifest + comparison
-    -> published evidence
+    -> extraction
+    -> evidence-based diagnosis
+    -> explicit human decision
+    -> reversible refinement
+    -> prepared revision
+    -> corpus inspection and comparison
 ```
 
-Label the source as unchanged, the snapshot as temporary, Docling JSON as
-canonical, and Markdown views as derived. State that the private snapshot is
-removed before publication.
+Explain that a local visual workbench connects the source, artifacts, findings,
+decisions, transformations, revisions, and comparisons without replacing the
+underlying CLI and audit contracts.
 
-### 4.3 Current capabilities and artifact anatomy
+### 4.3 One inspectable history
 
-Summarize the current implemented surface without version or release wording:
-supported fixture formats, twelve deterministic fixtures, offline observation
-after model prefetch, and the `observe` and `verify` commands. Show the exact
-five-file published observation layout:
+Present the roadmap deliverables as four durable capability groups, without
+versions, releases, milestone labels, or implementation-status language:
 
-```text
-manifest.json
-comparison.json
-docling/document.json
-docling/document.md
-markitdown/document.md
-```
+- **Extract:** compare Docling and MarkItDown while retaining lossless
+  canonical evidence and source identity.
+- **Diagnose:** record deterministic, evidence-backed findings with stable
+  identifiers, severity, provenance, and affected document items.
+- **Refine:** require explicit decisions, create new prepared revisions, and
+  preserve reversible operations plus append-only history.
+- **Compare:** inspect patterns across a mixed-format corpus through offline
+  reports and a loopback-only visual workbench.
 
-### 4.4 Integrity boundary
+### 4.4 Trust and control boundary
 
-Clearly distinguish these claims:
+Use two concise columns:
 
-- **Verified:** structural validity, artifact integrity, and explicitly
-  derivable semantic consistency.
-- **Not authenticated:** the verifier does not establish who created or last
-  changed otherwise valid evidence.
+- **Evidence stays inspectable:** original sources, raw extraction artifacts,
+  findings, revisions, hashes, and history are retained rather than silently
+  overwritten.
+- **People retain authority:** diagnosis does not authorize mutation, and
+  interpretive refinements require explicit human confirmation.
 
-Do not imply cryptographic signing, key management, authenticity, or
+Retain a short limitation that integrity checking does not establish
+authorship or authenticity. Do not imply signing, key management, or
 tamper-proof operation.
 
-### 4.5 Quick start and learning
+### 4.5 Local by design and quick start
 
-Use the existing three-command setup and observation path from the README.
-Link to the Extraction Observatory guide and learner module without a version
-label in the visible link text.
+Describe the coherent local surfaces: stable CLI contracts, static offline
+reports, and a loopback-only browser interface. Keep the existing three-command
+Extraction Observatory path as the honest starting point available from the
+repository today. Link to its guide and learner module without a version label
+in visible text.
 
-### 4.6 Project direction and footer
+### 4.6 Project boundary and footer
 
-Explain that the project will evolve from extraction observation toward
-diagnosis and controlled refinement. Link to the roadmap, repository, learning
-material, and license. Do not show a version, release, or milestone range in
-the public page copy.
+State that the workbench ends at a prepared document revision. Chunking,
+embeddings, indexing, retrieval, generation, and RAG evaluation remain outside
+the product boundary. Link to the roadmap, repository, learning material, and
+license. Do not show versions, releases, milestone ranges, or progress tables
+in the public page copy.
 
 Section introductions contain no more than two sentences. Cards contain no
 more than three bullets. Major claims are not duplicated across sections.
@@ -352,9 +359,9 @@ site, rather than to arbitrary HTML or CSS mutations.
 - The accepted plan is saved before implementation.
 - The site is semantic, responsive, keyboard accessible, visually restrained,
   and usable at all specified viewport widths.
-- It accurately represents the currently implemented capabilities and the
-  project's integrity and scope boundaries without tying the landing page copy
-  to a version or release.
+- It presents the roadmap's complete intended workbench as one durable product
+  story while preserving the project's integrity and scope boundaries and
+  keeping the quick-start path factually runnable.
 - Source review and browser request logging confirm that the committed site has
   none of the forbidden application behavior or external runtime dependencies.
 - The validator and its negative-path tests pass.
