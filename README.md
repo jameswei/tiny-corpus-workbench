@@ -92,6 +92,15 @@ from three project-authored document families. The full setup, artifact,
 rerun, compatibility, failure-code, and verification contracts are documented
 in the [Extraction Observatory guide](docs/extraction-observatory.md).
 
+## Learn v0.1
+
+The [v0.1 learning module](docs/learning/v0.1-extraction-observatory.md) turns
+the completed milestone into a guided lab. It covers the extraction mental
+model, artifact inspection, descriptive comparison, safe tamper experiments,
+freshness advisories, and the limits of `VERIFIED`. Start from the
+[learning-material index](docs/learning/README.md) when following future
+milestones.
+
 ## License
 
 This repository is licensed under the [MIT License](LICENSE).
