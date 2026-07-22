@@ -114,10 +114,19 @@ every staged regular file and directory must match the complete captured
 inventory. Invalid schemas or missing, changed, symlinked, replaced, or
 unexpected content abort the run.
 
-Persisted and printed failure messages replace every C0/C1 control character,
-including tabs and DEL, before whitespace collapse and the 500-character
-limit. Safe Unicode remains readable, and an all-control message uses a
-nonempty fallback.
+Persisted error evidence, verifier issue messages, and diagnostics emitted by
+application code after successful argument parsing replace every C0/C1 control
+character, including tabs and DEL, before whitespace collapse and the
+500-character limit. Safe Unicode remains readable, and an all-control message
+uses a nonempty fallback.
+
+Usage and syntax errors are reported directly by Python's standard-library
+`argparse`. They are human-facing stderr output, write no stdout, and exit `2`.
+Their wording and rendering are not a stable evidence or machine-output
+interface, so v0.1 does not add a custom parser solely to sanitize arbitrary
+bytes in invalid command-line arguments. Automation should use exit status,
+successful-command JSON stdout, published manifests, and `tcw verify` reports
+instead of parsing `argparse` stderr.
 
 ## Verify a published observation
 
