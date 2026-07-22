@@ -4,6 +4,8 @@
 
 **Accepted:** 2026-07-22
 
+**Validator contract revised:** 2026-07-23
+
 **Branch:** `feat/github-pages`
 
 ## 1. Outcome
@@ -200,11 +202,17 @@ motion.
 Repository homepage metadata is updated only after the deployed site is live
 and verified.
 
-## 7. Static-site validator
+## 7. Static-site smoke validator
 
 Implement `tools/validate_site.py` with the Python standard library. It accepts
 the site directory, reports deterministic file-and-line issues, and exits
 nonzero on validation failure.
+
+This is a focused project smoke check, not a general HTML or CSS security
+parser. It checks the authored site and common accidental regressions. Browser
+QA and source review establish that the committed site has no external runtime
+dependencies; the validator does not promise to recognize every equivalent
+syntax that a browser supports.
 
 The validator checks:
 
@@ -216,14 +224,17 @@ The validator checks:
 - local references remain inside the site root and resolve
 - asset references are not root-relative
 - external navigation uses HTTPS
-- pages contain no scripts, event-handler attributes, forms, form controls,
-  iframes, objects, external style sheets, external fonts, or runtime media
+- the authored pages do not contain scripts, event-handler attributes, forms,
+  form controls, iframes, objects, or external style sheets through the normal
+  markup paths used by this site
 - the canonical URL is correct
 - the 404 page has `noindex` behavior and a valid home link
 
 Unit tests cover one valid temporary site and failures for missing assets,
 broken fragments, duplicate IDs, path escape, root-relative references,
-symbolic links, forbidden interactive elements, and external dependencies.
+symbolic links, forbidden interactive elements, and ordinary external
+stylesheet references. Adversarial parsing of the complete HTML and CSS
+languages is explicitly outside this validator's contract.
 
 Add this command to the existing `Fast validation` CI job without renaming the
 job or changing the repository ruleset:
@@ -268,12 +279,13 @@ Run:
 
 ```bash
 uv run --frozen python tools/validate_site.py site
-uv run --frozen pytest tests/unit/test_static_site.py
-uv run --frozen pytest tests/unit
-uv run --frozen python -m compileall -q src tests tools
-uv run --frozen python tools/generate_fixtures.py --check
-uv run --frozen python tools/check_portability.py
-git diff --check
+uv run --frozen --group test python -m unittest tests.unit.test_static_site -v
+uv run --frozen --group test python -m unittest discover -s tests/unit -v
+uv run --frozen --group test python -m compileall -q src tests tools
+uv run --frozen --group fixtures python tools/generate_fixtures.py --check
+uv run --frozen --group fixtures python tools/verify_fixtures.py
+uv run --frozen --group fixtures python tools/verify_checkout_portability.py
+git diff --check main...HEAD
 ```
 
 Run the full extraction suite when the required local model inventory is
@@ -288,12 +300,16 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory site
 Check 1440, 1280, 768, 390, and 320 pixel widths. Verify keyboard focus,
 reduced-motion behavior, no horizontal page overflow, local and fragment
 links, scrollable code, the local 404 page, and that the preview loads only its
-own HTML, CSS, and favicon.
+own HTML, CSS, and favicon. This request-log check applies to the committed
+site, rather than to arbitrary HTML or CSS mutations.
 
 ## 10. Failure modes
 
 - A local reference that escapes the site root, a missing asset, a symbolic
-  link, or a forbidden external/runtime dependency fails validation.
+  link, or a common forbidden markup regression fails validation.
+- If source review or browser QA shows that the committed site loads an
+  unapproved runtime dependency, correct the authored site before publication;
+  do not expand the smoke validator into a browser-policy engine.
 - A Pages workflow run outside `main` does not deploy.
 - If GitHub Pages is already configured differently at publication time,
   inspect the drift and stop instead of overwriting it.
@@ -332,8 +348,8 @@ own HTML, CSS, and favicon.
   and usable at all specified viewport widths.
 - It accurately represents v0.1.0 and the project's integrity and scope
   boundaries.
-- It has none of the forbidden application behavior or external runtime
-  dependencies.
+- Source review and browser request logging confirm that the committed site has
+  none of the forbidden application behavior or external runtime dependencies.
 - The validator and its negative-path tests pass.
 - Existing unit, fixture, compile, portability, and diff-hygiene checks pass.
 - A fresh milestone reviewer returns `PASS` with no blocking finding.
