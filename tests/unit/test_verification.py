@@ -737,6 +737,11 @@ class VerificationTests(unittest.TestCase):
             "multiline-error": ("failed", "MANIFEST_INVALID"),
             "trailing-newline-error": ("failed", "MANIFEST_INVALID"),
             "control-error": ("failed", "MANIFEST_INVALID"),
+            "unicode-line-separator-error": ("failed", "MANIFEST_INVALID"),
+            "unicode-paragraph-separator-error": (
+                "failed",
+                "MANIFEST_INVALID",
+            ),
             "empty-error": ("failed", "MANIFEST_INVALID"),
             "overlong-error": ("failed", "MANIFEST_INVALID"),
             "failed-schema-claim": ("failed", "REFERENCE_MISMATCH"),
@@ -793,6 +798,14 @@ class VerificationTests(unittest.TestCase):
                     elif operation == "control-error":
                         manifest["extractors"][1]["error"]["message"] = (
                             "control\u0001message"
+                        )
+                    elif operation == "unicode-line-separator-error":
+                        manifest["extractors"][0]["error"]["message"] = (
+                            "first\u2028second"
+                        )
+                    elif operation == "unicode-paragraph-separator-error":
+                        manifest["extractors"][1]["error"]["message"] = (
+                            "first\u2029second"
                         )
                     elif operation == "empty-error":
                         manifest["extractors"][0]["error"]["message"] = ""

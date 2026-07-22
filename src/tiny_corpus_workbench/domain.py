@@ -8,8 +8,11 @@ from typing import Any
 DOCLING_DOCUMENT_COMPATIBILITY = (
     "reloadable only with the exact uv.lock environment that created this artifact"
 )
-_CONTROL_CHARACTER_TRANSLATION = str.maketrans(
-    {codepoint: " " for codepoint in (*range(0x20), *range(0x7F, 0xA0))}
+_MESSAGE_SEPARATOR_TRANSLATION = str.maketrans(
+    {
+        codepoint: " "
+        for codepoint in (*range(0x20), *range(0x7F, 0xA0), 0x2028, 0x2029)
+    }
 )
 
 
@@ -67,5 +70,5 @@ class SourceIdentity:
 
 
 def sanitize_message(value: BaseException | str) -> str:
-    message = str(value).translate(_CONTROL_CHARACTER_TRANSLATION)
+    message = str(value).translate(_MESSAGE_SEPARATOR_TRANSLATION)
     return " ".join(message.split())[:500] or "unspecified failure"
