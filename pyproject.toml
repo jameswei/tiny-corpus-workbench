@@ -25,6 +25,7 @@ test = [
 
 [project.urls]
 Repository = "https://github.com/jameswei/tiny-corpus-workbench"
+Website = "https://jameswei.github.io/tiny-corpus-workbench/"
 
 [project.scripts]
 tcw = "tiny_corpus_workbench.cli:main"

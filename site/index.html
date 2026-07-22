@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Inspect document extraction evidence before downstream systems inherit it with tiny-corpus-workbench.">
+  <title>tiny-corpus-workbench</title>
+  <link rel="canonical" href="https://jameswei.github.io/tiny-corpus-workbench/">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="#top" aria-label="tiny-corpus-workbench home">tiny-corpus-workbench</a>
+    <nav aria-label="Primary navigation">
+      <a href="#workflow">Workflow</a>
+      <a href="#quick-start">Quick start</a>
+      <a href="https://github.com/jameswei/tiny-corpus-workbench">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-title">
+      <p class="eyebrow">v0.1.0</p>
+      <h1 id="hero-title">Inspect extraction before downstream systems inherit it.</h1>
+      <p class="lede">Compare document extractors, preserve canonical evidence, and verify published observations in a small learning-by-doing workbench.</p>
+      <div class="actions">
+        <a class="button primary" href="#quick-start">Try it</a>
+        <a class="button secondary" href="https://github.com/jameswei/tiny-corpus-workbench">View GitHub</a>
+      </div>
+      <p class="site-note">This site explains the project. It does not process documents.</p>
+    </section>
+
+    <section id="workflow" class="section" aria-labelledby="workflow-title">
+      <div class="section-heading">
+        <p class="kicker">Purpose and workflow</p>
+        <h2 id="workflow-title">Keep the extraction evidence visible.</h2>
+        <p>Content and structure can be lost before downstream use. The workbench makes that handoff inspectable without changing the source.</p>
+      </div>
+      <ol class="workflow">
+        <li>
+          <span class="step-number">01</span>
+          <strong>Original source</strong>
+          <span>Unchanged</span>
+        </li>
+        <li>
+          <span class="step-number">02</span>
+          <strong>Validated private snapshot</strong>
+          <span>Temporary; removed before publication</span>
+        </li>
+        <li>
+          <span class="step-number">03</span>
+          <strong>Docling / MarkItDown</strong>
+          <span>Docling JSON is canonical; Markdown views are derived</span>
+        </li>
+        <li>
+          <span class="step-number">04</span>
+          <strong>Manifest + comparison</strong>
+          <span>Recorded checks and extractor outputs</span>
+        </li>
+        <li>
+          <span class="step-number">05</span>
+          <strong>Published evidence</strong>
+          <span>Inspectable and read-only to the application</span>
+        </li>
+      </ol>
+    </section>
+
+    <section class="section" aria-labelledby="surface-title">
+      <div class="section-heading">
+        <p class="kicker">Extraction Observatory</p>
+        <h2 id="surface-title">A focused v0.1 surface.</h2>
+        <p>Observe PDF, DOCX, Markdown, and plain-text fixtures locally after PDF model prefetch. Twelve deterministic fixtures make comparisons repeatable.</p>
+      </div>
+      <div class="grid two-column">
+        <article class="card">
+          <h3>Two explicit commands</h3>
+          <ul>
+            <li><code>tcw observe</code> creates an observation.</li>
+            <li><code>tcw verify</code> checks published evidence.</li>
+            <li>Observation disables remote services, plugins, OCR, and LLM clients.</li>
+          </ul>
+        </article>
+        <article class="card artifact-card">
+          <h3>Published observation</h3>
+          <pre><code>manifest.json
+comparison.json
+docling/document.json
+docling/document.md
+markitdown/document.md</code></pre>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="integrity-title">
+      <div class="section-heading">
+        <p class="kicker">Integrity boundary</p>
+        <h2 id="integrity-title">Know what verification means.</h2>
+        <p>The verifier checks evidence within a trusted local boundary. Its claim is deliberately narrow.</p>
+      </div>
+      <div class="grid two-column">
+        <article class="claim verified">
+          <p class="claim-label">Verified</p>
+          <h3>Evidence consistency</h3>
+          <p>Structural validity, artifact integrity, and explicitly derivable semantic consistency.</p>
+        </article>
+        <article class="claim limitation">
+          <p class="claim-label">Not authenticated</p>
+          <h3>Creator identity</h3>
+          <p>The verifier does not establish who created or last changed otherwise valid evidence.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="quick-start" class="section" aria-labelledby="start-title">
+      <div class="section-heading">
+        <p class="kicker">Quick start and learning</p>
+        <h2 id="start-title">Run one local observation.</h2>
+        <p>Use CPython 3.12 and the exact dependency lock. Prefetch the required PDF models before the offline observation.</p>
+      </div>
+      <pre class="command-block"><code>uv sync --frozen --python 3.12
+uv run --frozen docling-tools models download layout tableformer --output-dir .cache/docling/models
+uv run --frozen tcw observe fixtures/golden/policy-memo.pdf</code></pre>
+      <div class="resource-links">
+        <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/docs/extraction-observatory.md">Read the Extraction Observatory guide</a>
+        <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/learning/v0.1-extraction-observatory.md">Work through the v0.1 learner module</a>
+      </div>
+    </section>
+
+    <section class="section status" aria-labelledby="status-title">
+      <div class="section-heading">
+        <p class="kicker">Project status</p>
+        <h2 id="status-title">v0.1.0 is available.</h2>
+        <p>Extraction Observatory is released. Milestones v0.2 through v1.0 remain planned.</p>
+      </div>
+      <div class="status-links" aria-label="Project links">
+        <a href="https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0">Release</a>
+        <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/docs/roadmap.md">Roadmap</a>
+        <a href="https://github.com/jameswei/tiny-corpus-workbench">Repository</a>
+        <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/LICENSE">MIT License</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>tiny-corpus-workbench · inspectable document preparation</p>
+  </footer>
+</body>
+</html>
