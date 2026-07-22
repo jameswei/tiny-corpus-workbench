@@ -93,13 +93,15 @@ Implementation and local-integrity amendment verification on 2026-07-21:
 - CLI import is independent of `jsonschema`; guarded lazy verification/schema
   bootstrap failures use runtime exit 6 without stdout or publication
 - central error sanitization removes every C0/C1 control before collapsing and
-  bounding messages, including persisted missing-model path failures
+  bounding persisted evidence and application-handled diagnostics, including
+  missing-model path failures; built-in `argparse` syntax diagnostics remain a
+  human-facing, non-stable stderr interface
 - schema validation, compile check, `git diff --check`, and the documented
   manual PDF observation plus `tcw verify` checks passed
 
-The accepted v0.1 implementation and final Section 13.8/13.13 clarification are
-complete locally. The next action is a fresh milestone review. The CLI binary
-remains `tcw`.
+The accepted v0.1 implementation and final Section 13.8/13.13/13.14
+clarifications are complete locally. The next action is a focused guide update
+followed by a fresh milestone review. The CLI binary remains `tcw`.
 
 No repository-wide agent workflow is automatically activated. The current
 milestone is being run through the explicitly requested plan-build-review
