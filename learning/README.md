@@ -42,8 +42,8 @@ requires all applicable writing rules and controlled-dictionary checks.
 
 Use these companion documents when you need more precision:
 
-- [Extraction Observatory user guide](../extraction-observatory.md): commands,
+- [Extraction Observatory user guide](../docs/extraction-observatory.md): commands,
   artifacts, compatibility, and exit-code contract
-- [Accepted v0.1 plan](../plans/v0.1-extraction-observatory.md): complete
+- [Accepted v0.1 plan](../docs/plans/v0.1-extraction-observatory.md): complete
   implementation and review contract
-- [Project roadmap](../roadmap.md): milestone sequence and boundaries
+- [Project roadmap](../docs/roadmap.md): milestone sequence and boundaries

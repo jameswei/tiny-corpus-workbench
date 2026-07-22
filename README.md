@@ -3,10 +3,15 @@
 `tiny-corpus-workbench` is a small, learning-by-doing project for making raw
 document preparation inspectable, trustworthy, and reversible.
 
-> **Project status:** v0.1 Extraction Observatory is implemented. It provides
-> a local CLI for inspecting Docling and MarkItDown views of one document at a
-> time. See the [user guide](docs/extraction-observatory.md) and
-> [`CURRENT.md`](CURRENT.md) for the current contracts and verification state.
+## Project status
+
+This table is an append-only record of completed milestones. Add one row after
+each milestone is complete.
+
+| Version | Milestone | State | Evidence |
+| --- | --- | --- | --- |
+| v0.0 | Planning Baseline | Complete | [Proposal](docs/proposal.md) and [roadmap](docs/roadmap.md) |
+| v0.1 | Extraction Observatory | Released | [v0.1.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0) and [user guide](docs/extraction-observatory.md) |
 
 ## Purpose
 
@@ -92,14 +97,8 @@ from three project-authored document families. The full setup, artifact,
 rerun, compatibility, failure-code, and verification contracts are documented
 in the [Extraction Observatory guide](docs/extraction-observatory.md).
 
-## Learn v0.1
-
-The [v0.1 learning module](docs/learning/v0.1-extraction-observatory.md) turns
-the completed milestone into a guided lab. It covers the extraction mental
-model, artifact inspection, descriptive comparison, safe tamper experiments,
-freshness advisories, and the limits of `VERIFIED`. Start from the
-[learning-material index](docs/learning/README.md) when following future
-milestones.
+Learner-oriented materials are available in the top-level
+[learning directory](learning/README.md).
 
 ## License
 

@@ -41,7 +41,7 @@ Future work may use whichever sound engineering practices fit the task.
   not a live taskboard.
 - `docs/roadmap.md` records the intended major-version progression. It does
   not activate a milestone or replace a milestone implementation plan.
-- `docs/learning/` contains learner-facing milestone lessons. These explain
+- `learning/` contains learner-facing milestone lessons. These explain
   and exercise the contracts but do not replace the user guide or accepted
   implementation plan.
 
