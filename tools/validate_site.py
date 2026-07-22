@@ -40,7 +40,6 @@ FORBIDDEN_ELEMENTS = {
 }
 REFERENCE_ATTRIBUTES = {"href", "src", "poster", "data"}
 CSS_URL = re.compile(r"url\(\s*(['\"]?)(.*?)\1\s*\)", re.IGNORECASE)
-CSS_IMPORT = re.compile(r"@import\s", re.IGNORECASE)
 
 
 @dataclass(frozen=True, order=True)
@@ -245,11 +244,21 @@ def _css_issues(
     source: Path,
     css: str,
     start_line: int,
+    *,
+    allow_media: bool,
 ) -> list[Issue]:
     issues: list[Issue] = []
-    if match := CSS_IMPORT.search(css):
-        line = start_line + css.count("\n", 0, match.start())
-        issues.append(Issue(relative, line, "CSS imports are forbidden"))
+    for offset, at_keyword in _css_at_keywords(css):
+        if allow_media and at_keyword == "@media":
+            continue
+        line = start_line + css.count("\n", 0, offset)
+        issues.append(
+            Issue(
+                relative,
+                line,
+                "CSS at-rule is forbidden; only literal @media is allowed",
+            )
+        )
     for match in CSS_URL.finditer(css):
         value = match.group(2).strip()
         if not value or value.startswith("#"):
@@ -268,6 +277,57 @@ def _css_issues(
         elif not target.is_file():
             issues.append(Issue(relative, line, f"CSS reference does not resolve: {value}"))
     return issues
+
+
+def _css_at_keywords(css: str) -> list[tuple[int, str]]:
+    """Return raw CSS at-keywords outside comments and quoted strings."""
+    keywords: list[tuple[int, str]] = []
+    index = 0
+    while index < len(css):
+        if css.startswith("/*", index):
+            end = css.find("*/", index + 2)
+            index = len(css) if end < 0 else end + 2
+            continue
+        if css[index] in {'"', "'"}:
+            quote = css[index]
+            index += 1
+            while index < len(css):
+                if css[index] == "\\":
+                    index = min(index + 2, len(css))
+                elif css[index] == quote:
+                    index += 1
+                    break
+                else:
+                    index += 1
+            continue
+        if css[index] != "@":
+            index += 1
+            continue
+
+        start = index
+        index += 1
+        while index < len(css):
+            character = css[index]
+            if character.isalnum() or character in {"-", "_"} or ord(character) >= 128:
+                index += 1
+                continue
+            if character != "\\":
+                break
+            index += 1
+            hexadecimal = 0
+            while (
+                index < len(css)
+                and hexadecimal < 6
+                and css[index] in "0123456789abcdefABCDEF"
+            ):
+                index += 1
+                hexadecimal += 1
+            if hexadecimal and index < len(css) and css[index].isspace():
+                index += 1
+            elif not hexadecimal and index < len(css):
+                index += 1
+        keywords.append((start, css[start:index]))
+    return keywords
 
 
 def _reference_issues(
@@ -344,11 +404,25 @@ def validate(site: Path) -> list[Issue]:
         for line, _tag, attrs in parser.elements:
             if inline_css := attrs.get("style"):
                 issues.extend(
-                    _css_issues(site, relative, site / relative, inline_css, line)
+                    _css_issues(
+                        site,
+                        relative,
+                        site / relative,
+                        inline_css,
+                        line,
+                        allow_media=False,
+                    )
                 )
         for line, css in parser.styles:
             issues.extend(
-                _css_issues(site, relative, site / relative, str(css), int(line))
+                _css_issues(
+                    site,
+                    relative,
+                    site / relative,
+                    str(css),
+                    int(line),
+                    allow_media=True,
+                )
             )
 
     css_path = site / "styles.css"
@@ -358,7 +432,16 @@ def validate(site: Path) -> list[Issue]:
         except (OSError, UnicodeError) as error:
             issues.append(Issue("styles.css", 1, f"cannot read UTF-8 CSS: {error}"))
         else:
-            issues.extend(_css_issues(site, "styles.css", css_path, css, 1))
+            issues.extend(
+                _css_issues(
+                    site,
+                    "styles.css",
+                    css_path,
+                    css,
+                    1,
+                    allow_media=True,
+                )
+            )
     return sorted(set(issues))
 
 

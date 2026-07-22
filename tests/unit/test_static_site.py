@@ -133,7 +133,17 @@ class StaticSiteValidationTests(unittest.TestCase):
             "</head>",
             '<style>@import "https://example.com/site.css";</style>\n</head>',
         )
-        self.assert_invalid("CSS imports are forbidden")
+        self.assert_invalid("CSS at-rule is forbidden; only literal @media is allowed")
+
+    def test_compact_inline_css_import_fails(self) -> None:
+        self.replace(
+            "index.html",
+            "</head>",
+            '<style>@import"https://example.com/site.css";</style>\n</head>',
+        )
+        self.assert_invalid(
+            "index.html:11: CSS at-rule is forbidden; only literal @media is allowed"
+        )
 
     def test_inline_external_font_face_fails(self) -> None:
         self.replace(
@@ -142,6 +152,30 @@ class StaticSiteValidationTests(unittest.TestCase):
             '<style>@font-face { src: url("https://example.com/font.woff2"); }</style>\n</head>',
         )
         self.assert_invalid("external CSS dependency is forbidden")
+        self.assert_invalid("CSS at-rule is forbidden; only literal @media is allowed")
+
+    def test_escaped_import_like_at_rule_fails(self) -> None:
+        self.replace(
+            "index.html",
+            "</head>",
+            '<style>@\\69mport "https://example.com/site.css";</style>\n</head>',
+        )
+        self.assert_invalid("CSS at-rule is forbidden; only literal @media is allowed")
+
+    def test_literal_media_at_rule_is_allowed(self) -> None:
+        with (self.site / "styles.css").open("a", encoding="utf-8") as stylesheet:
+            stylesheet.write("\n@media (max-width: 10px) { body { margin: 0; } }\n")
+        result = self.validate()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_unknown_at_rule_in_site_stylesheet_fails(self) -> None:
+        with (self.site / "styles.css").open("a", encoding="utf-8") as stylesheet:
+            stylesheet.write("\n@supports (display: grid) { body { margin: 0; } }\n")
+        self.assert_invalid("CSS at-rule is forbidden; only literal @media is allowed")
+
+    def test_at_rule_in_style_attribute_fails(self) -> None:
+        self.replace("index.html", "<body>", '<body style="@media { color: red; }">')
+        self.assert_invalid("CSS at-rule is forbidden; only literal @media is allowed")
 
     def test_external_url_in_style_attribute_fails(self) -> None:
         self.replace(
@@ -157,6 +191,7 @@ class StaticSiteValidationTests(unittest.TestCase):
                 '\n@font-face { src: url("https://example.com/font.woff2"); }\n'
             )
         self.assert_invalid("external CSS dependency is forbidden")
+        self.assert_invalid("CSS at-rule is forbidden; only literal @media is allowed")
 
 
 if __name__ == "__main__":
