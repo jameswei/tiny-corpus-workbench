@@ -27,8 +27,10 @@ FORBIDDEN_ELEMENTS = {
     "embed",
     "form",
     "iframe",
+    "img",
     "input",
     "object",
+    "picture",
     "script",
     "select",
     "source",
@@ -37,6 +39,8 @@ FORBIDDEN_ELEMENTS = {
     "video",
 }
 REFERENCE_ATTRIBUTES = {"href", "src", "poster", "data"}
+CSS_URL = re.compile(r"url\(\s*(['\"]?)(.*?)\1\s*\)", re.IGNORECASE)
+CSS_IMPORT = re.compile(r"@import\s", re.IGNORECASE)
 
 
 @dataclass(frozen=True, order=True)
@@ -61,7 +65,9 @@ class PageParser(HTMLParser):
         self.ids: dict[str, list[int]] = {}
         self.references: list[Reference] = []
         self.titles: list[list[int | str]] = []
+        self.styles: list[list[int | str]] = []
         self._title_index: int | None = None
+        self._style_index: int | None = None
 
     def handle_starttag(
         self, tag: str, attrs: list[tuple[str, str | None]]
@@ -76,10 +82,14 @@ class PageParser(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() == "title":
             self._title_index = None
+        if tag.lower() == "style":
+            self._style_index = None
 
     def handle_data(self, data: str) -> None:
         if self._title_index is not None:
             self.titles[self._title_index][1] += data
+        if self._style_index is not None:
+            self.styles[self._style_index][1] += data
 
     def _record(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         line = self.getpos()[0]
@@ -89,6 +99,9 @@ class PageParser(HTMLParser):
         if tag == "title":
             self.titles.append([line, ""])
             self._title_index = len(self.titles) - 1
+        if tag == "style":
+            self.styles.append([line, ""])
+            self._style_index = len(self.styles) - 1
         if identifier := values.get("id"):
             self.ids.setdefault(identifier, []).append(line)
         for attribute in REFERENCE_ATTRIBUTES:
@@ -96,6 +109,11 @@ class PageParser(HTMLParser):
                 self.references.append(
                     Reference(line, tag, attribute, values[attribute].strip())
                 )
+        if srcset := values.get("srcset"):
+            for candidate in srcset.split(","):
+                value = candidate.strip().split(maxsplit=1)[0]
+                if value:
+                    self.references.append(Reference(line, tag, "srcset", value))
 
 
 def _inside(path: Path, root: Path) -> bool:
@@ -104,11 +122,6 @@ def _inside(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
-
-
-def _line_for(text: str, pattern: str) -> int:
-    match = re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
-    return text.count("\n", 0, match.start()) + 1 if match else 1
 
 
 def _inventory(site: Path) -> tuple[set[str], list[Issue]]:
@@ -219,10 +232,41 @@ def _policy_issues(relative: str, parser: PageParser) -> list[Issue]:
         home_links = [
             reference
             for reference in parser.references
-            if reference.element == "a" and reference.value in {".", "./", "index.html"}
+            if reference.element == "a" and reference.value == CANONICAL_URL
         ]
         if not home_links:
-            issues.append(Issue(relative, 1, "404 page must link to site home"))
+            issues.append(Issue(relative, 1, "404 page must use the canonical HTTPS home link"))
+    return issues
+
+
+def _css_issues(
+    site: Path,
+    relative: str,
+    source: Path,
+    css: str,
+    start_line: int,
+) -> list[Issue]:
+    issues: list[Issue] = []
+    if match := CSS_IMPORT.search(css):
+        line = start_line + css.count("\n", 0, match.start())
+        issues.append(Issue(relative, line, "CSS imports are forbidden"))
+    for match in CSS_URL.finditer(css):
+        value = match.group(2).strip()
+        if not value or value.startswith("#"):
+            continue
+        line = start_line + css.count("\n", 0, match.start())
+        parsed = urlsplit(value)
+        if parsed.scheme or parsed.netloc or value.startswith("//"):
+            issues.append(Issue(relative, line, "external CSS dependency is forbidden"))
+            continue
+        if parsed.path.startswith("/"):
+            issues.append(Issue(relative, line, "root-relative CSS reference is forbidden"))
+            continue
+        target = (source.parent / unquote(parsed.path)).resolve()
+        if not _inside(target, site.resolve()):
+            issues.append(Issue(relative, line, "CSS reference escapes the site root"))
+        elif not target.is_file():
+            issues.append(Issue(relative, line, f"CSS reference does not resolve: {value}"))
     return issues
 
 
@@ -297,6 +341,15 @@ def validate(site: Path) -> list[Issue]:
         issues.extend(_metadata_issues(relative, parser))
         issues.extend(_policy_issues(relative, parser))
         issues.extend(_reference_issues(site, relative, parser, page_ids))
+        for line, _tag, attrs in parser.elements:
+            if inline_css := attrs.get("style"):
+                issues.extend(
+                    _css_issues(site, relative, site / relative, inline_css, line)
+                )
+        for line, css in parser.styles:
+            issues.extend(
+                _css_issues(site, relative, site / relative, str(css), int(line))
+            )
 
     css_path = site / "styles.css"
     if "styles.css" in found:
@@ -305,16 +358,7 @@ def validate(site: Path) -> list[Issue]:
         except (OSError, UnicodeError) as error:
             issues.append(Issue("styles.css", 1, f"cannot read UTF-8 CSS: {error}"))
         else:
-            patterns = [r"@import\s", r"url\(\s*['\"]?\s*(?:https?:)?//"]
-            for pattern in patterns:
-                if re.search(pattern, css, flags=re.IGNORECASE):
-                    issues.append(
-                        Issue(
-                            "styles.css",
-                            _line_for(css, pattern),
-                            "external CSS dependency is forbidden",
-                        )
-                    )
+            issues.extend(_css_issues(site, "styles.css", css_path, css, 1))
     return sorted(set(issues))
 
 

@@ -5,12 +5,28 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urljoin
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 VALIDATOR = REPOSITORY_ROOT / "tools" / "validate_site.py"
 SOURCE_SITE = REPOSITORY_ROOT / "site"
+CANONICAL_URL = "https://jameswei.github.io/tiny-corpus-workbench/"
+
+
+class LinkCollector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[tuple[str, str]] = []
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        values = dict(attrs)
+        if href := values.get("href"):
+            self.links.append((tag, href))
 
 
 class StaticSiteValidationTests(unittest.TestCase):
@@ -41,6 +57,27 @@ class StaticSiteValidationTests(unittest.TestCase):
         result = self.validate()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("site validation passed: 4 files", result.stdout)
+
+    def test_404_is_independent_of_nested_request_depth(self) -> None:
+        parser = LinkCollector()
+        parser.feed((self.site / "404.html").read_text(encoding="utf-8"))
+        self.assertEqual(
+            [(tag, href) for tag, href in parser.links if tag == "a"],
+            [("a", CANONICAL_URL)],
+        )
+        self.assertEqual(
+            urljoin(
+                "https://jameswei.github.io/tiny-corpus-workbench/missing/path/",
+                CANONICAL_URL,
+            ),
+            CANONICAL_URL,
+        )
+        self.assertFalse(
+            any(
+                tag == "link" and href != CANONICAL_URL
+                for tag, href in parser.links
+            )
+        )
 
     def test_missing_asset_fails(self) -> None:
         (self.site / "assets" / "favicon.svg").unlink()
@@ -81,6 +118,45 @@ class StaticSiteValidationTests(unittest.TestCase):
         )
         self.assert_invalid("external style sheets are forbidden")
         self.assert_invalid("external runtime dependency is forbidden")
+
+    def test_external_srcset_fails(self) -> None:
+        self.replace(
+            "index.html",
+            "</main>",
+            '<img srcset="https://example.com/image.png 1x" alt="">\n</main>',
+        )
+        self.assert_invalid("external runtime dependency is forbidden")
+
+    def test_inline_css_import_fails(self) -> None:
+        self.replace(
+            "index.html",
+            "</head>",
+            '<style>@import "https://example.com/site.css";</style>\n</head>',
+        )
+        self.assert_invalid("CSS imports are forbidden")
+
+    def test_inline_external_font_face_fails(self) -> None:
+        self.replace(
+            "index.html",
+            "</head>",
+            '<style>@font-face { src: url("https://example.com/font.woff2"); }</style>\n</head>',
+        )
+        self.assert_invalid("external CSS dependency is forbidden")
+
+    def test_external_url_in_style_attribute_fails(self) -> None:
+        self.replace(
+            "index.html",
+            "<body>",
+            '<body style="background-image: url(https://example.com/image.png)">',
+        )
+        self.assert_invalid("external CSS dependency is forbidden")
+
+    def test_external_url_in_site_stylesheet_fails(self) -> None:
+        with (self.site / "styles.css").open("a", encoding="utf-8") as stylesheet:
+            stylesheet.write(
+                '\n@font-face { src: url("https://example.com/font.woff2"); }\n'
+            )
+        self.assert_invalid("external CSS dependency is forbidden")
 
 
 if __name__ == "__main__":
