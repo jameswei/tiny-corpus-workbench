@@ -17,6 +17,9 @@ Future work may use whichever sound engineering practices fit the task.
   `docs/plans/v0.1-extraction-observatory.md`.
 - The initial `tcw observe` implementation, schemas, twelve deterministic CC0
   fixtures, tests, and user guide are present.
+- The learner-facing v0.1 module adds a guided path through extraction
+  comparison, artifact anatomy, tamper evidence, provenance advisories, and
+  verification limits.
 - The owner accepted a local-integrity amendment defining observations as
   application-immutable and locally tamper-evident, adding private source
   snapshots, PDF model stability checks, and read-only `tcw verify`.
@@ -38,6 +41,9 @@ Future work may use whichever sound engineering practices fit the task.
   not a live taskboard.
 - `docs/roadmap.md` records the intended major-version progression. It does
   not activate a milestone or replace a milestone implementation plan.
+- `docs/learning/` contains learner-facing milestone lessons. These explain
+  and exercise the contracts but do not replace the user guide or accepted
+  implementation plan.
 
 ## Settled boundary
 

@@ -29,3 +29,9 @@ Preserve these boundaries unless the user explicitly reviews and changes them:
 Prefer readable, teachable mechanics over broad framework integration or
 production-grade completeness. Confirm scope with the project owner before a
 change would materially broaden the project or create a public contract.
+
+When you create or update files in `docs/learning/`, use concise, plain, and
+accurate English. Use ASD-STE100 Simplified Technical English as a practical
+style reference. Prefer active voice, short sentences, one topic per paragraph,
+and one instruction per step. Do not claim full ASD-STE100 conformance unless
+the text passes all applicable writing rules and controlled-dictionary checks.
