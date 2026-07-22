@@ -1,7 +1,9 @@
 # Website v0.1: GitHub Pages
 
-**Status:** Accepted implementation plan  
-**Accepted:** 2026-07-22  
+**Status:** Accepted implementation plan
+
+**Accepted:** 2026-07-22
+
 **Branch:** `feat/github-pages`
 
 ## 1. Outcome
@@ -345,4 +347,3 @@ own HTML, CSS, and favicon.
   site at the appropriate gates.
 - The package remains v0.1.0, with no new tag, release, roadmap activation,
   custom domain, or API.
-
