@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast-validation:
+    name: Fast validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up CPython
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --python 3.12 --group test
+
+      - name: Check committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "${BASE_SHA}" && "${BASE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "${BASE_SHA}" HEAD
+          elif git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            git diff --check HEAD^ HEAD
+          else
+            git diff --check
+          fi
+
+      - name: Run unit tests
+        run: uv run --frozen --group test python -m unittest discover -s tests/unit -v
+
+      - name: Compile Python sources
+        run: uv run --frozen --group test python -m compileall -q src tests tools
+
+      - name: Check deterministic fixture generation
+        run: uv run --frozen --group fixtures python tools/generate_fixtures.py --check
+
+      - name: Verify fixture registry
+        run: uv run --frozen --group fixtures python tools/verify_fixtures.py
+
+      - name: Verify checkout portability
+        run: uv run --frozen --group fixtures python tools/verify_checkout_portability.py
+
+      - name: Check post-validation working tree
+        run: |
+          git diff --check
+          status="$(git status --porcelain=v1)"
+          if [[ -n "${status}" ]]; then
+            printf '%s\n' "${status}"
+            exit 1
+          fi
+
+  full-extraction:
+    name: Full extraction
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up CPython
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --python 3.12 --group test
+
+      - name: Download pinned Docling models
+        run: >-
+          uv run --frozen docling-tools models download layout tableformer
+          --output-dir .cache/docling/models
+
+      - name: Run full extraction suite
+        env:
+          TCW_DOCLING_ARTIFACTS: .cache/docling/models
+        run: uv run --frozen --group test python -m unittest discover -s tests -v

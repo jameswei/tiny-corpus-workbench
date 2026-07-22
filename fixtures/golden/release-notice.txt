@@ -1,0 +1,22 @@
+NORTHSTAR 2.4.0 RELEASE NOTICE
+Document ID: RN-2.4.0
+Date: 2026-07-20
+Reference: https://example.invalid/northstar-2-4-0
+
+HIGHLIGHTS
+- Faster local startup
+- Clearer audit export
+- Improved keyboard navigation
+
+UPGRADE STEPS
+1. Back up the local configuration.
+2. Install version 2.4.0.
+3. Verify the audit export opens.
+
+COMPATIBILITY
+This release reads data created by Northstar 2.3.x.
+
+COMPONENT VERSIONS
+Component  Previous  Current
+Desktop    2.3.2     2.4.0
+Schema     7         8

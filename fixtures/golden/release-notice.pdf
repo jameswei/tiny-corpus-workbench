@@ -1,0 +1,82 @@
+%PDF-1.3
+%“Œ‹ž ReportLab Generated PDF document (opensource)
+1 0 obj
+<<
+/F1 2 0 R /F2 3 0 R
+>>
+endobj
+2 0 obj
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
+endobj
+3 0 obj
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
+endobj
+4 0 obj
+<<
+/A <<
+/S /URI /Type /Action /URI (https://example.invalid/northstar-2-4-0)
+>> /Border [ 0 0 0 ] /Rect [ 54 694 400 708 ] /Subtype /Link /Type /Annot
+>>
+endobj
+5 0 obj
+<<
+/Annots [ 4 0 R ] /Contents 9 0 R /MediaBox [ 0 0 612 792 ] /Parent 8 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 
+  /Trans <<
+
+>> /Type /Page
+>>
+endobj
+6 0 obj
+<<
+/PageMode /UseNone /Pages 8 0 R /Type /Catalog
+>>
+endobj
+7 0 obj
+<<
+/Author (tiny-corpus-workbench contributors) /CreationDate (D:20000101000000+00'00') /Creator (tools/generate_fixtures.py) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (ReportLab PDF Library - \(opensource\)) 
+  /Subject (unspecified) /Title (Northstar 2.4.0 Release Notice) /Trapped /False
+>>
+endobj
+8 0 obj
+<<
+/Count 1 /Kids [ 5 0 R ] /Type /Pages
+>>
+endobj
+9 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ] /Length 735
+>>
+stream
+Gat=i?#Q2d'Sc)R/'d67$%gE'P05ba(29eGQL3O_PMcTu1+$f9r>];[U1CAgj[7TLS]@qkK+A(dr?:;fY6"&IQou')'XA10aH%J@%UZP(UJi:ld2+u0lbk",#gt\_XG0MH6E7=i9EOl35CdCJOECh)6Lc$[6hVJ)0.3jX/hkq-5j?-N=!I*KC_WsP96bpV%,-t8U4L8t/qF3`nUf8cY*``S=F.sr8o/Om.[=b\j_TZiXDTQ\H*_,u04rHGKh&ht]@r(tN-`(cI#.D6hj0Q,WQrIuP3?gt!$48.:8*>5jK*s.-.TK-Y\7o_&%\N6do]sr"o-[6F1T6*dFl*KV:]8Y4$:._-4=M>So:%VU2`uQp@r:4Q)m6!;J]W+M\i@$&0L=C^4X-'<MGI*(X7\QHYMjBY2hT#AEq(Dd7pPhfV@diBt,\=]OYt"qX=k=h].U&BidR,fQ:3M%s*\HY9-0glD))aMQ;Bi7>XB@(g4sBOELt%A46_,;[d][<k@b'#FNeqd!tp'^P&3VMWQlHCp;CN'DQY#*-7#R1"6cR_lA;)/#V>Sld]-uaXHK*=k9@ib'J2r%6KuX1`U)53pC'8lJVmmMD$Mah+#+43<]?ZE]Ds<a*?#4,!/=jnQZ=s%Y.#]_@MKM0)DV1oe%@\-5LnVD]$!0YiuJRiIP6B[o;;+kk`B8XZo!Ve>_/h5?6Tgm<i;I2uQkVP*]9,GNZCsFa%[QkEANJq[8Ibk,J~>endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000061 00000 n 
+0000000102 00000 n 
+0000000209 00000 n 
+0000000321 00000 n 
+0000000491 00000 n 
+0000000702 00000 n 
+0000000770 00000 n 
+0000001095 00000 n 
+0000001154 00000 n 
+trailer
+<<
+/ID 
+[<7c20095a92fcdc3044b9e0338b212c08><7c20095a92fcdc3044b9e0338b212c08>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 7 0 R
+/Root 6 0 R
+/Size 10
+>>
+startxref
+1979
+%%EOF

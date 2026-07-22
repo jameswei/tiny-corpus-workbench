@@ -1,0 +1,14 @@
+{
+  "schema_version": "tcw.authored-fixture/v0.1",
+  "family": "release-notice",
+  "document_id": "RN-2.4.0",
+  "title": "Northstar 2.4.0 Release Notice",
+  "date": "2026-07-20",
+  "url": "https://example.invalid/northstar-2-4-0",
+  "sections": [
+    {"heading": "Highlights", "bullets": ["Faster local startup", "Clearer audit export", "Improved keyboard navigation"]},
+    {"heading": "Upgrade steps", "numbered": ["Back up the local configuration.", "Install version 2.4.0.", "Verify the audit export opens."]},
+    {"heading": "Compatibility", "paragraphs": ["This release reads data created by Northstar 2.3.x."]},
+    {"heading": "Component versions", "table": [["Component", "Previous", "Current"], ["Desktop", "2.3.2", "2.4.0"], ["Schema", "7", "8"]]}
+  ]
+}

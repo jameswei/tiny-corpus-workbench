@@ -1,0 +1,15 @@
+# Repository-authored text has a byte-stable LF checkout representation.
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+uv.lock text eol=lf
+.python-version text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+LICENSE text eol=lf
+
+# Generated document containers are opaque bytes, never text-normalized.
+fixtures/golden/*.pdf binary
+fixtures/golden/*.docx binary

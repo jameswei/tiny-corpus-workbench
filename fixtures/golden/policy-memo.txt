@@ -1,0 +1,25 @@
+REMOTE EQUIPMENT RETURN POLICY
+Document ID: PM-2026-04
+Date: 2026-07-15
+Reference: https://example.invalid/equipment-returns
+
+PURPOSE
+This memo defines the return process for company equipment used by remote staff.
+
+COVERED EQUIPMENT
+Return all assigned items when an assignment ends.
+- Laptop and power adapter
+- External display
+- Security key
+
+RETURN STEPS
+Use the following controlled sequence.
+1. Record each asset tag.
+2. Pack each item securely.
+3. Confirm receipt with Workplace Operations.
+
+SERVICE LEVELS
+The current handling targets are shown below.
+Request               Owner       Target
+Shipping label        Operations  1 day
+Receipt confirmation  Inventory   2 days

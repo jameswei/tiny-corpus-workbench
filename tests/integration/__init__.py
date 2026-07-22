@@ -1,0 +1,1 @@
+"""Full golden-observation tests."""
