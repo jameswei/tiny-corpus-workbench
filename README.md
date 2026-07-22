@@ -12,6 +12,9 @@ each milestone is complete.
 | --- | --- |
 | [v0.1.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0) | Extraction Observatory |
 
+[Website](https://lifeplayer.space/tiny-corpus-workbench/) ·
+[Repository](https://github.com/jameswei/tiny-corpus-workbench)
+
 ## Purpose
 
 Documents can lose content, structure, reading order, provenance, or revision

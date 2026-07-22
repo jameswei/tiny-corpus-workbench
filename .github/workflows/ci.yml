@@ -57,6 +57,9 @@ jobs:
       - name: Run unit tests
         run: uv run --frozen --group test python -m unittest discover -s tests/unit -v
 
+      - name: Validate static site
+        run: uv run --frozen python tools/validate_site.py site
+
       - name: Compile Python sources
         run: uv run --frozen --group test python -m compileall -q src tests tools
 

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">tiny-corpus-workbench</title>
+  <rect width="64" height="64" rx="12" fill="#2563eb"/>
+  <path d="M18 16h28v7H36v25h-8V23H18z" fill="#fff"/>
+</svg>
