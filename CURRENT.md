@@ -19,8 +19,9 @@ Future work may use whichever sound engineering practices fit the task.
 - Milestone v0.2 is active on
   `milestone/v0.2-evidence-based-diagnosis`.
 - The v0.2 plan is being executed through the explicitly requested
-  plan-build-review workflow. Publication still requires an independent
-  reviewer `PASS` and owner approval.
+  plan-build-review workflow. A fresh milestone reviewer returned `PASS` on
+  2026-07-23 after all accepted findings were resolved. Publication now
+  requires owner approval and the pending push and pull-request checks.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -69,8 +70,11 @@ The accepted v0.2 implementation is present on the milestone branch. It
 includes the two diagnosis commands, eight fixed rules, three public schemas,
 separate diagnostic fixtures, tests, a user guide, and a learning lesson.
 Builder verification covers the released v0.1 behavior, all twelve unchanged
-golden fixtures, and the new diagnosis corpus.
+golden fixtures, and the new diagnosis corpus. Local acceptance passes 130
+tests, deterministic fixture checks, static site validation, and clean-checkout
+portability verification.
 
-The implementation has not yet passed independent milestone review. Do not
-publish the branch or open a pull request until the reviewer returns `PASS`
-and the owner approves publication.
+An independent milestone reviewer returned `PASS` on 2026-07-23 after all
+accepted findings were resolved. The branch has not been pushed, and no pull
+request, hosted CI run, merge, tag, or release has occurred. Publication now
+awaits owner approval followed by the normal push and pull-request checks.
