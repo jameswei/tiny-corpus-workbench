@@ -3,6 +3,9 @@
 `tiny-corpus-workbench` is a small, learning-by-doing project for making raw
 document preparation inspectable, trustworthy, and reversible.
 
+Visit the [project website](https://lifeplayer.space/tiny-corpus-workbench/)
+for a concise overview of the workbench.
+
 ## Project status
 
 This table is an append-only record of completed milestones. Add one row after
@@ -11,9 +14,6 @@ each milestone is complete.
 | Version | Milestone |
 | --- | --- |
 | [v0.1.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0) | Extraction Observatory |
-
-[Website](https://lifeplayer.space/tiny-corpus-workbench/) ·
-[Repository](https://github.com/jameswei/tiny-corpus-workbench)
 
 ## Purpose
 
