@@ -741,8 +741,15 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                         "{", "utf-8"
                     )
                 command = mock.Mock(return_value=published)
+                from tiny_corpus_workbench.diagnosis_verification import (
+                    verify_diagnosis,
+                )
+
+                def route(module_name: str, name: str):
+                    return command if name == "diagnose" else verify_diagnosis
+
                 with mock.patch.object(
-                    cli, "_diagnosis_callable", return_value=command
+                    cli, "_diagnosis_callable", side_effect=route
                 ):
                     code, stdout, stderr = self.invoke(
                         "diagnose", "observation"
@@ -754,6 +761,54 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     "published diagnosis manifest is unavailable or invalid\n",
                 )
                 self.assertNotIn("Traceback", stderr)
+
+    def test_post_publication_summary_requires_complete_integrity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            code, stdout, _ = self.invoke(
+                "diagnose",
+                str(observation),
+                "--output-root",
+                str(root / "diagnoses"),
+            )
+            self.assertEqual(code, 0)
+            diagnosis = Path(json.loads(stdout)["manifest"]).parent
+            from tiny_corpus_workbench.diagnosis_verification import (
+                verify_diagnosis,
+            )
+
+            for operation in ("non_hex_id", "inconsistent_status_count"):
+                with self.subTest(operation=operation):
+                    published = root / operation / diagnosis.name
+                    published.parent.mkdir()
+                    shutil.copytree(diagnosis, published)
+                    manifest_path = published / "diagnosis-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    if operation == "non_hex_id":
+                        manifest["diagnosis_id"] = "z" * 64
+                    else:
+                        manifest["summary"]["total"] = 3
+                        manifest["status"] = "NO_FINDINGS"
+                    manifest_path.write_bytes(canonical_json(manifest))
+                    command = mock.Mock(return_value=published)
+
+                    def route(module_name: str, name: str):
+                        return command if name == "diagnose" else verify_diagnosis
+
+                    with mock.patch.object(
+                        cli, "_diagnosis_callable", side_effect=route
+                    ):
+                        code, stdout, stderr = self.invoke(
+                            "diagnose", "observation"
+                        )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stdout, "")
+                    self.assertEqual(
+                        stderr,
+                        "published diagnosis manifest is unavailable or invalid\n",
+                    )
+                    self.assertNotIn("Traceback", stderr)
 
     def test_verifier_detects_inventory_and_content_failure_shapes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

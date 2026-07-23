@@ -91,6 +91,21 @@ def _validate_staged_schemas(root: Path) -> None:
 def _published_diagnosis_line(published: Path) -> dict[str, Any]:
     manifest_path = published / "diagnosis-manifest.json"
     try:
+        verify = _diagnosis_callable(
+            "diagnosis_verification", "verify_diagnosis"
+        )
+        verification = verify(published)
+        if verification["artifact_integrity"]["status"] != "VERIFIED":
+            raise IntegrityError(
+                "published diagnosis manifest is unavailable or invalid"
+            )
+    except (RuntimeContractError, IntegrityError):
+        raise
+    except Exception as error:
+        raise IntegrityError(
+            "published diagnosis manifest is unavailable or invalid"
+        ) from error
+    try:
         if not stat.S_ISREG(manifest_path.lstat().st_mode):
             raise OSError
         manifest = json.loads(manifest_path.read_text("utf-8"))
