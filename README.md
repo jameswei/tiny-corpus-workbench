@@ -1,32 +1,31 @@
 # tiny-corpus-workbench
 
-`tiny-corpus-workbench` is a small, learning-by-doing project for making raw
-document preparation inspectable, trustworthy, and reversible.
+`tiny-corpus-workbench` is a small, hands-on project for learning how to
+prepare documents without losing sight of their source or extraction evidence.
 
 Visit the [project website](https://lifeplayer.space/tiny-corpus-workbench/)
 for a concise overview of the workbench.
 
-## Project status
-
-This table is an append-only record of completed milestones. Add one row after
-each milestone is complete.
+## Released milestones
 
 | Version | Milestone |
 | --- | --- |
 | [v0.1.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0) | Extraction Observatory |
 | [v0.2.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.2.0) | Evidence-Based Diagnosis |
 
-## Purpose
+## Why this project
 
 Documents can lose content, structure, reading order, provenance, or revision
-context before downstream systems process them. This project explores how to
-inspect extraction results, diagnose concrete quality problems, and apply
-controlled refinements without hiding or overwriting the original evidence.
+context before another system uses them. This workbench makes that preparation
+step visible. It lets you inspect extraction results, diagnose concrete quality
+problems, and preserve the evidence needed for later human-controlled changes.
 
-RAG is one common downstream use: extraction and preparation errors can
+RAG is one possible downstream use. Extraction and preparation errors can
 propagate into chunking, indexing, retrieval, and generated answers.
 
-The intended lifecycle is:
+## Workflow
+
+The project follows this document lifecycle:
 
 ```text
 raw business documents
@@ -44,81 +43,94 @@ diagnosis + explicit refinement
 prepared document revision
 ```
 
+The current release covers source capture, extraction observation,
+verification, and evidence-based diagnosis. Controlled refinement and prepared
+revisions remain future work.
+
+## What you can do today
+
+- **Observe extraction.** `tcw observe` runs Docling and MarkItDown against the
+  same captured source snapshot. It preserves both outputs instead of choosing
+  a winner.
+- **Verify an observation.** `tcw verify` checks the published structure,
+  artifact hashes, and recorded document relationships without changing the
+  record.
+- **Diagnose the canonical document.** `tcw diagnose` evaluates eight fixed,
+  deterministic rules against the canonical `DoclingDocument` JSON.
+- **Verify a diagnosis.** `tcw verify-diagnosis` checks diagnosis artifacts and
+  can compare them with the original observation and a fresh rule evaluation.
+
+Diagnosis publishes a separate immutable record. It does not repair a document
+or authorize a change. `NO_FINDINGS` means that none of the eight rules
+matched; it is not proof that the document is correct.
+
+Verification detects changes under the project's trusted-local model. It does
+not establish authorship or authenticity.
+
 ## Project boundary
 
-The initial project covers three layers:
+The workbench covers three layers:
 
 1. extraction adapters
 2. a canonical working representation
 3. diagnosis and controlled refinement
 
-It explicitly excludes chunking, embeddings, indexing, retrieval, reranking,
-generation, and RAG evaluation.
+It starts with a raw document and ends with a prepared document revision. It
+does not include chunking, embeddings, indexing, retrieval, reranking,
+generation, or RAG evaluation. Integration with downstream systems is also
+outside the project boundary.
 
-The workbench ends at a prepared document revision. Consumption by downstream
-systems and integration with them are outside the initial scope.
+## Design principles
 
-## Initial direction
+- [Docling](https://github.com/docling-project/docling) provides format-aware
+  extraction.
+- `DoclingDocument` is the canonical working representation, and its lossless
+  JSON is retained.
+- Source files and published raw extraction artifacts remain unchanged.
+- Findings include stable identifiers, affected document-item references, and
+  concrete evidence.
+- Diagnosis never grants authority to change a document.
+- Refinements are designed to be deterministic, explicit, attributable, and
+  reversible.
+- Interpretive changes require human confirmation.
 
-- Use [Docling](https://github.com/docling-project/docling) for mature,
-  format-aware extraction.
-- Use `DoclingDocument` as the canonical working representation and retain its
-  lossless JSON artifact.
-- Keep source files unchanged and published raw extraction artifacts
-  application-immutable.
-- Record findings with stable identifiers, affected document-item references,
-  and concrete evidence.
-- Separate diagnosis from authorization to change a document.
-- Make refinements deterministic, explicit, attributable, and reversible.
-- Require human confirmation for interpretive changes.
+## Run locally
 
-The v0.1 implementation stops after extraction observation. The v0.2
-implementation adds deterministic diagnosis of the canonical Docling artifact.
-It does not choose a better extractor, authorize a repair, or modify documents.
-See the [brainstorming record](docs/proposal.md) for the original rationale and
-the [project roadmap](docs/roadmap.md) for later planned milestones.
-
-## Development
-
-The acceptance runtime is CPython 3.12 with dependencies locked by `uv.lock`.
+The workbench requires CPython 3.12 and
+[uv](https://docs.astral.sh/uv/). `uv.lock` pins the dependencies.
 
 ```bash
 uv sync --frozen --python 3.12
 uv run --frozen docling-tools models download layout tableformer \
   --output-dir .cache/docling/models
 uv run --frozen tcw observe fixtures/golden/policy-memo.pdf
+uv run --frozen tcw verify OBSERVATION_DIRECTORY
 uv run --frozen tcw diagnose OBSERVATION_DIRECTORY
 uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY \
   --observation OBSERVATION_DIRECTORY
 ```
 
-Model download is an explicit setup step. Observation itself is local and
-offline: OCR, plugins, remote services, and LLM clients are disabled, and a
-missing PDF model inventory causes a recorded failure instead of a download.
-Each observation uses one private source snapshot for both extractors and is
-locally tamper-evident under the trusted-local limits documented in the user
-guide. Published runs can be checked read-only with `tcw verify`. Diagnosis
-requires no models or network access. It produces a separate immutable record
-and does not change the observation.
+Each command prints a compact JSON result. Replace `OBSERVATION_DIRECTORY` with
+the directory containing the `manifest` path printed by `tcw observe`. Replace
+`DIAGNOSIS_DIRECTORY` with the directory containing the `manifest` path printed
+by `tcw diagnose`.
 
-The repository includes exactly twelve deterministic CC0 extraction fixtures
-generated from three project-authored document families, plus a separate
-three-file CC0 diagnosis corpus. The full setup, artifact, rerun,
-compatibility, failure-code, and verification contracts are documented in the
-[Extraction Observatory guide](docs/extraction-observatory.md).
-The fixed diagnosis rules, evidence artifacts, and verification states are
-documented in the
-[Evidence-Based Diagnosis guide](docs/evidence-based-diagnosis.md).
+The PDF example requires the local Docling models downloaded in the second
+step. Observation then runs locally and offline. OCR, plugins, remote services,
+and LLM clients are disabled. If the required PDF models are missing, the run
+records a failure instead of downloading them.
+
+Diagnosis needs no models or network access. Published observations and
+diagnoses are not overwritten by the CLI.
 
 ## Learning
 
-The [learning materials](learning/README.md) provide guided, hands-on lessons
-for completed milestones. Start there for the learning path, suggested study
-times, safe experiment steps, and companion references.
+The [learning hub](learning/README.md) provides guided, hands-on lessons for
+each completed milestone. It includes a suggested learning path, estimated
+study times, safe experiments, and links to related references.
 
-The lessons use committed fixtures so that learners can inspect evidence
-without starting with private documents. They support study and exploration;
-the user guides and accepted milestone plans remain the behavior contracts.
+Start with the project-authored CC0 fixtures before using private documents.
+The learning hub links to detailed guides when a lesson needs them.
 
 ## License
 
