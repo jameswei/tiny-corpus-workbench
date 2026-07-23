@@ -11,7 +11,8 @@ import unicodedata
 import uuid
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
-from pathlib import Path
+from decimal import Decimal, InvalidOperation
+from pathlib import Path, PureWindowsPath
 from typing import Any, Iterable
 
 from docling_core.types.doc import DoclingDocument
@@ -258,7 +259,7 @@ def _canonicalize_findings(
 
 def _bbox_midpoint_top_ratio(
     provenance: dict[str, Any], pages: dict[str, Any]
-) -> tuple[int, float] | None:
+) -> tuple[int, Decimal] | None:
     page_no = provenance.get("page_no")
     bbox = provenance.get("bbox")
     page = pages.get(str(page_no), pages.get(page_no))
@@ -273,12 +274,24 @@ def _bbox_midpoint_top_ratio(
     top, bottom = bbox.get("t"), bbox.get("b")
     if not all(isinstance(value, (int, float)) for value in (height, top, bottom)):
         return None
-    if height <= 0:
+    try:
+        height_decimal = Decimal(str(height))
+        top_decimal = Decimal(str(top))
+        bottom_decimal = Decimal(str(bottom))
+    except (InvalidOperation, ValueError):
         return None
-    midpoint = (float(top) + float(bottom)) / 2
+    if (
+        not all(
+            value.is_finite()
+            for value in (height_decimal, top_decimal, bottom_decimal)
+        )
+        or height_decimal <= 0
+    ):
+        return None
+    midpoint = (top_decimal + bottom_decimal) / 2
     if bbox.get("coord_origin") == "BOTTOMLEFT":
-        midpoint = float(height) - midpoint
-    return page_no, midpoint / float(height)
+        midpoint = height_decimal - midpoint
+    return page_no, midpoint / height_decimal
 
 
 def analyze_document(
@@ -478,8 +491,13 @@ def analyze_document(
                 if point is None:
                     continue
                 page_no, ratio = point
-                ratio = round(ratio, 12)
-                band = "top" if ratio <= 0.10 else "bottom" if ratio >= 0.90 else None
+                band = (
+                    "top"
+                    if ratio <= Decimal("0.10")
+                    else "bottom"
+                    if ratio >= Decimal("0.90")
+                    else None
+                )
                 if band is None:
                     continue
                 key = (_hash(text), band)
@@ -768,13 +786,29 @@ def _validate_publication_parent(
     source_key: str,
     observation_run_id: str,
 ) -> None:
+    for label, value in (
+        ("source key", source_key),
+        ("observation run ID", observation_run_id),
+    ):
+        if (
+            not isinstance(value, str)
+            or not value
+            or value in {".", ".."}
+            or "/" in value
+            or "\\" in value
+            or "\x00" in value
+            or Path(value).is_absolute()
+            or bool(PureWindowsPath(value).drive)
+        ):
+            raise InputError(f"observation {label} is not a safe path component")
     try:
         observation = observation_root.resolve(strict=True)
-        parent = (
-            output_root / source_key / observation_run_id
-        ).resolve(strict=False)
+        output = output_root.resolve(strict=False)
+        parent = (output / source_key / observation_run_id).resolve(strict=False)
     except (OSError, RuntimeError) as error:
         raise InputError("diagnosis publication path cannot be resolved safely") from error
+    if parent == output or not parent.is_relative_to(output):
+        raise InputError("diagnosis publication path escapes the output root")
     if parent == observation or parent.is_relative_to(observation):
         raise InputError(
             "diagnosis output must not overlap the immutable observation"

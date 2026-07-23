@@ -53,7 +53,9 @@ The output path is:
 The publisher writes a private staging directory and uses an exclusive atomic
 rename. It does not overwrite an existing run.
 The resolved publication parent must not be the observation or a path inside
-the observation.
+the observation. The source key and observation run ID must each be one safe
+path component. The resolved publication parent must stay inside the resolved
+output root.
 
 `diagnosis-manifest.json` records:
 
@@ -132,6 +134,7 @@ When `--observation` is present, `observation_state` is one of:
 - `ERROR`
 
 Without that option it is `NOT_CHECKED`.
+The match check includes all recorded source identity fields.
 
 Rule rerun state is:
 

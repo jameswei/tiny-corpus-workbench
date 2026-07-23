@@ -96,7 +96,12 @@ def _observation_states(
         document_path = root / manifest["observation"]["canonical_document_path"]
         document_bytes = document_path.read_bytes()
         same = (
-            observation["run_id"] == manifest["observation"]["run_id"]
+            manifest["source"]
+            == {
+                key: observation["source"][key]
+                for key in ("key", "media_type", "size", "sha256")
+            }
+            and observation["run_id"] == manifest["observation"]["run_id"]
             and observation["observation_id"]
             == manifest["observation"]["observation_id"]
             and len(observation_bytes) == manifest["observation"]["manifest_size"]

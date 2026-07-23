@@ -24,6 +24,7 @@ from tiny_corpus_workbench.artifacts import canonical_json
 from tiny_corpus_workbench.diagnosis import make_finding_set, render_report
 from tiny_corpus_workbench.diagnosis import AtomicDiagnosis, snapshot_tree
 from tiny_corpus_workbench.domain import InputError, IntegrityError
+from tiny_corpus_workbench.verification import verify_observation
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
@@ -245,6 +246,70 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     self.assertEqual(stdout, "")
                     self.assertIn("must not overlap", stderr)
                     self.assertEqual(snapshot_tree(observation), before)
+
+    def test_unsafe_observation_source_key_cannot_escape_output_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for label in ("traversal", "absolute"):
+                with self.subTest(label=label):
+                    case_root = root / label
+                    observation = self.observation(case_root / "observations")
+                    manifest_path = observation / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    escaped = (
+                        case_root / "escaped"
+                        if label == "traversal"
+                        else root / "absolute-escaped"
+                    )
+                    manifest["source"]["key"] = (
+                        "../escaped" if label == "traversal" else str(escaped)
+                    )
+                    manifest_path.write_bytes(canonical_json(manifest))
+                    self.assertEqual(
+                        verify_observation(observation)["artifact_integrity"][
+                            "status"
+                        ],
+                        "VERIFIED",
+                    )
+                    before = snapshot_tree(observation)
+                    output = case_root / "diagnoses"
+                    code, stdout, stderr = self.invoke(
+                        "diagnose",
+                        str(observation),
+                        "--output-root",
+                        str(output),
+                    )
+                    self.assertEqual(code, 2)
+                    self.assertEqual(stdout, "")
+                    self.assertIn("not a safe path component", stderr)
+                    self.assertFalse(output.exists())
+                    self.assertFalse(escaped.exists())
+                    self.assertEqual(snapshot_tree(observation), before)
+
+    def test_symlinked_publication_parent_cannot_escape_output_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            manifest_path = observation / "manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["source"]["key"] = "redirect"
+            manifest_path.write_bytes(canonical_json(manifest))
+            output = root / "diagnoses"
+            output.mkdir()
+            escaped = root / "escaped"
+            (output / "redirect").symlink_to(escaped, target_is_directory=True)
+            before = snapshot_tree(observation)
+            code, stdout, stderr = self.invoke(
+                "diagnose",
+                str(observation),
+                "--output-root",
+                str(output),
+            )
+            self.assertEqual(code, 2)
+            self.assertEqual(stdout, "")
+            self.assertIn("escapes the output root", stderr)
+            self.assertFalse(escaped.exists())
+            self.assertEqual(snapshot_tree(observation), before)
 
     def test_atomic_diagnosis_conflict_never_replaces_existing_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -567,6 +632,47 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
             self.assertEqual(result["observation_state"]["status"], "MATCH")
             self.assertEqual(result["derivation_state"]["status"], "MISMATCH")
+
+    def test_supplied_observation_cross_checks_all_source_identity_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            code, stdout, _ = self.invoke(
+                "diagnose", str(observation), "--output-root", str(root / "diagnoses")
+            )
+            self.assertEqual(code, 0)
+            diagnosis = Path(json.loads(stdout)["manifest"]).parent
+            manifest_path = diagnosis / "diagnosis-manifest.json"
+            original = json.loads(manifest_path.read_text("utf-8"))
+            mutations = {
+                "key": f"{original['source']['key']}-changed",
+                "media_type": "text/plain",
+                "size": original["source"]["size"] + 1,
+                "sha256": "0" * 64,
+            }
+            for field, value in mutations.items():
+                with self.subTest(field=field):
+                    changed = json.loads(json.dumps(original))
+                    changed["source"][field] = value
+                    manifest_path.write_bytes(canonical_json(changed))
+                    code, stdout, stderr = self.invoke(
+                        "verify-diagnosis",
+                        str(diagnosis),
+                        "--observation",
+                        str(observation),
+                    )
+                    self.assertEqual(code, 0)
+                    self.assertEqual(stderr, "")
+                    result = json.loads(stdout)
+                    self.assertEqual(
+                        result["artifact_integrity"]["status"], "VERIFIED"
+                    )
+                    self.assertEqual(
+                        result["observation_state"]["status"], "CHANGED"
+                    )
+                    self.assertEqual(
+                        result["derivation_state"]["status"], "NOT_CHECKED"
+                    )
 
 
 if __name__ == "__main__":

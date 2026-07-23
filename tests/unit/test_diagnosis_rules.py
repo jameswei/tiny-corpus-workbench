@@ -375,11 +375,15 @@ class DiagnosisRuleTests(unittest.TestCase):
             ("x" * 201, 3, 0.10, "TOPLEFT", False),
             ("margin", 2, 0.10, "TOPLEFT", False),
             ("margin", 3, 0.10, "TOPLEFT", True),
+            ("margin", 3, 0.1000000000004, "TOPLEFT", False),
             ("margin", 3, 0.1001, "TOPLEFT", False),
             ("margin", 3, 0.90, "TOPLEFT", True),
+            ("margin", 3, 0.8999999999996, "TOPLEFT", False),
             ("margin", 3, 0.8999, "TOPLEFT", False),
             ("margin", 3, 0.10, "BOTTOMLEFT", True),
+            ("margin", 3, 0.1000000000004, "BOTTOMLEFT", False),
             ("margin", 3, 0.90, "BOTTOMLEFT", True),
+            ("margin", 3, 0.8999999999996, "BOTTOMLEFT", False),
         )
         for value, page_count, ratio, origin, expected in cases:
             with self.subTest(
