@@ -1,41 +1,28 @@
 # Handoff Snapshot
 
-**Last updated:** 2026-07-22
+**Last updated:** 2026-07-23
 
 This is an informational handoff, not a required agent workflow or taskboard.
 Future work may use whichever sound engineering practices fit the task.
 
 ## Status
 
-- The repository is initialized locally and on GitHub.
-- The initial brainstorming verdict is preserved in `docs/proposal.md`.
-- The major milestones from v0.0 through v1.0 are recorded in
-  `docs/roadmap.md`.
-- Milestone v0.1, Extraction Observatory, is implemented and has passed its
-  milestone review on `milestone/v0.1-extraction-observatory`.
-- Its accepted implementation and review contract is
-  `docs/plans/v0.1-extraction-observatory.md`.
-- The initial `tcw observe` implementation, schemas, twelve deterministic CC0
-  fixtures, tests, and user guide are present.
-- The learner-facing v0.1 module adds a guided path through extraction
-  comparison, artifact anatomy, tamper evidence, provenance advisories, and
-  verification limits.
-- The owner accepted a local-integrity amendment defining observations as
-  application-immutable and locally tamper-evident, adding private source
-  snapshots, PDF model stability checks, and read-only `tcw verify`.
-- The owner further narrowed v0.1 `VERIFIED` to structural validity, artifact
-  integrity, and explicitly derivable semantic consistency. Authenticity and
-  future fingerprint/anchoring mechanisms remain outside v0.1.
-- The accepted amendment is implemented locally: both adapters consume one
-  owner-only source snapshot, PDF models are checked before and after
-  extraction, persisted comparison bytes are inventoried, and the standalone
-  verifier checks published observations plus opt-in provenance advisories.
-- The project website is a separate, static publication surface at
-  `https://lifeplayer.space/tiny-corpus-workbench/`. It explains the released
-  workbench and points readers to the repository documentation; it does not
-  process documents or change the roadmap milestone state.
-- GitHub Pages deployment and GitHub Actions runs are authoritative for the
-  live website status. The checked-in `site/` directory is its source.
+- Milestone v0.1, Extraction Observatory, is released as `v0.1.0` on `main`.
+- The released baseline contains `tcw observe`, `tcw verify`, twelve
+  deterministic CC0 fixtures, immutable observation artifacts, tests, user
+  documentation, learning material, CI, and the project website.
+- The local v0.1 baseline passes 80 unit tests, the twelve-fixture registry
+  check, and static website validation.
+- The owner accepted milestone v0.2, Evidence-Based Diagnosis, on 2026-07-23.
+- Its implementation contract is
+  `docs/plans/v0.2-evidence-based-diagnosis.md`.
+- Milestone v0.2 is active on
+  `milestone/v0.2-evidence-based-diagnosis`.
+- The v0.2 plan is being executed through the explicitly requested
+  plan-build-review workflow. Publication still requires an independent
+  reviewer `PASS` and owner approval.
+- The project website remains a separate static publication surface at
+  `https://lifeplayer.space/tiny-corpus-workbench/`.
 
 ## Document roles
 
@@ -69,62 +56,17 @@ confirmation.
 
 ## Current milestone
 
-Milestone v0.1 has been implemented according to
-`docs/plans/v0.1-extraction-observatory.md`. The mandatory compatibility spike
-passed with CPython 3.12 and the exact lock: four formats through both
-extractors, four reloadable Docling JSON artifacts, offline PDF conversion from
-the prefetched `layout` and `tableformer` files, and no observation-time
-network access. The emitted Docling schema identity is `DoclingDocument`
-version `1.10.0`.
+Milestone v0.2 adds deterministic, read-only diagnosis over the canonical
+`DoclingDocument` from an intact v0.1 observation. It will publish a separate
+application-immutable diagnosis with eight fixed evidence-backed rules,
+stable findings, a deterministic report, and independent verification.
 
-Implementation and local-integrity amendment verification on 2026-07-21:
+The accepted plan keeps MarkItDown descriptive, preserves every v0.1 public
+contract and golden fixture, adds no refinement capability, and keeps
+chunking, embeddings, retrieval, generation, and RAG evaluation out of scope.
 
-- fast unit suite: 70 tests passed
-- full suite: 73 tests passed, including the mandatory spike, all twelve
-  fixtures through both extractors, same-lock JSON reload, expected table
-  counts, anchor preservation, network denial, and byte-identical comparison
-  summaries across isolated output roots
-- deterministic fixture regeneration and registry verification passed both
-  locally and in a separate byte-identical `core.autocrlf=true` checkout
-- staged publication inventory checks passed for missing, changed, replaced,
-  symlinked, and unexpected content while preserving prior runs
-- source snapshot, extractor preflight, PDF model-stability, neutral
-  concurrency, and verifier corruption/advisory tests passed
-- schema-valid provenance/status/artifact mutations are rejected as broken,
-  and equivalent model inventories match across different absolute roots
-- RFC 3339 timestamps, durations, sanitized errors, and persisted Docling
-  schema identity are structurally and semantically verified; valid changes to
-  non-derivable metadata remain explicitly outside authenticity claims
-- observation preflight covers CPython 3.12 and every Docling serialization API
-  used, while non-PDF model advisories remain `NOT_APPLICABLE` for any supplied
-  model path
-- the exact three-package runtime mapping is shared by observation and
-  verification; changed, missing, and unexpected dependency entries are broken
-- malformed decoded manifest/comparison shapes complete as broken reports, and
-  staged evidence is schema-valid before publication; empty text is rejected
-- CLI import is independent of `jsonschema`; guarded lazy verification/schema
-  bootstrap failures use runtime exit 6 without stdout or publication
-- central error sanitization removes every C0/C1 control before collapsing and
-  bounding persisted evidence and application-handled diagnostics, including
-  missing-model path failures; built-in `argparse` syntax diagnostics remain a
-  human-facing, non-stable stderr interface
-- schema validation, compile check, `git diff --check`, and the documented
-  manual PDF observation plus `tcw verify` checks passed
-
-The accepted v0.1 implementation and final Section 13.8/13.13/13.14
-clarifications are complete locally. A fresh milestone reviewer returned
-`PASS` on 2026-07-22 after the guide alignment and Unicode line-separator
-regressions. The CLI binary remains `tcw`. The owner then accepted Section 14,
-a clean-checkout GitHub Actions prerequisite. Its two-job CI workflow is now
-implemented locally with immutable official action references; workflow
-linting, the 70-test fast checks, checkout-portability regression, explicit
-model download, and 73-test full suite pass. A fresh milestone reviewer returned
-`PASS` for the publication amendment on 2026-07-22. Actual GitHub-hosted runs
-passed on the reviewed branch. The branch is published in
-[PR #1](https://github.com/jameswei/tiny-corpus-workbench/pull/1). GitHub's PR,
-check, and default-branch state is authoritative for publication and merge
-status.
-
-No repository-wide agent workflow is automatically activated. The current
-milestone is being run through the explicitly requested plan-build-review
-workflow and remains subject to its review and publication gates.
+The current task is to implement and verify
+`docs/plans/v0.2-evidence-based-diagnosis.md`. The plan has been established;
+the implementation has not yet passed milestone review. Do not publish the
+branch or open a pull request until the reviewer returns `PASS` and the owner
+approves publication.
