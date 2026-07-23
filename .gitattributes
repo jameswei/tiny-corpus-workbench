@@ -13,3 +13,4 @@ LICENSE text eol=lf
 # Generated document containers are opaque bytes, never text-normalized.
 fixtures/golden/*.pdf binary
 fixtures/golden/*.docx binary
+fixtures/diagnosis/v0.2/*.pdf binary
