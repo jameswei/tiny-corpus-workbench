@@ -12,6 +12,8 @@ from docling_core.types.doc import DoclingDocument
 from jsonschema import Draft202012Validator
 
 from tiny_corpus_workbench.cli import observe
+from tiny_corpus_workbench.diagnosis import diagnose
+from tiny_corpus_workbench.diagnosis_verification import verify_diagnosis
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,6 +73,18 @@ class GoldenObservationTests(unittest.TestCase):
                         self.assertEqual(len(document.tables), fixture["expected_docling_table_count"])
                         self.assertTrue((first / "docling/document.md").read_text("utf-8").strip())
                         self.assertTrue((first / "markitdown/document.md").read_text("utf-8").strip())
+
+                        diagnosis = diagnose(first, first_root / "diagnoses")
+                        finding_set = json.loads(
+                            (diagnosis / "findings.json").read_text("utf-8")
+                        )
+                        self.assertEqual(finding_set["summary"]["total"], 0)
+                        self.assertEqual(
+                            verify_diagnosis(diagnosis, first)[
+                                "artifact_integrity"
+                            ]["status"],
+                            "VERIFIED",
+                        )
 
                         manifest["unexpected"] = True
                         with self.assertRaises(Exception):

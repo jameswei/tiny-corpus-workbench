@@ -1,7 +1,8 @@
 CC0 1.0 Universal
 
-The authors dedicate the files under fixtures/authored and fixtures/golden to
-the public domain under the Creative Commons CC0 1.0 Universal dedication.
+The authors dedicate the files under fixtures/authored, fixtures/golden, and
+fixtures/diagnosis to the public domain under the Creative Commons CC0 1.0
+Universal dedication.
 
 To the extent possible under law, the authors have waived all copyright and
 related or neighboring rights to these fixtures. The dedication is provided

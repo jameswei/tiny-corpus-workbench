@@ -28,6 +28,8 @@ assert "jsonschema" not in sys.modules
 sys.meta_path.insert(0, BlockJsonschema())
 from tiny_corpus_workbench import cli
 assert "jsonschema" not in sys.modules
+assert "tiny_corpus_workbench.diagnosis" not in sys.modules
+assert "tiny_corpus_workbench.diagnosis_verification" not in sys.modules
 """
 
 
@@ -46,7 +48,7 @@ class BootstrapTests(unittest.TestCase):
     ) -> None:
         self.assertEqual(completed.returncode, 6)
         self.assertEqual(completed.stdout, "")
-        self.assertIn("verification/schema runtime", completed.stderr)
+        self.assertIn("runtime is unavailable or incompatible", completed.stderr)
         self.assertNotIn("Traceback", completed.stderr)
         self.assertEqual(len(completed.stderr.splitlines()), 1)
 
@@ -107,6 +109,18 @@ raise SystemExit(code)
             output = Path(directory) / "output"
             completed = self.run_fresh(script, str(output))
             self.assertEqual(list(output.glob("*/*")), [])
+        self.assert_runtime_bootstrap_failure(completed)
+
+    def test_fresh_process_without_jsonschema_handles_diagnosis_bootstrap(self) -> None:
+        script = BLOCK_JSONSCHEMA + r"""
+from pathlib import Path
+
+root = Path(sys.argv[1])
+root.mkdir()
+raise SystemExit(cli.main(["diagnose", str(root)]))
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            completed = self.run_fresh(script, str(Path(directory) / "observation"))
         self.assert_runtime_bootstrap_failure(completed)
 
     def test_incompatible_verification_module_is_runtime_exit(self) -> None:

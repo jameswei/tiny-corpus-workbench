@@ -1,3 +1,3 @@
-"""Inspect two extraction views without hiding their source evidence."""
+"""Inspect extraction and diagnosis evidence without hiding its source."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

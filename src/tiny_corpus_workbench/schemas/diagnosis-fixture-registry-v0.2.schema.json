@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/diagnosis-fixture-registry-v0.2.schema.json",
+  "title": "tiny-corpus-workbench diagnosis fixture registry v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generator", "fixtures"],
+  "properties": {
+    "schema_version": {"const": "tcw.diagnosis-fixture-registry/v0.2"},
+    "generator": {"const": "tools/generate_diagnosis_fixtures.py"},
+    "fixtures": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "path", "size", "sha256", "license", "expected_rules"],
+        "properties": {
+          "id": {"enum": ["short-note", "structural-traps", "repeated-margin"]},
+          "path": {"type": "string", "pattern": "^fixtures/diagnosis/v0\\.2/"},
+          "size": {"type": "integer", "minimum": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "license": {"const": "CC0-1.0"},
+          "expected_rules": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^TCW-D00[1-8]$"}
+          }
+        }
+      }
+    }
+  }
+}

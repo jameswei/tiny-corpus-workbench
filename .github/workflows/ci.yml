@@ -66,6 +66,11 @@ jobs:
       - name: Check deterministic fixture generation
         run: uv run --frozen --group fixtures python tools/generate_fixtures.py --check
 
+      - name: Check deterministic diagnosis fixture generation
+        run: >-
+          uv run --frozen --group fixtures python
+          tools/generate_diagnosis_fixtures.py --check
+
       - name: Verify fixture registry
         run: uv run --frozen --group fixtures python tools/verify_fixtures.py
 

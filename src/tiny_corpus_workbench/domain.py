@@ -50,6 +50,10 @@ class IntegrityError(WorkbenchError):
     exit_code = ExitCode.INTEGRITY
 
 
+class CanonicalUnavailableError(WorkbenchError):
+    exit_code = ExitCode.FAILED
+
+
 class RuntimeContractError(WorkbenchError):
     exit_code = ExitCode.RUNTIME
 

@@ -30,6 +30,7 @@ MEDIA_TYPES = {
 }
 FIXED_ZIP_TIME = (2026, 7, 20, 0, 0, 0)
 FIXED_DOC_TIME = datetime(2026, 7, 20, tzinfo=UTC)
+V01_LOCK_HASH = "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09"
 
 
 def digest(path: Path) -> str:
@@ -185,7 +186,9 @@ def write_pdf(spec: dict[str, Any], path: Path) -> None:
 
 def generate_into(output: Path) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
-    lock_hash = digest(ROOT / "uv.lock")
+    # The released v0.1 registry records the lock that created its bytes.
+    # Later milestone lock metadata must not rewrite released fixture evidence.
+    lock_hash = V01_LOCK_HASH
     fixtures = []
     for authored_path in sorted(AUTHORED.glob("*.json")):
         spec = json.loads(authored_path.read_text("utf-8"))

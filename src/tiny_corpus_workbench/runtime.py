@@ -1,11 +1,23 @@
-"""Fixed v0.1 runtime identity shared by observation and verification."""
+"""Fixed runtime identity shared by observation, diagnosis, and verification."""
 
 from __future__ import annotations
 
+import hashlib
+import importlib.metadata
+import platform
+import sys
+import tomllib
+from pathlib import Path
 from types import MappingProxyType
-from typing import Final, Mapping
+from typing import Any, Final, Mapping
+
+from tiny_corpus_workbench.domain import RuntimeContractError
 
 
+LOCK_PATH = Path("uv.lock")
+EXPECTED_LOCKFILE_SHA256: Final = (
+    "c708fe8c2ce3a516a8a0e219b5b81bc0ee7b787e62c70c6b470a40ebc8dc55d0"
+)
 RUNTIME_DEPENDENCIES: Final[Mapping[str, str]] = MappingProxyType(
     {
         "docling": "2.113.0",
@@ -13,3 +25,62 @@ RUNTIME_DEPENDENCIES: Final[Mapping[str, str]] = MappingProxyType(
         "markitdown": "0.1.6",
     }
 )
+
+
+def active_locked_runtime(lock_path: Path | None = None) -> dict[str, Any]:
+    from tiny_corpus_workbench import __version__
+
+    lock_path = LOCK_PATH if lock_path is None else lock_path
+    if platform.python_implementation() != "CPython" or sys.version_info[:2] != (
+        3,
+        12,
+    ):
+        raise RuntimeContractError("diagnosis requires the locked CPython 3.12 runtime")
+    try:
+        if lock_path.is_symlink() or not lock_path.is_file():
+            raise OSError
+        dependencies = {
+            name: importlib.metadata.version(name) for name in RUNTIME_DEPENDENCIES
+        }
+        package_version = importlib.metadata.version("tiny-corpus-workbench")
+        lock_bytes = lock_path.read_bytes()
+        lock = tomllib.loads(lock_bytes.decode("utf-8"))
+        locked_packages = [
+            package
+            for package in lock["package"]
+            if package.get("name") in RUNTIME_DEPENDENCIES
+        ]
+        locked_dependencies = {
+            package["name"]: package["version"] for package in locked_packages
+        }
+        lock_sha256 = hashlib.sha256(lock_bytes).hexdigest()
+    except Exception as error:
+        raise RuntimeContractError(
+            "locked diagnosis runtime metadata is unavailable"
+        ) from error
+    if dependencies != RUNTIME_DEPENDENCIES:
+        raise RuntimeContractError(
+            "installed extractor versions do not match the locked diagnosis contract"
+        )
+    if (
+        locked_dependencies != RUNTIME_DEPENDENCIES
+        or len(locked_packages) != len(RUNTIME_DEPENDENCIES)
+    ):
+        raise RuntimeContractError(
+            "uv.lock extractor versions do not match the diagnosis contract"
+        )
+    if lock_sha256 != EXPECTED_LOCKFILE_SHA256:
+        raise RuntimeContractError(
+            "uv.lock bytes do not match the exact diagnosis lock contract"
+        )
+    if package_version != __version__:
+        raise RuntimeContractError(
+            "installed tiny-corpus-workbench metadata does not match the source version"
+        )
+    return {
+        "python": platform.python_version(),
+        "implementation": platform.python_implementation(),
+        "lockfile_sha256": lock_sha256,
+        "package_version": package_version,
+        "dependencies": dependencies,
+    }

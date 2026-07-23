@@ -10,4 +10,9 @@ tools/generate_fixtures.py`. Verify committed bytes and registry metadata with
 
 The repository's MIT license applies to code. The separate CC0 declaration in
 `LICENSE-CC0-1.0.txt` applies to the authored specifications and generated
-golden documents.
+golden documents, and to the versioned diagnosis corpus.
+
+The separate `diagnosis/v0.2/` corpus exercises fixed diagnosis rules. It
+contains two Markdown sources and one deterministic three-page PDF. Generate
+or check it with `tools/generate_diagnosis_fixtures.py`. Its registry records
+expected rule identifiers, file sizes, hashes, and the CC0-1.0 license.
