@@ -24,7 +24,7 @@
     <section class="hero" aria-labelledby="hero-title">
       <p class="eyebrow">Local document preparation workbench</p>
       <h1 id="hero-title">Prepare documents without losing the evidence.</h1>
-      <p class="lede">Extract, diagnose, refine, and compare documents through one local, evidence-preserving history.</p>
+      <p class="lede">Extract and diagnose documents through a local, evidence-preserving record. Controlled revisions and corpus comparison are planned next.</p>
       <div class="actions">
         <a class="button primary" href="#quick-start">Start locally</a>
         <a class="button secondary" href="https://github.com/jameswei/tiny-corpus-workbench">View GitHub</a>
@@ -36,7 +36,7 @@
       <div class="section-heading">
         <p class="kicker">Purpose and workflow</p>
         <h2 id="workflow-title">One evidence-preserving lifecycle.</h2>
-        <p>The workbench connects each document change to its source, evidence, decision, and resulting revision.</p>
+        <p>The roadmap connects each document change to its source, evidence, decision, and resulting revision. The current workbench implements extraction and diagnosis.</p>
       </div>
       <ol class="workflow">
         <li>
@@ -57,53 +57,53 @@
         <li>
           <span class="step-number">04</span>
           <strong>Explicit human decision</strong>
-          <span>Authority stays with people</span>
+          <span>Planned: authority stays with people</span>
         </li>
         <li>
           <span class="step-number">05</span>
           <strong>Reversible refinement</strong>
-          <span>Operations remain attributable</span>
+          <span>Planned: attributable operations</span>
         </li>
         <li>
           <span class="step-number">06</span>
           <strong>Prepared revision</strong>
-          <span>Auditable output boundary</span>
+          <span>Planned: auditable output boundary</span>
         </li>
         <li>
           <span class="step-number">07</span>
           <strong>Corpus inspection and comparison</strong>
-          <span>Patterns across mixed formats</span>
+          <span>Planned: patterns across mixed formats</span>
         </li>
       </ol>
-      <p class="workflow-note">A local visual workbench connects sources, artifacts, findings, decisions, transformations, revisions, and comparisons without replacing the CLI or audit contracts.</p>
+      <p class="workflow-note">v0.1 and v0.2 implement original-source capture, extraction observation, evidence-based diagnosis, and read-only verification. Human decisions, controlled revisions, corpus comparison, and a local visual workbench remain planned milestones.</p>
     </section>
 
     <section id="capabilities" class="section" aria-labelledby="capabilities-title">
       <div class="section-heading">
         <p class="kicker">One inspectable history</p>
-        <h2 id="capabilities-title">Four capabilities, one record.</h2>
-        <p>Each capability reads or extends the same evidence trail. Raw artifacts, findings, decisions, and revisions stay connected.</p>
+        <h2 id="capabilities-title">Implemented now, planned next.</h2>
+        <p>Extraction and diagnosis share one evidence trail today. Later milestones will extend that trail with controlled revisions and corpus comparison.</p>
       </div>
       <div class="grid capability-grid">
         <article class="card">
-          <p class="card-number">01</p>
+          <p class="card-number">01 · Implemented</p>
           <h3>Extract</h3>
           <p>Compare Docling and MarkItDown while retaining lossless canonical evidence and source identity.</p>
         </article>
         <article class="card">
-          <p class="card-number">02</p>
+          <p class="card-number">02 · Implemented</p>
           <h3>Diagnose</h3>
           <p>Record deterministic findings with evidence, stable identifiers, severity, provenance, and affected items.</p>
         </article>
         <article class="card">
-          <p class="card-number">03</p>
+          <p class="card-number">03 · Planned</p>
           <h3>Refine</h3>
-          <p>Require explicit decisions, create new prepared revisions, and preserve reversible operations with append-only history.</p>
+          <p>A later milestone will require explicit decisions, create new prepared revisions, and preserve reversible operations.</p>
         </article>
         <article class="card">
-          <p class="card-number">04</p>
+          <p class="card-number">04 · Planned</p>
           <h3>Compare</h3>
-          <p>Inspect patterns across a mixed-format corpus through offline reports and a loopback-only visual workbench.</p>
+          <p>Later milestones will inspect patterns across a mixed-format corpus and add a loopback-only visual workbench.</p>
         </article>
       </div>
     </section>
@@ -112,13 +112,13 @@
       <div class="section-heading">
         <p class="kicker">Trust and control</p>
         <h2 id="trust-title">Preserve evidence. Keep people in control.</h2>
-        <p>The preparation record stays inspectable, but evidence alone never grants authority to change a document.</p>
+        <p>The current extraction and diagnosis records stay inspectable, but evidence alone never grants authority to change a document.</p>
       </div>
       <div class="grid two-column">
         <article class="claim verified">
           <p class="claim-label">Evidence stays inspectable</p>
           <h3>Retain the record.</h3>
-          <p>Original sources, raw extraction artifacts, findings, revisions, hashes, and history are retained instead of silently overwritten.</p>
+          <p>Original sources, raw extraction artifacts, findings, hashes, and verification evidence are retained instead of silently overwritten.</p>
         </article>
         <article class="claim authority">
           <p class="claim-label">People retain authority</p>
@@ -132,13 +132,13 @@
     <section id="quick-start" class="section" aria-labelledby="start-title">
       <div class="section-heading">
         <p class="kicker">Local by design</p>
-        <h2 id="start-title">One workbench, several clear surfaces.</h2>
-        <p>Stable CLI contracts, static offline reports, and a loopback-only browser expose the same preparation history. Start with extraction observation, then diagnose the canonical document without changing its evidence.</p>
+        <h2 id="start-title">Run the implemented path locally.</h2>
+        <p>The current CLI publishes extraction observations, deterministic diagnosis reports, and independent verification results. Start with extraction observation, then diagnose the canonical document without changing its evidence.</p>
       </div>
       <div class="surface-list">
-        <p><strong>CLI</strong><span>Explicit local operations</span></p>
-        <p><strong>Offline reports</strong><span>Portable inspection views</span></p>
-        <p><strong>Loopback browser</strong><span>Local visual exploration</span></p>
+        <p><strong>CLI · Implemented</strong><span>Explicit local observation and diagnosis</span></p>
+        <p><strong>Diagnosis report · Implemented</strong><span>Deterministic portable evidence</span></p>
+        <p><strong>Loopback browser · Planned</strong><span>Future local visual exploration</span></p>
       </div>
       <pre class="command-block"><code>uv sync --frozen --python 3.12
 uv run --frozen docling-tools models download layout tableformer --output-dir .cache/docling/models
