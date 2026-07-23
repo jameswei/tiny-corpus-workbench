@@ -168,7 +168,10 @@ exits zero when its optional observation is missing or changed.
 | `5` | Integrity change, verification failure, or publication conflict. |
 | `6` | Locked runtime, schema, or Docling API is incompatible. |
 
-Failures write no stdout. Application diagnostics are sanitized.
+`diagnose` failures write no stdout. `verify-diagnosis` usage, runtime, and
+internal failures also write no stdout. A verifier integrity failure exits `5`
+after it writes the compact JSON verification result to stdout. Application
+diagnostics are sanitized.
 
 ## Integrity limits
 
