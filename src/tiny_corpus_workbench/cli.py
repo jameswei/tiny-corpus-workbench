@@ -91,6 +91,8 @@ def _validate_staged_schemas(root: Path) -> None:
 def _published_diagnosis_line(published: Path) -> dict[str, Any]:
     manifest_path = published / "diagnosis-manifest.json"
     try:
+        snapshot = _diagnosis_callable("diagnosis", "snapshot_tree")
+        before = snapshot(published)
         verify = _diagnosis_callable(
             "diagnosis_verification", "verify_diagnosis"
         )
@@ -123,7 +125,7 @@ def _published_diagnosis_line(published: Path) -> dict[str, Any]:
             or status not in {"FINDINGS", "NO_FINDINGS"}
         ):
             raise ValueError
-        return {
+        line = {
             "diagnosis_id": diagnosis_id,
             "finding_count": finding_count,
             "manifest": str(manifest_path.resolve()),
@@ -134,6 +136,18 @@ def _published_diagnosis_line(published: Path) -> dict[str, Any]:
         raise IntegrityError(
             "published diagnosis manifest is unavailable or invalid"
         ) from error
+    try:
+        if snapshot(published) != before:
+            raise IntegrityError(
+                "published diagnosis changed before summary output"
+            )
+    except IntegrityError:
+        raise
+    except Exception as error:
+        raise IntegrityError(
+            "published diagnosis changed before summary output"
+        ) from error
+    return line
 
 
 def parser() -> argparse.ArgumentParser:

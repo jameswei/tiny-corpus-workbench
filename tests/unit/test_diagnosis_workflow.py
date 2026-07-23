@@ -746,7 +746,11 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 )
 
                 def route(module_name: str, name: str):
-                    return command if name == "diagnose" else verify_diagnosis
+                    if name == "diagnose":
+                        return command
+                    if name == "snapshot_tree":
+                        return snapshot_tree
+                    return verify_diagnosis
 
                 with mock.patch.object(
                     cli, "_diagnosis_callable", side_effect=route
@@ -794,7 +798,11 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     command = mock.Mock(return_value=published)
 
                     def route(module_name: str, name: str):
-                        return command if name == "diagnose" else verify_diagnosis
+                        if name == "diagnose":
+                            return command
+                        if name == "snapshot_tree":
+                            return snapshot_tree
+                        return verify_diagnosis
 
                     with mock.patch.object(
                         cli, "_diagnosis_callable", side_effect=route
@@ -807,6 +815,66 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     self.assertEqual(
                         stderr,
                         "published diagnosis manifest is unavailable or invalid\n",
+                    )
+                    self.assertNotIn("Traceback", stderr)
+
+    def test_post_verification_publication_races_never_emit_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            code, stdout, _ = self.invoke(
+                "diagnose",
+                str(observation),
+                "--output-root",
+                str(root / "diagnoses"),
+            )
+            self.assertEqual(code, 0)
+            diagnosis = Path(json.loads(stdout)["manifest"]).parent
+            from tiny_corpus_workbench.diagnosis_verification import (
+                verify_diagnosis,
+            )
+
+            for operation in ("manifest", "findings", "inventory"):
+                with self.subTest(operation=operation):
+                    published = root / operation / diagnosis.name
+                    published.parent.mkdir()
+                    shutil.copytree(diagnosis, published)
+                    command = mock.Mock(return_value=published)
+
+                    def mutate_after_verify(path: Path) -> dict:
+                        result = verify_diagnosis(path)
+                        if operation == "manifest":
+                            manifest_path = path / "diagnosis-manifest.json"
+                            manifest_path.write_bytes(
+                                manifest_path.read_bytes() + b" "
+                            )
+                        elif operation == "findings":
+                            findings_path = path / "findings.json"
+                            findings_path.write_bytes(
+                                findings_path.read_bytes() + b" "
+                            )
+                        else:
+                            (path / "unexpected").write_bytes(b"unexpected")
+                        return result
+
+                    def route(module_name: str, name: str):
+                        if name == "diagnose":
+                            return command
+                        if name == "snapshot_tree":
+                            return snapshot_tree
+                        return mutate_after_verify
+
+                    with mock.patch.object(
+                        cli, "_diagnosis_callable", side_effect=route
+                    ):
+                        code, stdout, stderr = self.invoke(
+                            "diagnose", "observation"
+                        )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stdout, "")
+                    self.assertEqual(
+                        stderr,
+                        "published diagnosis changed before summary output\n",
                     )
                     self.assertNotIn("Traceback", stderr)
 
