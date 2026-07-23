@@ -1218,12 +1218,19 @@ def diagnose(root: Path, output_root: Path) -> Path:
             findings_artifact["path"],
             report_artifact["path"],
         }
-        actual = {
-            path.relative_to(staging).as_posix()
-            for path in staging.rglob("*")
-            if path.is_file()
-        }
-        if actual != expected or any(path.is_symlink() for path in staging.rglob("*")):
+        actual: set[str] = set()
+        invalid_node = False
+        try:
+            for path in staging.rglob("*"):
+                relative = path.relative_to(staging).as_posix()
+                mode = path.lstat().st_mode
+                if stat.S_ISREG(mode):
+                    actual.add(relative)
+                else:
+                    invalid_node = True
+        except OSError as error:
+            raise IntegrityError("staged diagnosis inventory is unreadable") from error
+        if actual != expected or invalid_node:
             raise IntegrityError("staged diagnosis inventory is invalid")
         if snapshot_tree(root) != before:
             raise IntegrityError("observation changed during diagnosis")

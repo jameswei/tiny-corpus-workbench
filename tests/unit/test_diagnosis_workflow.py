@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import hashlib
 import json
+import os
 import re
 import shutil
 import tempfile
@@ -674,6 +675,85 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(stdout, "")
             self.assertIn("staged diagnosis content changed", stderr)
             self.assertEqual(list(output.glob("*/*/*")), [])
+
+    def test_staged_directories_and_special_nodes_never_publish(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            output = root / "diagnoses"
+            code, stdout, _ = self.invoke(
+                "diagnose", str(observation), "--output-root", str(output)
+            )
+            self.assertEqual(code, 0)
+            baseline = Path(json.loads(stdout)["manifest"]).parent
+            baseline_snapshot = snapshot_tree(baseline)
+            parent = baseline.parent
+            operations = ["directory"]
+            if hasattr(os, "mkfifo"):
+                operations.append("fifo")
+
+            from tiny_corpus_workbench import diagnosis as diagnosis_module
+
+            write_json = diagnosis_module.write_json
+            for operation in operations:
+                with self.subTest(operation=operation):
+
+                    def inject(path: Path, value: object) -> None:
+                        write_json(path, value)
+                        if path.name != "diagnosis-manifest.json":
+                            return
+                        injected = path.parent / f"unexpected-{operation}"
+                        if operation == "directory":
+                            injected.mkdir()
+                        else:
+                            os.mkfifo(injected)
+
+                    with mock.patch(
+                        "tiny_corpus_workbench.diagnosis.write_json",
+                        side_effect=inject,
+                    ):
+                        code, stdout, stderr = self.invoke(
+                            "diagnose",
+                            str(observation),
+                            "--output-root",
+                            str(output),
+                        )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stdout, "")
+                    self.assertEqual(
+                        stderr, "staged diagnosis inventory is invalid\n"
+                    )
+                    self.assertEqual(
+                        [path for path in parent.iterdir() if path.is_dir()],
+                        [baseline],
+                    )
+                    self.assertEqual(snapshot_tree(baseline), baseline_snapshot)
+
+    def test_post_publication_manifest_loss_is_sanitized_integrity_exit(self) -> None:
+        for operation in ("missing", "malformed"):
+            with self.subTest(
+                operation=operation
+            ), tempfile.TemporaryDirectory() as directory:
+                published = Path(directory) / "published-run"
+                published.mkdir()
+                if operation == "malformed":
+                    (published / "diagnosis-manifest.json").write_text(
+                        "{", "utf-8"
+                    )
+                command = mock.Mock(return_value=published)
+                with mock.patch.object(
+                    cli, "_diagnosis_callable", return_value=command
+                ):
+                    code, stdout, stderr = self.invoke(
+                        "diagnose", "observation"
+                    )
+                self.assertEqual(code, 5)
+                self.assertEqual(stdout, "")
+                self.assertEqual(
+                    stderr,
+                    "published diagnosis manifest is unavailable or invalid\n",
+                )
+                self.assertNotIn("Traceback", stderr)
 
     def test_verifier_detects_inventory_and_content_failure_shapes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

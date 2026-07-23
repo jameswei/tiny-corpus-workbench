@@ -6,6 +6,7 @@ import importlib.metadata
 import json
 import os
 import platform
+import stat
 import sys
 import time
 import uuid
@@ -85,6 +86,39 @@ def _diagnosis_callable(module_name: str, name: str) -> Any:
 
 def _validate_staged_schemas(root: Path) -> None:
     _verification_callable("validate_staged_schemas")(root)
+
+
+def _published_diagnosis_line(published: Path) -> dict[str, Any]:
+    manifest_path = published / "diagnosis-manifest.json"
+    try:
+        if not stat.S_ISREG(manifest_path.lstat().st_mode):
+            raise OSError
+        manifest = json.loads(manifest_path.read_text("utf-8"))
+        diagnosis_id = manifest["diagnosis_id"]
+        finding_count = manifest["summary"]["total"]
+        run_id = manifest["run_id"]
+        status = manifest["status"]
+        if (
+            not isinstance(diagnosis_id, str)
+            or len(diagnosis_id) != 64
+            or type(finding_count) is not int
+            or finding_count < 0
+            or not isinstance(run_id, str)
+            or run_id != published.name
+            or status not in {"FINDINGS", "NO_FINDINGS"}
+        ):
+            raise ValueError
+        return {
+            "diagnosis_id": diagnosis_id,
+            "finding_count": finding_count,
+            "manifest": str(manifest_path.resolve()),
+            "run_id": run_id,
+            "status": status,
+        }
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        raise IntegrityError(
+            "published diagnosis manifest is unavailable or invalid"
+        ) from error
 
 
 def parser() -> argparse.ArgumentParser:
@@ -470,6 +504,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.observation_directory,
                 args.output_root,
             )
+            line = _published_diagnosis_line(published)
         except WorkbenchError as error:
             print(sanitize_message(error), file=sys.stderr)
             return int(error.exit_code)
@@ -479,15 +514,6 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return int(ExitCode.INTERNAL)
-        manifest_path = published / "diagnosis-manifest.json"
-        manifest = json.loads(manifest_path.read_text("utf-8"))
-        line = {
-            "diagnosis_id": manifest["diagnosis_id"],
-            "finding_count": manifest["summary"]["total"],
-            "manifest": str(manifest_path.resolve()),
-            "run_id": manifest["run_id"],
-            "status": manifest["status"],
-        }
         print(json.dumps(line, sort_keys=True, separators=(",", ":")))
         return int(ExitCode.SUCCESS)
     try:

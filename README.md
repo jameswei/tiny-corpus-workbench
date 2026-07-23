@@ -100,10 +100,11 @@ guide. Published runs can be checked read-only with `tcw verify`. Diagnosis
 requires no models or network access. It produces a separate immutable record
 and does not change the observation.
 
-The repository includes exactly twelve deterministic CC0 fixtures generated
-from three project-authored document families. The full setup, artifact,
-rerun, compatibility, failure-code, and verification contracts are documented
-in the [Extraction Observatory guide](docs/extraction-observatory.md).
+The repository includes exactly twelve deterministic CC0 extraction fixtures
+generated from three project-authored document families, plus a separate
+three-file CC0 diagnosis corpus. The full setup, artifact, rerun,
+compatibility, failure-code, and verification contracts are documented in the
+[Extraction Observatory guide](docs/extraction-observatory.md).
 The fixed diagnosis rules, evidence artifacts, and verification states are
 documented in the
 [Evidence-Based Diagnosis guide](docs/evidence-based-diagnosis.md).
@@ -114,3 +115,5 @@ Learner-oriented materials are available in the top-level
 ## License
 
 This repository is licensed under the [MIT License](LICENSE).
+The separate [CC0 declaration](fixtures/LICENSE-CC0-1.0.txt) applies to
+`fixtures/authored/`, `fixtures/golden/`, and `fixtures/diagnosis/`.

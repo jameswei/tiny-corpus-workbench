@@ -51,7 +51,9 @@ The output path is:
 ```
 
 The publisher writes a private staging directory and uses an exclusive atomic
-rename. It does not overwrite an existing run.
+rename. It does not overwrite an existing run. Staging must contain exactly
+the three expected regular files. A directory, symlink, socket, FIFO, device,
+or other node aborts publication.
 The resolved publication parent must not be the observation or a path inside
 the observation. The source key and observation run ID must each be one safe
 path component. The resolved publication parent must stay inside the resolved
