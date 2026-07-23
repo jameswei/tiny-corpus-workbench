@@ -1,0 +1,38 @@
+{
+  "fixtures": [
+    {
+      "expected_rules": [
+        "TCW-D002"
+      ],
+      "id": "short-note",
+      "license": "CC0-1.0",
+      "path": "fixtures/diagnosis/v0.2/short-note.md",
+      "sha256": "e1a31719c539bd0a6aed98863180fe55e1b4cb8b2571d574c5708ff07c6f2feb",
+      "size": 43
+    },
+    {
+      "expected_rules": [
+        "TCW-D003",
+        "TCW-D004",
+        "TCW-D005"
+      ],
+      "id": "structural-traps",
+      "license": "CC0-1.0",
+      "path": "fixtures/diagnosis/v0.2/structural-traps.md",
+      "sha256": "bc1ce1118bfe590cc9f87467d85cb43d14462aa4e5b0cafcdf8338220e8f194f",
+      "size": 471
+    },
+    {
+      "expected_rules": [
+        "TCW-D007"
+      ],
+      "id": "repeated-margin",
+      "license": "CC0-1.0",
+      "path": "fixtures/diagnosis/v0.2/repeated-margin.pdf",
+      "sha256": "9a49257727a1e81609e2bad40a6119afb8bf5dc011e4aa242b78ee30fe5878e6",
+      "size": 2683
+    }
+  ],
+  "generator": "tools/generate_diagnosis_fixtures.py",
+  "schema_version": "tcw.diagnosis-fixture-registry/v0.2"
+}

@@ -1,0 +1,898 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import platform
+import stat
+import sys
+import tempfile
+import unicodedata
+import uuid
+from collections import Counter, defaultdict
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Iterable
+
+from docling_core.types.doc import DoclingDocument
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
+
+from tiny_corpus_workbench.artifacts import (
+    _rename_exclusive,
+    canonical_json,
+    write_json,
+)
+from tiny_corpus_workbench.domain import (
+    CanonicalUnavailableError,
+    InputError,
+    IntegrityError,
+    RuntimeContractError,
+)
+from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
+from tiny_corpus_workbench.source import sha256_file
+from tiny_corpus_workbench.verification import FORMAT_CHECKER, verify_observation
+
+
+SCHEMA_ROOT = Path(__file__).with_name("schemas")
+RULESET = [
+    {
+        "rule_id": "TCW-D001",
+        "name": "EMPTY_DOCUMENT",
+        "version": "1",
+        "severity": "ERROR",
+        "parameters": {},
+    },
+    {
+        "rule_id": "TCW-D002",
+        "name": "SUSPICIOUSLY_SHORT_DOCUMENT",
+        "version": "1",
+        "severity": "INFO",
+        "parameters": {"minimum": 1, "maximum": 199},
+    },
+    {
+        "rule_id": "TCW-D003",
+        "name": "REPLACEMENT_CHARACTER",
+        "version": "1",
+        "severity": "ERROR",
+        "parameters": {"character": "U+FFFD"},
+    },
+    {
+        "rule_id": "TCW-D004",
+        "name": "DUPLICATE_TEXT_BLOCK",
+        "version": "1",
+        "severity": "WARNING",
+        "parameters": {"minimum_characters": 80},
+    },
+    {
+        "rule_id": "TCW-D005",
+        "name": "HEADING_LEVEL_JUMP",
+        "version": "1",
+        "severity": "WARNING",
+        "parameters": {"first_level": 1, "maximum_increase": 1},
+    },
+    {
+        "rule_id": "TCW-D006",
+        "name": "ORPHAN_CAPTION",
+        "version": "1",
+        "severity": "WARNING",
+        "parameters": {},
+    },
+    {
+        "rule_id": "TCW-D007",
+        "name": "REPEATED_PAGE_MARGIN_TEXT",
+        "version": "1",
+        "severity": "WARNING",
+        "parameters": {
+            "minimum_characters": 3,
+            "maximum_characters": 200,
+            "minimum_pages": 3,
+            "top_maximum": 0.1,
+            "bottom_minimum": 0.9,
+        },
+    },
+    {
+        "rule_id": "TCW-D008",
+        "name": "MISSING_PDF_PROVENANCE",
+        "version": "1",
+        "severity": "WARNING",
+        "parameters": {},
+    },
+]
+RULESET_DESCRIPTOR = {
+    "name": "tcw-evidence-based-diagnosis",
+    "version": "v0.2",
+    "rules": RULESET,
+}
+RULESET_PARAMETER_HASH = hashlib.sha256(
+    canonical_json(
+        [
+            {
+                "rule_id": rule["rule_id"],
+                "rule_version": rule["version"],
+                "parameters": rule["parameters"],
+            }
+            for rule in RULESET
+        ]
+    ).rstrip(b"\n")
+).hexdigest()
+TEXT_COLLECTIONS = (
+    "texts",
+    "pictures",
+    "tables",
+    "key_value_items",
+    "form_items",
+    "field_regions",
+    "field_items",
+)
+SUMMARY_BY_RULE = {rule["rule_id"]: rule["name"] for rule in RULESET}
+SEVERITY_BY_RULE = {rule["rule_id"]: rule["severity"] for rule in RULESET}
+
+
+def _normalize(value: str) -> str:
+    value = unicodedata.normalize("NFC", value.replace("\r\n", "\n").replace("\r", "\n"))
+    return " ".join(value.split()).strip()
+
+
+def _non_whitespace_characters(value: str) -> int:
+    return sum(not character.isspace() for character in value)
+
+
+def _hash(value: bytes | str) -> str:
+    if isinstance(value, str):
+        value = value.encode("utf-8")
+    return hashlib.sha256(value).hexdigest()
+
+
+def _cref(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for name in ("cref", "$ref"):
+            if isinstance(value.get(name), str):
+                return value[name]
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _index(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    values: dict[str, dict[str, Any]] = {}
+    for root_name in ("body", "furniture"):
+        item = payload.get(root_name)
+        if isinstance(item, dict) and isinstance(item.get("self_ref"), str):
+            values[item["self_ref"]] = item
+    for collection in (*TEXT_COLLECTIONS, "groups"):
+        items = payload.get(collection, [])
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, dict) and isinstance(item.get("self_ref"), str):
+                    values[item["self_ref"]] = item
+    return values
+
+
+def _reading_order(
+    payload: dict[str, Any], index: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    ordered: list[dict[str, Any]] = []
+    visited: set[str] = set()
+
+    def visit(item: dict[str, Any]) -> None:
+        reference = item.get("self_ref")
+        if not isinstance(reference, str) or reference in visited:
+            return
+        visited.add(reference)
+        if reference != "#/body":
+            ordered.append(item)
+        for child in item.get("children", []):
+            child_reference = _cref(child)
+            target = index.get(child_reference or "")
+            if target is not None:
+                visit(target)
+
+    body = payload.get("body")
+    if isinstance(body, dict):
+        visit(body)
+    return ordered
+
+
+def _table_cells(item: dict[str, Any]) -> list[dict[str, Any]]:
+    data = item.get("data")
+    cells = data.get("table_cells") if isinstance(data, dict) else None
+    return [cell for cell in cells or [] if isinstance(cell, dict)]
+
+
+def _finding(
+    diagnosis_id: str,
+    rule_id: str,
+    references: Iterable[str],
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    document_refs = sorted(set(references))
+    stable_evidence = {name: evidence[name] for name in sorted(evidence)}
+    identity = {
+        "diagnosis_id": diagnosis_id,
+        "rule_id": rule_id,
+        "rule_version": "1",
+        "document_refs": document_refs,
+        "evidence": stable_evidence,
+    }
+    return {
+        "finding_id": _hash(canonical_json(identity).rstrip(b"\n")),
+        "rule_id": rule_id,
+        "rule_version": "1",
+        "severity": SEVERITY_BY_RULE[rule_id],
+        "summary": SUMMARY_BY_RULE[rule_id].replace("_", " ").title(),
+        "document_refs": document_refs,
+        "evidence": stable_evidence,
+    }
+
+
+def _bbox_midpoint_top_ratio(
+    provenance: dict[str, Any], pages: dict[str, Any]
+) -> tuple[int, float] | None:
+    page_no = provenance.get("page_no")
+    bbox = provenance.get("bbox")
+    page = pages.get(str(page_no), pages.get(page_no))
+    if (
+        type(page_no) is not int
+        or not isinstance(bbox, dict)
+        or not isinstance(page, dict)
+        or not isinstance(page.get("size"), dict)
+    ):
+        return None
+    height = page["size"].get("height")
+    top, bottom = bbox.get("t"), bbox.get("b")
+    if not all(isinstance(value, (int, float)) for value in (height, top, bottom)):
+        return None
+    if height <= 0:
+        return None
+    midpoint = (float(top) + float(bottom)) / 2
+    if bbox.get("coord_origin") == "BOTTOMLEFT":
+        midpoint = float(height) - midpoint
+    return page_no, midpoint / float(height)
+
+
+def analyze_document(
+    payload: dict[str, Any],
+    *,
+    media_type: str,
+    diagnosis_id: str,
+) -> list[dict[str, Any]]:
+    index = _index(payload)
+    body = _reading_order(payload, index)
+    body_refs = {
+        item["self_ref"]
+        for item in body
+        if isinstance(item.get("self_ref"), str)
+        and item.get("content_layer", "body") == "body"
+    }
+    body_items = [index[reference] for reference in body_refs]
+    findings: list[dict[str, Any]] = []
+
+    body_content: list[str] = []
+    for item in body_items:
+        text = item.get("text")
+        if isinstance(text, str):
+            body_content.append(text)
+        if item.get("label") == "table":
+            body_content.extend(
+                cell["text"]
+                for cell in _table_cells(item)
+                if isinstance(cell.get("text"), str)
+            )
+    character_count = sum(_non_whitespace_characters(text) for text in body_content)
+    if character_count == 0:
+        findings.append(
+            _finding(
+                diagnosis_id,
+                "TCW-D001",
+                ["#/body"],
+                {"non_whitespace_characters": 0},
+            )
+        )
+    elif character_count <= 199:
+        findings.append(
+            _finding(
+                diagnosis_id,
+                "TCW-D002",
+                ["#/body"],
+                {"non_whitespace_characters": character_count},
+            )
+        )
+
+    for collection in ("texts",):
+        for item in payload.get(collection, []):
+            if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+                continue
+            offsets = [
+                offset
+                for offset, character in enumerate(item["text"])
+                if character == "\ufffd"
+            ]
+            if offsets:
+                findings.append(
+                    _finding(
+                        diagnosis_id,
+                        "TCW-D003",
+                        [item["self_ref"]],
+                        {"code_point_offsets": offsets, "occurrence_count": len(offsets)},
+                    )
+                )
+    for table in payload.get("tables", []):
+        if not isinstance(table, dict):
+            continue
+        for cell in _table_cells(table):
+            text = cell.get("text")
+            if not isinstance(text, str) or "\ufffd" not in text:
+                continue
+            offsets = [
+                offset for offset, character in enumerate(text) if character == "\ufffd"
+            ]
+            findings.append(
+                _finding(
+                    diagnosis_id,
+                    "TCW-D003",
+                    [table["self_ref"]],
+                    {
+                        "code_point_offsets": offsets,
+                        "column": cell.get("start_col_offset_idx", 0),
+                        "occurrence_count": len(offsets),
+                        "row": cell.get("start_row_offset_idx", 0),
+                    },
+                )
+            )
+
+    duplicate_groups: dict[str, list[str]] = defaultdict(list)
+    for item in body_items:
+        if item.get("label") not in ("text", "paragraph"):
+            continue
+        text = _normalize(item.get("text", ""))
+        if len(text) >= 80:
+            duplicate_groups[text].append(item["self_ref"])
+    for text, references in duplicate_groups.items():
+        if len(references) >= 2:
+            findings.append(
+                _finding(
+                    diagnosis_id,
+                    "TCW-D004",
+                    references,
+                    {
+                        "count": len(references),
+                        "normalized_character_count": len(text),
+                        "normalized_text_sha256": _hash(text),
+                    },
+                )
+            )
+
+    previous: tuple[str, int] | None = None
+    for item in body:
+        if item.get("content_layer", "body") != "body" or item.get("label") != "section_header":
+            continue
+        level = item.get("level")
+        if type(level) is not int:
+            continue
+        if previous is None and level > 1:
+            findings.append(
+                _finding(
+                    diagnosis_id,
+                    "TCW-D005",
+                    [item["self_ref"]],
+                    {"current_level": level, "previous_level": 0},
+                )
+            )
+        elif previous is not None and level > previous[1] + 1:
+            findings.append(
+                _finding(
+                    diagnosis_id,
+                    "TCW-D005",
+                    [item["self_ref"]],
+                    {
+                        "current_level": level,
+                        "previous_level": previous[1],
+                        "previous_ref": previous[0],
+                    },
+                )
+            )
+        previous = (item["self_ref"], level)
+
+    captions = {
+        item["self_ref"]: item
+        for item in payload.get("texts", [])
+        if isinstance(item, dict) and item.get("label") == "caption"
+    }
+    valid_incoming: set[str] = set()
+    for collection in ("tables", "pictures"):
+        for owner in payload.get(collection, []):
+            if not isinstance(owner, dict):
+                continue
+            for declared in owner.get("captions", []):
+                reference = _cref(declared)
+                target = index.get(reference or "")
+                if target is not None and target.get("label") == "caption":
+                    valid_incoming.add(reference or "")
+                else:
+                    references = [owner["self_ref"]]
+                    if reference:
+                        references.append(reference)
+                    findings.append(
+                        _finding(
+                            diagnosis_id,
+                            "TCW-D006",
+                            references,
+                            {
+                                "declared_ref": reference or "",
+                                "relationship_kind": "invalid_declared_caption",
+                            },
+                        )
+                    )
+    for reference in sorted(set(captions) - valid_incoming):
+        findings.append(
+            _finding(
+                diagnosis_id,
+                "TCW-D006",
+                [reference],
+                {"relationship_kind": "orphan_caption"},
+            )
+        )
+
+    if media_type == "application/pdf":
+        pages = payload.get("pages", {})
+        margin_groups: dict[tuple[str, str], dict[str, Any]] = {}
+        for item in body_items:
+            text = _normalize(item.get("text", ""))
+            if not 3 <= len(text) <= 200:
+                continue
+            for provenance in item.get("prov", []):
+                if not isinstance(provenance, dict):
+                    continue
+                point = _bbox_midpoint_top_ratio(provenance, pages)
+                if point is None:
+                    continue
+                page_no, ratio = point
+                band = "top" if ratio <= 0.10 else "bottom" if ratio >= 0.90 else None
+                if band is None:
+                    continue
+                key = (_hash(text), band)
+                group = margin_groups.setdefault(
+                    key,
+                    {"pages": set(), "refs": set(), "length": len(text)},
+                )
+                group["pages"].add(page_no)
+                group["refs"].add(item["self_ref"])
+        for (text_hash, band), group in margin_groups.items():
+            if len(group["pages"]) >= 3:
+                findings.append(
+                    _finding(
+                        diagnosis_id,
+                        "TCW-D007",
+                        group["refs"],
+                        {
+                            "band": band,
+                            "normalized_character_count": group["length"],
+                            "normalized_text_sha256": text_hash,
+                            "page_count": len(group["pages"]),
+                            "page_numbers": sorted(group["pages"]),
+                        },
+                    )
+                )
+
+        for collection in ("texts", "tables", "pictures"):
+            for item in payload.get(collection, []):
+                if isinstance(item, dict) and not item.get("prov"):
+                    findings.append(
+                        _finding(
+                            diagnosis_id,
+                            "TCW-D008",
+                            [item["self_ref"]],
+                            {"content_layer": item.get("content_layer", "body")},
+                        )
+                    )
+
+    return sorted(
+        findings,
+        key=lambda item: (
+            item["rule_id"],
+            item["document_refs"],
+            canonical_json(item["evidence"]),
+            item["finding_id"],
+        ),
+    )
+
+
+def compute_diagnosis_id(
+    observation_id: str, manifest_hash: str, document_hash: str
+) -> str:
+    identity = {
+        "observation_id": observation_id,
+        "observation_manifest_sha256": manifest_hash,
+        "canonical_document_sha256": document_hash,
+        "ruleset": RULESET_DESCRIPTOR,
+    }
+    return _hash(canonical_json(identity).rstrip(b"\n"))
+
+
+def make_finding_set(
+    payload: dict[str, Any],
+    observation_manifest: dict[str, Any],
+    *,
+    manifest_hash: str,
+    document_hash: str,
+) -> dict[str, Any]:
+    diagnosis_id = compute_diagnosis_id(
+        observation_manifest["observation_id"], manifest_hash, document_hash
+    )
+    findings = analyze_document(
+        payload,
+        media_type=observation_manifest["source"]["media_type"],
+        diagnosis_id=diagnosis_id,
+    )
+    return {
+        "schema_version": "tcw.finding-set/v0.2",
+        "diagnosis_id": diagnosis_id,
+        "observation_id": observation_manifest["observation_id"],
+        "canonical_artifact": "docling/document.json",
+        "canonical_document_sha256": document_hash,
+        "ruleset": RULESET_DESCRIPTOR,
+        "summary": _summary(findings),
+        "findings": findings,
+    }
+
+
+def _summary(findings: list[dict[str, Any]]) -> dict[str, Any]:
+    severity = Counter(item["severity"] for item in findings)
+    rules = Counter(item["rule_id"] for item in findings)
+    return {
+        "total": len(findings),
+        "by_severity": {
+            name: severity.get(name, 0) for name in ("ERROR", "WARNING", "INFO")
+        },
+        "by_rule": {
+            rule["rule_id"]: rules.get(rule["rule_id"], 0) for rule in RULESET
+        },
+    }
+
+
+def render_report(finding_set: dict[str, Any]) -> bytes:
+    summary = finding_set["summary"]
+    lines = [
+        "# Evidence-Based Diagnosis",
+        "",
+        f"- Diagnosis ID: `{finding_set['diagnosis_id']}`",
+        f"- Observation ID: `{finding_set['observation_id']}`",
+        f"- Status: `{'FINDINGS' if summary['total'] else 'NO_FINDINGS'}`",
+        f"- Finding count: {summary['total']}",
+        "",
+        "This diagnosis does not authorize mutation and does not certify overall quality.",
+        "",
+        "## Findings",
+        "",
+    ]
+    if not finding_set["findings"]:
+        lines.extend(
+            [
+                "No fixed v0.2 rule produced a finding. This result is not proof of correctness.",
+                "",
+            ]
+        )
+    else:
+        for finding in finding_set["findings"]:
+            lines.extend(
+                [
+                    f"### {finding['rule_id']} — {finding['summary']}",
+                    "",
+                    f"- Finding ID: `{finding['finding_id']}`",
+                    f"- Severity: `{finding['severity']}`",
+                    "- Document refs: "
+                    + ", ".join(f"`{reference}`" for reference in finding["document_refs"]),
+                    "- Evidence:",
+                ]
+            )
+            for name, value in finding["evidence"].items():
+                rendered = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+                lines.append(f"  - `{name}`: `{rendered}`")
+            lines.append("")
+    return ("\n".join(lines).rstrip() + "\n").encode("utf-8")
+
+
+def _validator(name: str) -> Draft202012Validator:
+    try:
+        schemas = {
+            path.name: json.loads(path.read_text("utf-8"))
+            for path in SCHEMA_ROOT.glob("*.schema.json")
+        }
+        registry = Registry()
+        for schema in schemas.values():
+            registry = registry.with_resource(
+                schema["$id"], Resource.from_contents(schema)
+            )
+        return Draft202012Validator(
+            schemas[name], registry=registry, format_checker=FORMAT_CHECKER
+        )
+    except Exception as error:
+        raise RuntimeContractError("bundled diagnosis schema is unavailable") from error
+
+
+def _validate(name: str, value: object) -> None:
+    try:
+        _validator(name).validate(value)
+    except RuntimeContractError:
+        raise
+    except Exception as error:
+        raise IntegrityError("staged diagnosis does not conform to its schema") from error
+
+
+def snapshot_tree(root: Path) -> tuple[tuple[Any, ...], ...]:
+    if root.is_symlink() or not root.is_dir():
+        raise InputError("OBSERVATION_DIRECTORY must be one local non-symlink directory")
+    identity: list[tuple[Any, ...]] = []
+    try:
+        root_metadata = root.stat()
+        identity.append(
+            (
+                ".",
+                "directory",
+                root_metadata.st_dev,
+                root_metadata.st_ino,
+                stat.S_IMODE(root_metadata.st_mode),
+                root_metadata.st_mtime_ns,
+                root_metadata.st_ctime_ns,
+            )
+        )
+        for path in sorted(root.rglob("*")):
+            relative = path.relative_to(root).as_posix()
+            metadata = path.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                kind, digest = "symlink", os.readlink(path)
+            elif stat.S_ISREG(metadata.st_mode):
+                kind, digest = "file", sha256_file(path)
+            elif stat.S_ISDIR(metadata.st_mode):
+                kind, digest = "directory", None
+            else:
+                kind, digest = "other", None
+            identity.append(
+                (
+                    relative,
+                    kind,
+                    metadata.st_dev,
+                    metadata.st_ino,
+                    stat.S_IMODE(metadata.st_mode),
+                    metadata.st_size,
+                    metadata.st_mtime_ns,
+                    metadata.st_ctime_ns,
+                    digest,
+                )
+            )
+    except OSError as error:
+        raise IntegrityError("observation inventory is unreadable") from error
+    return tuple(identity)
+
+
+class AtomicDiagnosis:
+    def __init__(
+        self,
+        output_root: Path,
+        source_key: str,
+        observation_run_id: str,
+        run_id: str,
+    ):
+        self.parent = output_root / source_key / observation_run_id
+        self.destination = self.parent / run_id
+        self.staging: Path | None = None
+
+    def __enter__(self) -> Path:
+        self.parent.mkdir(parents=True, exist_ok=True)
+        self.staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=self.parent))
+        return self.staging
+
+    def publish(self) -> Path:
+        if self.staging is None:
+            raise IntegrityError("diagnosis staging is unavailable")
+        try:
+            _rename_exclusive(self.staging, self.destination)
+        except OSError as error:
+            if self.destination.exists() or self.destination.is_symlink():
+                raise IntegrityError(
+                    "publication conflict: diagnosis run already exists"
+                ) from error
+            raise IntegrityError("diagnosis publication failed") from error
+        self.staging = None
+        return self.destination
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        if self.staging and self.staging.exists():
+            import shutil
+
+            shutil.rmtree(self.staging)
+
+
+def _artifact(path: Path, root: Path, role: str, media_type: str) -> dict[str, Any]:
+    return {
+        "path": path.relative_to(root).as_posix(),
+        "role": role,
+        "media_type": media_type,
+        "size": path.stat().st_size,
+        "sha256": sha256_file(path),
+        "application_immutable": True,
+    }
+
+
+def _load_input(
+    root: Path,
+) -> tuple[tuple[tuple[Any, ...], ...], dict[str, Any], bytes, bytes, dict[str, Any]]:
+    before = snapshot_tree(root)
+    try:
+        manifest_bytes = (root / "manifest.json").read_bytes()
+        manifest = json.loads(manifest_bytes)
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise InputError("observation manifest is unavailable") from error
+    report = verify_observation(root)
+    if report["artifact_integrity"]["status"] != "VERIFIED":
+        if (
+            isinstance(manifest, dict)
+            and manifest.get("schema_version") == "tcw.preparation-manifest/v0.1"
+            and isinstance(manifest.get("extractors"), list)
+            and manifest["extractors"]
+        ):
+            docling = manifest["extractors"][0]
+            descriptors = docling.get("artifacts", []) if isinstance(docling, dict) else []
+            canonical = next(
+                (
+                    item
+                    for item in descriptors
+                    if isinstance(item, dict)
+                    and item.get("role") == "docling-document-json"
+                ),
+                None,
+            )
+            if (
+                isinstance(docling, dict)
+                and docling.get("status") == "FAILED"
+            ) or (
+                isinstance(canonical, dict)
+                and not (root / str(canonical.get("path", ""))).is_file()
+            ):
+                raise CanonicalUnavailableError(
+                    "canonical Docling artifact is unavailable"
+                )
+        raise InputError("observation integrity is not verified")
+    docling = manifest["extractors"][0]
+    if docling["status"] not in ("SUCCESS", "PARTIAL_SUCCESS"):
+        raise CanonicalUnavailableError("observation has no usable Docling result")
+    descriptor = next(
+        (
+            item
+            for item in docling["artifacts"]
+            if item["role"] == "docling-document-json"
+        ),
+        None,
+    )
+    if descriptor is None:
+        raise CanonicalUnavailableError("observation has no canonical Docling artifact")
+    try:
+        document_bytes = (root / descriptor["path"]).read_bytes()
+        payload = json.loads(document_bytes)
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise CanonicalUnavailableError(
+            "canonical Docling artifact is unavailable"
+        ) from error
+    try:
+        document = DoclingDocument.model_validate(payload)
+        list(document.iterate_items(with_groups=True))
+        for child in document.body.children:
+            child.resolve(document)
+        for table in document.tables:
+            list(table.data.table_cells)
+            for caption in table.captions:
+                caption.resolve(document)
+        for picture in document.pictures:
+            for caption in picture.captions:
+                caption.resolve(document)
+        for item, _ in document.iterate_items(with_groups=True):
+            for provenance in getattr(item, "prov", []):
+                _ = (provenance.page_no, provenance.bbox)
+        for page in document.pages.values():
+            _ = (page.size.width, page.size.height)
+    except Exception as error:
+        raise RuntimeContractError(
+            "locked Docling runtime cannot traverse the canonical artifact"
+        ) from error
+    return before, manifest, manifest_bytes, document_bytes, payload
+
+
+def diagnose(root: Path, output_root: Path) -> Path:
+    before, observation, manifest_bytes, document_bytes, payload = _load_input(root)
+    manifest_hash = _hash(manifest_bytes)
+    document_hash = _hash(document_bytes)
+    finding_set = make_finding_set(
+        payload,
+        observation,
+        manifest_hash=manifest_hash,
+        document_hash=document_hash,
+    )
+    findings_bytes = canonical_json(finding_set)
+    report_bytes = render_report(finding_set)
+    now = datetime.now(UTC)
+    run_id = f"{now.strftime('%Y%m%dT%H%M%S.%fZ')}-{uuid.uuid4().hex[:12]}"
+    publisher = AtomicDiagnosis(
+        output_root,
+        observation["source"]["key"],
+        observation["run_id"],
+        run_id,
+    )
+    with publisher as staging:
+        (staging / "findings.json").write_bytes(findings_bytes)
+        (staging / "report.md").write_bytes(report_bytes)
+        findings_artifact = _artifact(
+            staging / "findings.json",
+            staging,
+            "diagnostic-findings",
+            "application/json",
+        )
+        report_artifact = _artifact(
+            staging / "report.md",
+            staging,
+            "diagnostic-report",
+            "text/markdown",
+        )
+        from tiny_corpus_workbench import __version__
+        lock_path = Path("uv.lock")
+        if (
+            platform.python_implementation() != "CPython"
+            or sys.version_info[:2] != (3, 12)
+            or not lock_path.is_file()
+        ):
+            raise RuntimeContractError(
+                "diagnosis requires the locked CPython 3.12 runtime"
+            )
+        manifest = {
+            "schema_version": "tcw.diagnosis-manifest/v0.2",
+            "milestone": "v0.2",
+            "run_id": run_id,
+            "diagnosis_id": finding_set["diagnosis_id"],
+            "created_at": now.isoformat().replace("+00:00", "Z"),
+            "status": "FINDINGS" if finding_set["summary"]["total"] else "NO_FINDINGS",
+            "source": {
+                key: observation["source"][key]
+                for key in ("key", "media_type", "size", "sha256")
+            },
+            "observation": {
+                "run_id": observation["run_id"],
+                "observation_id": observation["observation_id"],
+                "manifest_size": len(manifest_bytes),
+                "manifest_sha256": manifest_hash,
+                "canonical_document_path": "docling/document.json",
+                "canonical_document_size": len(document_bytes),
+                "canonical_document_sha256": document_hash,
+                "docling_document_schema": observation["docling_document_schema"],
+            },
+            "runtime": {
+                "python": platform.python_version(),
+                "implementation": platform.python_implementation(),
+                "lockfile_sha256": sha256_file(lock_path),
+                "package_version": __version__,
+                "dependencies": dict(RUNTIME_DEPENDENCIES),
+            },
+            "ruleset": {
+                **RULESET_DESCRIPTOR,
+                "parameter_sha256": RULESET_PARAMETER_HASH,
+            },
+            "summary": finding_set["summary"],
+            "artifacts": [findings_artifact, report_artifact],
+        }
+        write_json(staging / "diagnosis-manifest.json", manifest)
+        _validate("finding-set-v0.2.schema.json", finding_set)
+        _validate("diagnosis-manifest-v0.2.schema.json", manifest)
+        expected = {
+            "diagnosis-manifest.json",
+            findings_artifact["path"],
+            report_artifact["path"],
+        }
+        actual = {
+            path.relative_to(staging).as_posix()
+            for path in staging.rglob("*")
+            if path.is_file()
+        }
+        if actual != expected or any(path.is_symlink() for path in staging.rglob("*")):
+            raise IntegrityError("staged diagnosis inventory is invalid")
+        if snapshot_tree(root) != before:
+            raise IntegrityError("observation changed during diagnosis")
+        return publisher.publish()

@@ -65,8 +65,12 @@ The accepted plan keeps MarkItDown descriptive, preserves every v0.1 public
 contract and golden fixture, adds no refinement capability, and keeps
 chunking, embeddings, retrieval, generation, and RAG evaluation out of scope.
 
-The current task is to implement and verify
-`docs/plans/v0.2-evidence-based-diagnosis.md`. The plan has been established;
-the implementation has not yet passed milestone review. Do not publish the
-branch or open a pull request until the reviewer returns `PASS` and the owner
-approves publication.
+The accepted v0.2 implementation is present on the milestone branch. It
+includes the two diagnosis commands, eight fixed rules, three public schemas,
+separate diagnostic fixtures, tests, a user guide, and a learning lesson.
+Builder verification covers the released v0.1 behavior, all twelve unchanged
+golden fixtures, and the new diagnosis corpus.
+
+The implementation has not yet passed independent milestone review. Do not
+publish the branch or open a pull request until the reviewer returns `PASS`
+and the owner approves publication.

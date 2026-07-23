@@ -18,7 +18,15 @@ from docling.datamodel.pipeline_options import (
     PdfPipelineOptions,
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling_core.types.doc import DoclingDocument
+from docling_core.types.doc import (
+    BoundingBox,
+    DoclingDocument,
+    DocItemLabel,
+    ProvenanceItem,
+    Size,
+    TableCell,
+    TableData,
+)
 from docx import Document
 from markitdown import MarkItDown, StreamInfo
 from reportlab.lib.pagesizes import letter
@@ -137,6 +145,17 @@ class ExtractorCompatibilitySpike(unittest.TestCase):
                     self.assertTrue(markdown_path.read_text("utf-8").strip())
                     reloaded = DoclingDocument.load_from_json(json_path)
                     self.assertEqual(reloaded.export_to_markdown(), doc.export_to_markdown())
+                    traversed = list(reloaded.iterate_items(with_groups=True))
+                    self.assertTrue(traversed)
+                    for item, _ in traversed:
+                        for child in item.children:
+                            self.assertIsNotNone(child.resolve(reloaded))
+                        for provenance in getattr(item, "prov", []):
+                            self.assertGreater(provenance.page_no, 0)
+                            self.assertIsNotNone(provenance.bbox)
+                    for page in reloaded.pages.values():
+                        self.assertGreater(page.size.width, 0)
+                        self.assertGreater(page.size.height, 0)
                     schema_identities.add(
                         (str(payload.get("schema_name")), str(payload.get("version")))
                     )
@@ -161,6 +180,45 @@ class ExtractorCompatibilitySpike(unittest.TestCase):
                     }
                 )
         self.assertTrue(inventory, "model inventory must contain regular files")
+
+    def test_canonical_relationship_table_and_geometry_apis(self) -> None:
+        document = DoclingDocument(name="diagnosis-compatibility")
+        document.add_page(1, Size(width=612, height=792))
+        provenance = ProvenanceItem(
+            page_no=1,
+            bbox=BoundingBox(l=72, t=72, r=180, b=90),
+            charspan=(0, 7),
+        )
+        caption = document.add_text(
+            DocItemLabel.CAPTION, "Caption", prov=provenance
+        )
+        table = document.add_table(
+            TableData(
+                table_cells=[
+                    TableCell(
+                        start_row_offset_idx=0,
+                        end_row_offset_idx=1,
+                        start_col_offset_idx=0,
+                        end_col_offset_idx=1,
+                        text="Cell",
+                    )
+                ],
+                num_rows=1,
+                num_cols=1,
+            ),
+            caption=caption,
+            prov=provenance,
+        )
+        path = self.root / "relationship.json"
+        document.save_as_json(path)
+        reloaded = DoclingDocument.load_from_json(path)
+        self.assertEqual(reloaded.tables[0].data.table_cells[0].text, "Cell")
+        self.assertEqual(
+            reloaded.tables[0].captions[0].resolve(reloaded).self_ref,
+            caption.self_ref,
+        )
+        self.assertEqual(table.self_ref, "#/tables/0")
+        self.assertEqual(reloaded.pages[1].size, Size(width=612, height=792))
 
 
 if __name__ == "__main__":

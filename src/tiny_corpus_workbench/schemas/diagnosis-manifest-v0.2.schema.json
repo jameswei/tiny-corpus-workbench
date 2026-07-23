@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/diagnosis-manifest-v0.2.schema.json",
+  "title": "tiny-corpus-workbench diagnosis manifest v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "milestone", "run_id", "diagnosis_id", "created_at", "status", "source", "observation", "runtime", "ruleset", "summary", "artifacts"],
+  "properties": {
+    "schema_version": {"const": "tcw.diagnosis-manifest/v0.2"},
+    "milestone": {"const": "v0.2"},
+    "run_id": {"type": "string", "minLength": 1},
+    "diagnosis_id": {"$ref": "finding-set-v0.2.schema.json#/$defs/hash"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["FINDINGS", "NO_FINDINGS"]},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "media_type", "size", "sha256"],
+      "properties": {
+        "key": {"type": "string", "minLength": 1},
+        "media_type": {"enum": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/markdown", "text/plain"]},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "finding-set-v0.2.schema.json#/$defs/hash"}
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "observation_id", "manifest_size", "manifest_sha256", "canonical_document_path", "canonical_document_size", "canonical_document_sha256", "docling_document_schema"],
+      "properties": {
+        "run_id": {"type": "string", "minLength": 1},
+        "observation_id": {"$ref": "finding-set-v0.2.schema.json#/$defs/hash"},
+        "manifest_size": {"type": "integer", "minimum": 1},
+        "manifest_sha256": {"$ref": "finding-set-v0.2.schema.json#/$defs/hash"},
+        "canonical_document_path": {"const": "docling/document.json"},
+        "canonical_document_size": {"type": "integer", "minimum": 1},
+        "canonical_document_sha256": {"$ref": "finding-set-v0.2.schema.json#/$defs/hash"},
+        "docling_document_schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version", "compatibility"],
+          "properties": {
+            "name": {"const": "DoclingDocument"},
+            "version": {"const": "1.10.0"},
+            "compatibility": {"const": "reloadable only with the exact uv.lock environment that created this artifact"}
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "implementation", "lockfile_sha256", "package_version", "dependencies"],
+      "properties": {
+        "python": {"type": "string", "pattern": "^3\\.12(?:\\.\\d+)?(?:[a-z]+\\d*)?$"},
+        "implementation": {"const": "CPython"},
+        "lockfile_sha256": {"$ref": "finding-set-v0.2.schema.json#/$defs/hash"},
+        "package_version": {"const": "0.2.0"},
+        "dependencies": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["docling", "docling-core", "markitdown"],
+          "properties": {
+            "docling": {"const": "2.113.0"},
+            "docling-core": {"const": "2.87.1"},
+            "markitdown": {"const": "0.1.6"}
+          }
+        }
+      }
+    },
+    "ruleset": {
+      "allOf": [
+        {"$ref": "finding-set-v0.2.schema.json#/$defs/ruleset"},
+        {
+          "type": "object",
+          "required": ["parameter_sha256"],
+          "properties": {
+            "parameter_sha256": {"$ref": "finding-set-v0.2.schema.json#/$defs/hash"}
+          }
+        }
+      ]
+    },
+    "summary": {"$ref": "finding-set-v0.2.schema.json#/$defs/summary"},
+    "artifacts": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "role", "media_type", "size", "sha256", "application_immutable"],
+        "properties": {
+          "path": {"enum": ["findings.json", "report.md"]},
+          "role": {"enum": ["diagnostic-findings", "diagnostic-report"]},
+          "media_type": {"enum": ["application/json", "text/markdown"]},
+          "size": {"type": "integer", "minimum": 1},
+          "sha256": {"$ref": "finding-set-v0.2.schema.json#/$defs/hash"},
+          "application_immutable": {"const": true}
+        }
+      }
+    }
+  }
+}

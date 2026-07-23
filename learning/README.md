@@ -27,7 +27,7 @@ requires all applicable writing rules and controlled-dictionary checks.
 | Milestone | Lesson | Status | Suggested time |
 | --- | --- | --- | --- |
 | v0.1 | [Extraction Observatory](v0.1-extraction-observatory.md) | Available | 60–90 minutes |
-| v0.2 | Evidence-Based Diagnosis | Planned | — |
+| v0.2 | [Evidence-Based Diagnosis](v0.2-evidence-based-diagnosis.md) | Available | 45–60 minutes |
 | v0.3 | Controlled Revisions | Planned | — |
 | v0.4 | Corpus Inspection and Comparison | Planned | — |
 | v0.5 | Local Visual Workbench | Planned | — |
@@ -44,6 +44,10 @@ Use these companion documents when you need more precision:
 
 - [Extraction Observatory user guide](../docs/extraction-observatory.md): commands,
   artifacts, compatibility, and exit-code contract
+- [Evidence-Based Diagnosis guide](../docs/evidence-based-diagnosis.md): rules,
+  findings, verification states, and integrity limits
 - [Accepted v0.1 plan](../docs/plans/v0.1-extraction-observatory.md): complete
   implementation and review contract
+- [Accepted v0.2 plan](../docs/plans/v0.2-evidence-based-diagnosis.md): complete
+  diagnosis implementation and review contract
 - [Project roadmap](../docs/roadmap.md): milestone sequence and boundaries

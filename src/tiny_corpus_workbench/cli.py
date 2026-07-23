@@ -68,6 +68,21 @@ def _verification_callable(name: str) -> Any:
     return function
 
 
+def _diagnosis_callable(module_name: str, name: str) -> Any:
+    try:
+        module = importlib.import_module(f"tiny_corpus_workbench.{module_name}")
+        function = getattr(module, name)
+    except Exception as error:
+        raise RuntimeContractError(
+            "bundled diagnosis/schema runtime is unavailable or incompatible"
+        ) from error
+    if not callable(function):
+        raise RuntimeContractError(
+            "bundled diagnosis/schema runtime is unavailable or incompatible"
+        )
+    return function
+
+
 def _validate_staged_schemas(root: Path) -> None:
     _verification_callable("validate_staged_schemas")(root)
 
@@ -85,6 +100,26 @@ def parser() -> argparse.ArgumentParser:
     verify.add_argument("observation_directory", metavar="OBSERVATION_DIRECTORY", type=Path)
     verify.add_argument("--source", type=Path)
     verify.add_argument("--docling-artifacts", type=Path)
+    diagnose_command = commands.add_parser(
+        "diagnose", help="publish one application-immutable diagnosis"
+    )
+    diagnose_command.add_argument(
+        "observation_directory", metavar="OBSERVATION_DIRECTORY", type=Path
+    )
+    diagnose_command.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("build/evidence-based-diagnosis"),
+    )
+    verify_diagnosis = commands.add_parser(
+        "verify-diagnosis", help="read and verify one diagnosis"
+    )
+    verify_diagnosis.add_argument(
+        "diagnosis_directory", metavar="DIAGNOSIS_DIRECTORY", type=Path
+    )
+    verify_diagnosis.add_argument(
+        "--observation", metavar="OBSERVATION_DIRECTORY", type=Path
+    )
     return root
 
 
@@ -419,6 +454,42 @@ def main(argv: list[str] | None = None) -> int:
         return verify_command(
             args.observation_directory, args.source, args.docling_artifacts
         )
+    if args.command == "verify-diagnosis":
+        try:
+            command = _diagnosis_callable(
+                "diagnosis_verification", "verify_diagnosis_command"
+            )
+        except RuntimeContractError as error:
+            print(sanitize_message(error), file=sys.stderr)
+            return int(ExitCode.RUNTIME)
+        return command(args.diagnosis_directory, args.observation)
+    if args.command == "diagnose":
+        try:
+            command = _diagnosis_callable("diagnosis", "diagnose")
+            published = command(
+                args.observation_directory,
+                args.output_root,
+            )
+        except WorkbenchError as error:
+            print(sanitize_message(error), file=sys.stderr)
+            return int(error.exit_code)
+        except Exception as error:
+            print(
+                f"internal diagnosis failure: {sanitize_message(error)}",
+                file=sys.stderr,
+            )
+            return int(ExitCode.INTERNAL)
+        manifest_path = published / "diagnosis-manifest.json"
+        manifest = json.loads(manifest_path.read_text("utf-8"))
+        line = {
+            "diagnosis_id": manifest["diagnosis_id"],
+            "finding_count": manifest["summary"]["total"],
+            "manifest": str(manifest_path.resolve()),
+            "run_id": manifest["run_id"],
+            "status": manifest["status"],
+        }
+        print(json.dumps(line, sort_keys=True, separators=(",", ":")))
+        return int(ExitCode.SUCCESS)
     try:
         exit_code, published = observe(args.source, args.output_root, args.docling_artifacts)
     except WorkbenchError as error:

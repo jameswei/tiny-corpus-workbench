@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/finding-set-v0.2.schema.json",
+  "title": "tiny-corpus-workbench finding set v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "diagnosis_id", "observation_id", "canonical_artifact", "canonical_document_sha256", "ruleset", "summary", "findings"],
+  "properties": {
+    "schema_version": {"const": "tcw.finding-set/v0.2"},
+    "diagnosis_id": {"$ref": "#/$defs/hash"},
+    "observation_id": {"$ref": "#/$defs/hash"},
+    "canonical_artifact": {"const": "docling/document.json"},
+    "canonical_document_sha256": {"$ref": "#/$defs/hash"},
+    "ruleset": {"$ref": "#/$defs/ruleset"},
+    "summary": {"$ref": "#/$defs/summary"},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "scalar": {"type": ["string", "integer", "number", "boolean"]},
+    "evidenceValue": {
+      "oneOf": [
+        {"$ref": "#/$defs/scalar"},
+        {"type": "array", "items": {"$ref": "#/$defs/scalar"}}
+      ]
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minimum": {"type": "integer"},
+        "maximum": {"type": "integer"},
+        "character": {"type": "string"},
+        "minimum_characters": {"type": "integer"},
+        "first_level": {"type": "integer"},
+        "maximum_increase": {"type": "integer"},
+        "maximum_characters": {"type": "integer"},
+        "minimum_pages": {"type": "integer"},
+        "top_maximum": {"type": "number"},
+        "bottom_minimum": {"type": "number"}
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "name", "version", "severity", "parameters"],
+      "properties": {
+        "rule_id": {"pattern": "^TCW-D00[1-8]$", "type": "string"},
+        "name": {"type": "string", "minLength": 1},
+        "version": {"const": "1"},
+        "severity": {"enum": ["ERROR", "WARNING", "INFO"]},
+        "parameters": {"$ref": "#/$defs/parameters"}
+      }
+    },
+    "ruleset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "rules"],
+      "properties": {
+        "name": {"const": "tcw-evidence-based-diagnosis"},
+        "version": {"const": "v0.2"},
+        "parameter_sha256": {"$ref": "#/$defs/hash"},
+        "rules": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": {"$ref": "#/$defs/rule"}
+        }
+      }
+    },
+    "bySeverity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ERROR", "WARNING", "INFO"],
+      "properties": {
+        "ERROR": {"type": "integer", "minimum": 0},
+        "WARNING": {"type": "integer", "minimum": 0},
+        "INFO": {"type": "integer", "minimum": 0}
+      }
+    },
+    "byRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["TCW-D001", "TCW-D002", "TCW-D003", "TCW-D004", "TCW-D005", "TCW-D006", "TCW-D007", "TCW-D008"],
+      "properties": {
+        "TCW-D001": {"type": "integer", "minimum": 0},
+        "TCW-D002": {"type": "integer", "minimum": 0},
+        "TCW-D003": {"type": "integer", "minimum": 0},
+        "TCW-D004": {"type": "integer", "minimum": 0},
+        "TCW-D005": {"type": "integer", "minimum": 0},
+        "TCW-D006": {"type": "integer", "minimum": 0},
+        "TCW-D007": {"type": "integer", "minimum": 0},
+        "TCW-D008": {"type": "integer", "minimum": 0}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "by_severity", "by_rule"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "by_severity": {"$ref": "#/$defs/bySeverity"},
+        "by_rule": {"$ref": "#/$defs/byRule"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finding_id", "rule_id", "rule_version", "severity", "summary", "document_refs", "evidence"],
+      "properties": {
+        "finding_id": {"$ref": "#/$defs/hash"},
+        "rule_id": {"pattern": "^TCW-D00[1-8]$", "type": "string"},
+        "rule_version": {"const": "1"},
+        "severity": {"enum": ["ERROR", "WARNING", "INFO"]},
+        "summary": {"type": "string", "minLength": 1},
+        "document_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^#/"}
+        },
+        "evidence": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "non_whitespace_characters": {"type": "integer", "minimum": 0},
+            "code_point_offsets": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+            "occurrence_count": {"type": "integer", "minimum": 1},
+            "row": {"type": "integer", "minimum": 0},
+            "column": {"type": "integer", "minimum": 0},
+            "count": {"type": "integer", "minimum": 2},
+            "normalized_character_count": {"type": "integer", "minimum": 1},
+            "normalized_text_sha256": {"$ref": "#/$defs/hash"},
+            "current_level": {"type": "integer", "minimum": 1},
+            "previous_level": {"type": "integer", "minimum": 0},
+            "previous_ref": {"type": "string", "pattern": "^#/"},
+            "declared_ref": {"type": "string"},
+            "relationship_kind": {"enum": ["orphan_caption", "invalid_declared_caption"]},
+            "band": {"enum": ["top", "bottom"]},
+            "page_count": {"type": "integer", "minimum": 3},
+            "page_numbers": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+            "content_layer": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}

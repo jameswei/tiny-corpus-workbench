@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/diagnosis-verification-result-v0.2.schema.json",
+  "title": "tiny-corpus-workbench diagnosis verification result v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "diagnosis_directory", "artifact_integrity", "observation_state", "derivation_state"],
+  "properties": {
+    "schema_version": {"const": "tcw.diagnosis-verification-result/v0.2"},
+    "diagnosis_directory": {"type": "string"},
+    "artifact_integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "issues"],
+      "properties": {
+        "status": {"enum": ["VERIFIED", "INTEGRITY_MISMATCH", "BROKEN"]},
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "path", "message"],
+            "properties": {
+              "code": {"type": "string", "minLength": 1},
+              "path": {"type": ["string", "null"]},
+              "message": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "observation_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {"status": {"enum": ["NOT_CHECKED", "MATCH", "CHANGED", "MISSING", "ERROR"]}}
+    },
+    "derivation_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {"status": {"enum": ["NOT_CHECKED", "MATCH", "MISMATCH", "ERROR"]}}
+    }
+  }
+}
