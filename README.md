@@ -110,8 +110,10 @@ uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY \
   --observation OBSERVATION_DIRECTORY
 ```
 
-Replace `OBSERVATION_DIRECTORY` with the directory reported by `tcw observe`.
-Replace `DIAGNOSIS_DIRECTORY` with the directory reported by `tcw diagnose`.
+Each command prints a compact JSON result. Replace `OBSERVATION_DIRECTORY` with
+the directory containing the `manifest` path printed by `tcw observe`. Replace
+`DIAGNOSIS_DIRECTORY` with the directory containing the `manifest` path printed
+by `tcw diagnose`.
 
 The PDF example requires the local Docling models downloaded in the second
 step. Observation then runs locally and offline. OCR, plugins, remote services,
