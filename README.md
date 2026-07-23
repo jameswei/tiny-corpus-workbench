@@ -14,6 +14,7 @@ each milestone is complete.
 | Version | Milestone |
 | --- | --- |
 | [v0.1.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0) | Extraction Observatory |
+| [v0.2.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.2.0) | Evidence-Based Diagnosis |
 
 ## Purpose
 

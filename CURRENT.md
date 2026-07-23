@@ -13,19 +13,18 @@ Future work may use whichever sound engineering practices fit the task.
   documentation, learning material, CI, and the project website.
 - The local v0.1 baseline passes 80 unit tests, the twelve-fixture registry
   check, and static website validation.
-- The owner accepted milestone v0.2, Evidence-Based Diagnosis, on 2026-07-23.
-- Its implementation contract is
+- Milestone v0.2, Evidence-Based Diagnosis, is released as
+  [`v0.2.0`](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.2.0)
+  on `main`.
+- Its accepted implementation contract is
   `docs/plans/v0.2-evidence-based-diagnosis.md`.
-- Milestone v0.2 is active on
-  `milestone/v0.2-evidence-based-diagnosis`.
-- The v0.2 plan is being executed through the explicitly requested
-  plan-build-review workflow. A fresh milestone reviewer returned `PASS` on
-  2026-07-23 after all accepted findings were resolved.
-- Ready pull request
-  [#5](https://github.com/jameswei/tiny-corpus-workbench/pull/5) is open for
-  milestone v0.2. Its initial hosted `Fast validation` and `Full extraction`
-  checks passed. Every later pushed head must pass the same checks before
-  merge.
+- The release contains `tcw diagnose`, `tcw verify-diagnosis`, eight fixed
+  evidence-backed rules, immutable diagnosis artifacts, independent
+  verification, deterministic CC0 diagnosis fixtures, tests, user
+  documentation, and learning material.
+- Final hosted `Fast validation`, `Full extraction`, and website deployment
+  passed on the `v0.2.0` release target.
+- No later milestone is active. The roadmap does not activate one.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -59,10 +58,10 @@ Original sources and raw extraction artifacts remain immutable. Diagnosis does
 not authorize mutation, and interpretive refinements require explicit human
 confirmation.
 
-## Current milestone
+## Latest completed milestone
 
 Milestone v0.2 adds deterministic, read-only diagnosis over the canonical
-`DoclingDocument` from an intact v0.1 observation. It will publish a separate
+`DoclingDocument` from an intact v0.1 observation. It publishes a separate
 application-immutable diagnosis with eight fixed evidence-backed rules,
 stable findings, a deterministic report, and independent verification.
 
@@ -70,17 +69,18 @@ The accepted plan keeps MarkItDown descriptive, preserves every v0.1 public
 contract and golden fixture, adds no refinement capability, and keeps
 chunking, embeddings, retrieval, generation, and RAG evaluation out of scope.
 
-The accepted v0.2 implementation is present on the milestone branch. It
-includes the two diagnosis commands, eight fixed rules, three public schemas,
-separate diagnostic fixtures, tests, a user guide, and a learning lesson.
-Builder verification covers the released v0.1 behavior, all twelve unchanged
-golden fixtures, and the new diagnosis corpus. Local acceptance passes 131
-tests, deterministic fixture checks, static site validation, and clean-checkout
-portability verification.
+The released implementation includes the two diagnosis commands, eight fixed
+rules, three public schemas, separate diagnostic fixtures, tests, a user
+guide, and a learning lesson. Verification covers the released v0.1 behavior,
+all twelve unchanged golden fixtures, and the diagnosis corpus. Local
+acceptance passes 131 tests, deterministic fixture checks, static site
+validation, and clean-checkout portability verification.
 
-An independent milestone reviewer returned `PASS` on 2026-07-23 after all
-accepted findings were resolved. GitHub's automated review then identified two
-edge cases. The branch now includes both fixes and regression coverage. Pull
-request #5 is open and ready for review. No merge, tag, or v0.2 release has
-occurred. The next gate is green hosted checks on the latest head followed by
-explicit owner approval to merge.
+An independent milestone reviewer returned `PASS` on 2026-07-23. Two later
+automated-review findings were fixed with regression coverage before merge.
+Pull request
+[#5](https://github.com/jameswei/tiny-corpus-workbench/pull/5) delivered the
+milestone. Pull request
+[#6](https://github.com/jameswei/tiny-corpus-workbench/pull/6) corrected the
+README project links before release. The final release-target CI and website
+deployment passed, and `v0.2.0` was published on 2026-07-23.
