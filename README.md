@@ -14,6 +14,7 @@ each milestone is complete.
 | Version | Milestone |
 | --- | --- |
 | [v0.1.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0) | Extraction Observatory |
+| [v0.2.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.2.0) | Evidence-Based Diagnosis |
 
 ## Purpose
 
@@ -109,8 +110,15 @@ The fixed diagnosis rules, evidence artifacts, and verification states are
 documented in the
 [Evidence-Based Diagnosis guide](docs/evidence-based-diagnosis.md).
 
-Learner-oriented materials are available in the top-level
-[learning directory](learning/README.md).
+## Learning
+
+The [learning materials](learning/README.md) provide guided, hands-on lessons
+for completed milestones. Start there for the learning path, suggested study
+times, safe experiment steps, and companion references.
+
+The lessons use committed fixtures so that learners can inspect evidence
+without starting with private documents. They support study and exploration;
+the user guides and accepted milestone plans remain the behavior contracts.
 
 ## License
 
