@@ -52,6 +52,8 @@ The output path is:
 
 The publisher writes a private staging directory and uses an exclusive atomic
 rename. It does not overwrite an existing run.
+The resolved publication parent must not be the observation or a path inside
+the observation.
 
 `diagnosis-manifest.json` records:
 

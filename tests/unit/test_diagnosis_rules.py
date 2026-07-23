@@ -2,7 +2,15 @@ from __future__ import annotations
 
 import unittest
 
-from docling_core.types.doc import DoclingDocument, DocItemLabel
+from docling_core.types.doc import (
+    BoundingBox,
+    DoclingDocument,
+    DocItemLabel,
+    ProvenanceItem,
+    Size,
+    TableCell,
+    TableData,
+)
 
 from tiny_corpus_workbench.diagnosis import analyze_document
 
@@ -121,6 +129,14 @@ class DiagnosisRuleTests(unittest.TestCase):
         clear = document([text(0, "x" * 200)])
         self.assertEqual(rules(clear), [])
 
+    def test_short_document_count_uses_nfc_normalized_content(self) -> None:
+        decomposed = "e\u0301"
+        self.assertEqual(
+            rules(document([text(0, decomposed * 199)])),
+            ["TCW-D002"],
+        )
+        self.assertEqual(rules(document([text(0, decomposed * 200)])), [])
+
     def test_replacement_character_offsets_cover_text_and_table_cells(self) -> None:
         table = {
             "self_ref": "#/tables/0",
@@ -224,6 +240,35 @@ class DiagnosisRuleTests(unittest.TestCase):
             ],
         )
 
+    def test_valid_caption_and_no_caption_are_not_d006_findings(self) -> None:
+        cell = TableCell(
+            start_row_offset_idx=0,
+            end_row_offset_idx=1,
+            start_col_offset_idx=0,
+            end_col_offset_idx=1,
+            text="x" * 200,
+        )
+        valid = DoclingDocument(name="valid-caption")
+        caption = valid.add_text(DocItemLabel.CAPTION, "Valid caption")
+        valid.add_table(
+            TableData(table_cells=[cell], num_rows=1, num_cols=1),
+            caption=caption,
+        )
+        valid_payload = valid.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        self.assertNotIn("TCW-D006", rules(valid_payload))
+
+        absent = DoclingDocument(name="no-caption")
+        absent.add_text(DocItemLabel.TEXT, "x" * 200)
+        absent.add_table(
+            TableData(table_cells=[cell], num_rows=1, num_cols=1)
+        )
+        absent_payload = absent.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        self.assertNotIn("TCW-D006", rules(absent_payload))
+
     def test_pdf_margin_group_uses_three_pages_and_excludes_furniture(self) -> None:
         pages = {
             str(number): {
@@ -284,6 +329,75 @@ class DiagnosisRuleTests(unittest.TestCase):
         self.assertEqual(margin[0]["evidence"]["page_numbers"], [1, 2, 3])
         self.assertEqual(margin[0]["evidence"]["band"], "top")
 
+    def test_pdf_margin_length_page_band_and_origin_boundaries(self) -> None:
+        def has_margin(
+            value: str,
+            *,
+            page_count: int = 3,
+            ratio: float = 0.10,
+            origin: str = "TOPLEFT",
+        ) -> bool:
+            pages = {
+                str(number): {
+                    "page_no": number,
+                    "size": {"width": 612, "height": 792},
+                }
+                for number in range(1, page_count + 1)
+            }
+            raw_ratio = 1 - ratio if origin == "BOTTOMLEFT" else ratio
+            midpoint = raw_ratio * 792
+            items = [
+                text(
+                    index,
+                    value,
+                    prov=[
+                        {
+                            "page_no": page,
+                            "bbox": {
+                                "l": 72,
+                                "t": midpoint,
+                                "r": 200,
+                                "b": midpoint,
+                                "coord_origin": origin,
+                            },
+                        }
+                    ],
+                )
+                for index, page in enumerate(range(1, page_count + 1))
+            ]
+            payload = document(items, pages=pages)
+            return "TCW-D007" in rules(payload, "application/pdf")
+
+        cases = (
+            ("xx", 3, 0.10, "TOPLEFT", False),
+            ("xxx", 3, 0.10, "TOPLEFT", True),
+            ("x" * 200, 3, 0.10, "TOPLEFT", True),
+            ("x" * 201, 3, 0.10, "TOPLEFT", False),
+            ("margin", 2, 0.10, "TOPLEFT", False),
+            ("margin", 3, 0.10, "TOPLEFT", True),
+            ("margin", 3, 0.1001, "TOPLEFT", False),
+            ("margin", 3, 0.90, "TOPLEFT", True),
+            ("margin", 3, 0.8999, "TOPLEFT", False),
+            ("margin", 3, 0.10, "BOTTOMLEFT", True),
+            ("margin", 3, 0.90, "BOTTOMLEFT", True),
+        )
+        for value, page_count, ratio, origin, expected in cases:
+            with self.subTest(
+                length=len(value),
+                pages=page_count,
+                ratio=ratio,
+                origin=origin,
+            ):
+                self.assertEqual(
+                    has_margin(
+                        value,
+                        page_count=page_count,
+                        ratio=ratio,
+                        origin=origin,
+                    ),
+                    expected,
+                )
+
     def test_pdf_missing_provenance_covers_each_supported_item_and_non_pdf_does_not(self) -> None:
         payload = document(
             [text(0, "x" * 200)],
@@ -313,6 +427,39 @@ class DiagnosisRuleTests(unittest.TestCase):
         self.assertEqual(
             rules(payload, "application/pdf").count("TCW-D008"), 3
         )
+
+    def test_pdf_items_with_provenance_are_not_d008_findings(self) -> None:
+        provenance = ProvenanceItem(
+            page_no=1,
+            bbox=BoundingBox(l=72, t=100, r=200, b=120),
+            charspan=(0, 1),
+        )
+        payload_document = DoclingDocument(name="provenance-present")
+        payload_document.add_page(1, Size(width=612, height=792))
+        payload_document.add_text(
+            DocItemLabel.TEXT, "x" * 200, prov=provenance
+        )
+        payload_document.add_table(
+            TableData(
+                table_cells=[
+                    TableCell(
+                        start_row_offset_idx=0,
+                        end_row_offset_idx=1,
+                        start_col_offset_idx=0,
+                        end_col_offset_idx=1,
+                        text="cell",
+                    )
+                ],
+                num_rows=1,
+                num_cols=1,
+            ),
+            prov=provenance,
+        )
+        payload_document.add_picture(prov=provenance)
+        payload = payload_document.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        self.assertNotIn("TCW-D008", rules(payload, "application/pdf"))
 
     def test_finding_identity_and_order_are_stable(self) -> None:
         payload = document([text(0, "x\ufffd")])

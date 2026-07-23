@@ -6,17 +6,24 @@ import json
 import shutil
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from threading import Barrier
 from unittest import mock
 
-from docling_core.types.doc import DoclingDocument, DocItemLabel
+from docling_core.types.doc import (
+    DoclingDocument,
+    DocItemLabel,
+    TableCell,
+    TableData,
+)
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import canonical_json
 from tiny_corpus_workbench.diagnosis import make_finding_set, render_report
-from tiny_corpus_workbench.diagnosis import snapshot_tree
-from tiny_corpus_workbench.domain import IntegrityError
+from tiny_corpus_workbench.diagnosis import AtomicDiagnosis, snapshot_tree
+from tiny_corpus_workbench.domain import InputError, IntegrityError
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
@@ -34,6 +41,36 @@ def fake_docling(source: Path, destination: Path, model_root: Path):
 def partial_docling(source: Path, destination: Path, model_root: Path):
     _, schema = fake_docling(source, destination, model_root)
     return "partial_success", schema
+
+
+def unresolved_caption_docling(source: Path, destination: Path, model_root: Path):
+    destination.mkdir(parents=True)
+    document = DoclingDocument(name="unresolved-caption")
+    document.add_text(DocItemLabel.TEXT, "Stable body content. " * 20)
+    document.add_table(
+        TableData(
+            table_cells=[
+                TableCell(
+                    start_row_offset_idx=0,
+                    end_row_offset_idx=1,
+                    start_col_offset_idx=0,
+                    end_col_offset_idx=1,
+                    text="Cell",
+                )
+            ],
+            num_rows=1,
+            num_cols=1,
+        )
+    )
+    payload = document.model_dump(mode="json", by_alias=True, exclude_none=True)
+    payload["tables"][0]["captions"] = [
+        {"$ref": "#/texts/99"},
+        {"$ref": "#/texts/99"},
+    ]
+    DoclingDocument.model_validate(payload)
+    (destination / "document.json").write_bytes(canonical_json(payload))
+    (destination / "document.md").write_text("# unresolved caption\n", "utf-8")
+    return "success", {"name": "DoclingDocument", "version": "1.10.0"}
 
 
 def fake_markitdown(source: Path, destination: Path):
@@ -148,6 +185,129 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 "INTEGRITY_MISMATCH",
             )
 
+    def test_unresolved_duplicate_caption_declarations_publish_one_valid_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(
+                root / "observations", unresolved_caption_docling
+            )
+            code, stdout, stderr = self.invoke(
+                "diagnose", str(observation), "--output-root", str(root / "diagnoses")
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            diagnosis = Path(json.loads(stdout)["manifest"]).parent
+            finding_set = json.loads(
+                (diagnosis / "findings.json").read_text("utf-8")
+            )
+            invalid = [
+                item
+                for item in finding_set["findings"]
+                if item["rule_id"] == "TCW-D006"
+                and item["evidence"]["relationship_kind"]
+                == "invalid_declared_caption"
+            ]
+            self.assertEqual(len(invalid), 1)
+            self.assertEqual(invalid[0]["evidence"]["declared_ref"], "#/texts/99")
+            code, stdout, stderr = self.invoke(
+                "verify-diagnosis",
+                str(diagnosis),
+                "--observation",
+                str(observation),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            result = json.loads(stdout)
+            self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
+            self.assertEqual(result["derivation_state"]["status"], "MATCH")
+
+    def test_output_overlap_is_rejected_without_observation_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            alias = root / "observation-alias"
+            alias.symlink_to(observation, target_is_directory=True)
+            cases = (
+                observation,
+                observation.parents[1],
+                alias,
+            )
+            for output in cases:
+                with self.subTest(output=output):
+                    before = snapshot_tree(observation)
+                    code, stdout, stderr = self.invoke(
+                        "diagnose",
+                        str(observation),
+                        "--output-root",
+                        str(output),
+                    )
+                    self.assertEqual(code, 2)
+                    self.assertEqual(stdout, "")
+                    self.assertIn("must not overlap", stderr)
+                    self.assertEqual(snapshot_tree(observation), before)
+
+    def test_atomic_diagnosis_conflict_never_replaces_existing_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = AtomicDiagnosis(root, "source", "observation", "run")
+            with first as staging:
+                (staging / "sentinel").write_bytes(b"first")
+                published = first.publish()
+            second = AtomicDiagnosis(root, "source", "observation", "run")
+            with self.assertRaises(IntegrityError), second as staging:
+                (staging / "sentinel").write_bytes(b"second")
+                second.publish()
+            self.assertEqual((published / "sentinel").read_bytes(), b"first")
+            self.assertEqual(
+                list((root / "source/observation").glob(".staging-*")), []
+            )
+
+    def test_concurrent_atomic_diagnosis_publication_has_one_winner(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            barrier = Barrier(2)
+
+            def publish(value: bytes) -> str:
+                publisher = AtomicDiagnosis(
+                    root, "source", "observation", "shared-run"
+                )
+                try:
+                    with publisher as staging:
+                        (staging / "sentinel").write_bytes(value)
+                        barrier.wait()
+                        publisher.publish()
+                    return "published"
+                except IntegrityError:
+                    return "conflict"
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                results = list(pool.map(publish, (b"first", b"second")))
+            self.assertEqual(sorted(results), ["conflict", "published"])
+            destination = root / "source/observation/shared-run/sentinel"
+            self.assertIn(destination.read_bytes(), (b"first", b"second"))
+            self.assertEqual(
+                list((root / "source/observation").glob(".staging-*")), []
+            )
+
+    def test_diagnosis_failures_are_sanitized_with_exact_exit_streams(self) -> None:
+        cases = (
+            (InputError("bad\x01 input\npath"), 2, "bad input path"),
+            (ValueError("boom\x01\ntrace"), 1, "internal diagnosis failure"),
+        )
+        for error, expected_code, expected_text in cases:
+            with self.subTest(code=expected_code), mock.patch.object(
+                cli,
+                "_diagnosis_callable",
+                return_value=mock.Mock(side_effect=error),
+            ):
+                code, stdout, stderr = self.invoke("diagnose", "observation")
+            self.assertEqual(code, expected_code)
+            self.assertEqual(stdout, "")
+            self.assertEqual(len(stderr.splitlines()), 1)
+            self.assertIn(expected_text, stderr)
+            self.assertNotIn("\x01", stderr)
+            self.assertNotIn("Traceback", stderr)
+
     def test_usage_failures_have_no_stdout_and_publish_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -210,6 +370,62 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(code, 5)
             self.assertEqual(stdout, "")
             self.assertIn("staged diagnosis is invalid", stderr)
+            self.assertEqual(list(output.glob("*/*/*")), [])
+
+    def test_staged_semantics_reject_duplicate_finding_identities(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(
+                root / "observations", unresolved_caption_docling
+            )
+            original = make_finding_set
+
+            def duplicate(*args, **kwargs):
+                finding_set = original(*args, **kwargs)
+                finding_set["findings"].append(
+                    dict(finding_set["findings"][0])
+                )
+                finding_set["summary"]["total"] += 1
+                return finding_set
+
+            output = root / "diagnoses"
+            with mock.patch(
+                "tiny_corpus_workbench.diagnosis.make_finding_set",
+                side_effect=duplicate,
+            ):
+                code, stdout, stderr = self.invoke(
+                    "diagnose", str(observation), "--output-root", str(output)
+                )
+            self.assertEqual(code, 5)
+            self.assertEqual(stdout, "")
+            self.assertIn("unique and canonically ordered", stderr)
+            self.assertFalse(output.exists())
+
+    def test_staged_byte_corruption_is_rejected_before_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            from tiny_corpus_workbench import diagnosis as diagnosis_module
+
+            original = diagnosis_module._artifact
+
+            def corrupt(path, artifact_root, role, media_type):
+                descriptor = original(path, artifact_root, role, media_type)
+                if role == "diagnostic-report":
+                    path.write_bytes(b"corrupt after descriptor")
+                return descriptor
+
+            output = root / "diagnoses"
+            with mock.patch(
+                "tiny_corpus_workbench.diagnosis._artifact",
+                side_effect=corrupt,
+            ):
+                code, stdout, stderr = self.invoke(
+                    "diagnose", str(observation), "--output-root", str(output)
+                )
+            self.assertEqual(code, 5)
+            self.assertEqual(stdout, "")
+            self.assertIn("staged diagnosis content changed", stderr)
             self.assertEqual(list(output.glob("*/*/*")), [])
 
     def test_verifier_detects_inventory_and_content_failure_shapes(self) -> None:

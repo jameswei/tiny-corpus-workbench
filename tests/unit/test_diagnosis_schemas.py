@@ -11,7 +11,9 @@ from tiny_corpus_workbench.diagnosis import (
     RULESET_DESCRIPTOR,
     _validator,
     make_finding_set,
+    validate_finding_set_semantics,
 )
+from tiny_corpus_workbench.domain import IntegrityError
 from tests.unit.test_diagnosis_rules import document, text
 
 
@@ -90,6 +92,42 @@ class DiagnosisSchemaTests(unittest.TestCase):
             [rule["rule_id"] for rule in RULESET_DESCRIPTOR["rules"]],
             [f"TCW-D00{number}" for number in range(1, 9)],
         )
+
+    def test_staged_semantic_validation_rejects_cross_field_mutations(self) -> None:
+        payload = document([text(0, "x\ufffd")])
+        observation = {
+            "observation_id": "a" * 64,
+            "source": {"media_type": "text/markdown"},
+        }
+        baseline = make_finding_set(
+            payload,
+            observation,
+            manifest_hash="b" * 64,
+            document_hash="c" * 64,
+        )
+        validate_finding_set_semantics(baseline, payload)
+        mutations = []
+
+        duplicate = deepcopy(baseline)
+        duplicate["findings"].append(deepcopy(duplicate["findings"][0]))
+        mutations.append(duplicate)
+
+        summary = deepcopy(baseline)
+        summary["summary"]["total"] += 1
+        mutations.append(summary)
+
+        identity = deepcopy(baseline)
+        identity["findings"][0]["finding_id"] = "0" * 64
+        mutations.append(identity)
+
+        reference = deepcopy(baseline)
+        reference["findings"][0]["document_refs"] = ["#/texts/99"]
+        mutations.append(reference)
+
+        for index, mutation in enumerate(mutations):
+            with self.subTest(mutation=index):
+                with self.assertRaises(IntegrityError):
+                    validate_finding_set_semantics(mutation, payload)
 
 
 if __name__ == "__main__":

@@ -226,6 +226,36 @@ def _finding(
     }
 
 
+def _finding_identity(diagnosis_id: str, finding: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "diagnosis_id": diagnosis_id,
+        "rule_id": finding["rule_id"],
+        "rule_version": finding["rule_version"],
+        "document_refs": finding["document_refs"],
+        "evidence": finding["evidence"],
+    }
+
+
+def _canonicalize_findings(
+    findings: Iterable[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    unique: dict[str, dict[str, Any]] = {}
+    for finding in findings:
+        existing = unique.get(finding["finding_id"])
+        if existing is not None and existing != finding:
+            raise IntegrityError("finding identity collision")
+        unique[finding["finding_id"]] = finding
+    return sorted(
+        unique.values(),
+        key=lambda item: (
+            item["rule_id"],
+            item["document_refs"],
+            canonical_json(item["evidence"]),
+            item["finding_id"],
+        ),
+    )
+
+
 def _bbox_midpoint_top_ratio(
     provenance: dict[str, Any], pages: dict[str, Any]
 ) -> tuple[int, float] | None:
@@ -272,10 +302,10 @@ def analyze_document(
     for item in body_items:
         text = item.get("text")
         if isinstance(text, str):
-            body_content.append(text)
+            body_content.append(_normalize(text))
         if item.get("label") == "table":
             body_content.extend(
-                cell["text"]
+                _normalize(cell["text"])
                 for cell in _table_cells(item)
                 if isinstance(cell.get("text"), str)
             )
@@ -448,6 +478,7 @@ def analyze_document(
                 if point is None:
                     continue
                 page_no, ratio = point
+                ratio = round(ratio, 12)
                 band = "top" if ratio <= 0.10 else "bottom" if ratio >= 0.90 else None
                 if band is None:
                     continue
@@ -487,15 +518,7 @@ def analyze_document(
                         )
                     )
 
-    return sorted(
-        findings,
-        key=lambda item: (
-            item["rule_id"],
-            item["document_refs"],
-            canonical_json(item["evidence"]),
-            item["finding_id"],
-        ),
-    )
+    return _canonicalize_findings(findings)
 
 
 def compute_diagnosis_id(
@@ -535,6 +558,41 @@ def make_finding_set(
         "summary": _summary(findings),
         "findings": findings,
     }
+
+
+def validate_finding_set_semantics(
+    finding_set: dict[str, Any], payload: dict[str, Any]
+) -> None:
+    findings = finding_set["findings"]
+    if findings != _canonicalize_findings(findings):
+        raise IntegrityError("findings are not unique and canonically ordered")
+    if finding_set["summary"] != _summary(findings):
+        raise IntegrityError("finding summary is inconsistent")
+    known_references = set(_index(payload))
+    for finding in findings:
+        if (
+            finding["severity"] != SEVERITY_BY_RULE[finding["rule_id"]]
+            or finding["summary"]
+            != SUMMARY_BY_RULE[finding["rule_id"]].replace("_", " ").title()
+            or finding["document_refs"] != sorted(set(finding["document_refs"]))
+            or list(finding["evidence"]) != sorted(finding["evidence"])
+            or finding["finding_id"]
+            != _hash(
+                canonical_json(
+                    _finding_identity(finding_set["diagnosis_id"], finding)
+                ).rstrip(b"\n")
+            )
+        ):
+            raise IntegrityError("finding identity or canonical form is inconsistent")
+        unresolved_allowed = (
+            finding["rule_id"] == "TCW-D006"
+            and finding["evidence"].get("relationship_kind")
+            == "invalid_declared_caption"
+            and finding["evidence"].get("declared_ref")
+        )
+        for reference in finding["document_refs"]:
+            if reference not in known_references and reference != unresolved_allowed:
+                raise IntegrityError("finding document reference is inconsistent")
 
 
 def _summary(findings: list[dict[str, Any]]) -> dict[str, Any]:
@@ -704,6 +762,25 @@ class AtomicDiagnosis:
             shutil.rmtree(self.staging)
 
 
+def _validate_publication_parent(
+    observation_root: Path,
+    output_root: Path,
+    source_key: str,
+    observation_run_id: str,
+) -> None:
+    try:
+        observation = observation_root.resolve(strict=True)
+        parent = (
+            output_root / source_key / observation_run_id
+        ).resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise InputError("diagnosis publication path cannot be resolved safely") from error
+    if parent == observation or parent.is_relative_to(observation):
+        raise InputError(
+            "diagnosis output must not overlap the immutable observation"
+        )
+
+
 def _artifact(path: Path, root: Path, role: str, media_type: str) -> dict[str, Any]:
     return {
         "path": path.relative_to(root).as_posix(),
@@ -782,10 +859,12 @@ def _load_input(
         for table in document.tables:
             list(table.data.table_cells)
             for caption in table.captions:
-                caption.resolve(document)
+                if not isinstance(caption.cref, str):
+                    raise RuntimeError("caption reference API is incompatible")
         for picture in document.pictures:
             for caption in picture.captions:
-                caption.resolve(document)
+                if not isinstance(caption.cref, str):
+                    raise RuntimeError("caption reference API is incompatible")
         for item, _ in document.iterate_items(with_groups=True):
             for provenance in getattr(item, "prov", []):
                 _ = (provenance.page_no, provenance.bbox)
@@ -808,10 +887,17 @@ def diagnose(root: Path, output_root: Path) -> Path:
         manifest_hash=manifest_hash,
         document_hash=document_hash,
     )
+    validate_finding_set_semantics(finding_set, payload)
     findings_bytes = canonical_json(finding_set)
     report_bytes = render_report(finding_set)
     now = datetime.now(UTC)
     run_id = f"{now.strftime('%Y%m%dT%H%M%S.%fZ')}-{uuid.uuid4().hex[:12]}"
+    _validate_publication_parent(
+        root,
+        output_root,
+        observation["source"]["key"],
+        observation["run_id"],
+    )
     publisher = AtomicDiagnosis(
         output_root,
         observation["source"]["key"],
@@ -881,6 +967,27 @@ def diagnose(root: Path, output_root: Path) -> Path:
         write_json(staging / "diagnosis-manifest.json", manifest)
         _validate("finding-set-v0.2.schema.json", finding_set)
         _validate("diagnosis-manifest-v0.2.schema.json", manifest)
+        try:
+            if (
+                (staging / "findings.json").read_bytes() != findings_bytes
+                or (staging / "report.md").read_bytes() != report_bytes
+                or (staging / "diagnosis-manifest.json").read_bytes()
+                != canonical_json(manifest)
+            ):
+                raise IntegrityError("staged diagnosis content changed")
+            for descriptor in manifest["artifacts"]:
+                path = staging / descriptor["path"]
+                if (
+                    path.stat().st_size != descriptor["size"]
+                    or sha256_file(path) != descriptor["sha256"]
+                ):
+                    raise IntegrityError(
+                        "staged diagnosis descriptor is inconsistent"
+                    )
+        except IntegrityError:
+            raise
+        except OSError as error:
+            raise IntegrityError("staged diagnosis content is unavailable") from error
         expected = {
             "diagnosis-manifest.json",
             findings_artifact["path"],
