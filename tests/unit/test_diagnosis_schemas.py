@@ -9,6 +9,9 @@ from jsonschema import Draft202012Validator, ValidationError
 
 from tiny_corpus_workbench.diagnosis import (
     RULESET_DESCRIPTOR,
+    SEVERITY_BY_RULE,
+    SUMMARY_BY_RULE,
+    _summary,
     _validator,
     make_finding_set,
     validate_finding_set_semantics,
@@ -128,6 +131,50 @@ class DiagnosisSchemaTests(unittest.TestCase):
             with self.subTest(mutation=index):
                 with self.assertRaises(IntegrityError):
                     validate_finding_set_semantics(mutation, payload)
+
+    def test_staged_semantics_reject_generic_evidence_for_every_rule(self) -> None:
+        payload = document([text(0, "stable body")])
+        observation = {
+            "observation_id": "a" * 64,
+            "source": {"media_type": "text/markdown"},
+        }
+        for rule in RULESET_DESCRIPTOR["rules"]:
+            with self.subTest(rule_id=rule["rule_id"]):
+                finding_set = make_finding_set(
+                    payload,
+                    observation,
+                    manifest_hash="b" * 64,
+                    document_hash="c" * 64,
+                )
+                finding = {
+                    "finding_id": "0" * 64,
+                    "rule_id": rule["rule_id"],
+                    "rule_version": "1",
+                    "severity": SEVERITY_BY_RULE[rule["rule_id"]],
+                    "summary": SUMMARY_BY_RULE[rule["rule_id"]]
+                    .replace("_", " ")
+                    .title(),
+                    "document_refs": ["#/body"],
+                    "evidence": {"band": "top"},
+                }
+                import hashlib
+
+                from tiny_corpus_workbench.artifacts import canonical_json
+
+                identity = {
+                    "diagnosis_id": finding_set["diagnosis_id"],
+                    "rule_id": finding["rule_id"],
+                    "rule_version": finding["rule_version"],
+                    "document_refs": finding["document_refs"],
+                    "evidence": finding["evidence"],
+                }
+                finding["finding_id"] = hashlib.sha256(
+                    canonical_json(identity).rstrip(b"\n")
+                ).hexdigest()
+                finding_set["findings"] = [finding]
+                finding_set["summary"] = _summary([finding])
+                with self.assertRaisesRegex(IntegrityError, "rule-specific"):
+                    validate_finding_set_semantics(finding_set, payload)
 
 
 if __name__ == "__main__":

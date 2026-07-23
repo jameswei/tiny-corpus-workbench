@@ -21,7 +21,14 @@ from docling_core.types.doc import (
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import canonical_json
-from tiny_corpus_workbench.diagnosis import make_finding_set, render_report
+from tiny_corpus_workbench.diagnosis import (
+    RULESET_DESCRIPTOR,
+    SEVERITY_BY_RULE,
+    SUMMARY_BY_RULE,
+    _summary,
+    make_finding_set,
+    render_report,
+)
 from tiny_corpus_workbench.diagnosis import AtomicDiagnosis, snapshot_tree
 from tiny_corpus_workbench.domain import InputError, IntegrityError
 from tiny_corpus_workbench.verification import verify_observation
@@ -297,6 +304,7 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             output = root / "diagnoses"
             output.mkdir()
             escaped = root / "escaped"
+            escaped.mkdir()
             (output / "redirect").symlink_to(escaped, target_is_directory=True)
             before = snapshot_tree(observation)
             code, stdout, stderr = self.invoke(
@@ -308,8 +316,36 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(code, 2)
             self.assertEqual(stdout, "")
             self.assertIn("escapes the output root", stderr)
-            self.assertFalse(escaped.exists())
+            self.assertEqual(list(escaped.iterdir()), [])
             self.assertEqual(snapshot_tree(observation), before)
+
+    def test_output_path_file_conflicts_are_invalid_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            observation_manifest = json.loads(
+                (observation / "manifest.json").read_text("utf-8")
+            )
+            direct = root / "direct-file"
+            direct.write_text("occupied", "utf-8")
+            intermediate_root = root / "intermediate"
+            intermediate_root.mkdir()
+            (intermediate_root / observation_manifest["source"]["key"]).write_text(
+                "occupied", "utf-8"
+            )
+            for output in (direct, intermediate_root):
+                with self.subTest(output=output):
+                    before = snapshot_tree(observation)
+                    code, stdout, stderr = self.invoke(
+                        "diagnose",
+                        str(observation),
+                        "--output-root",
+                        str(output),
+                    )
+                    self.assertEqual(code, 2)
+                    self.assertEqual(stdout, "")
+                    self.assertIn("conflicts with a non-directory", stderr)
+                    self.assertEqual(snapshot_tree(observation), before)
 
     def test_atomic_diagnosis_conflict_never_replaces_existing_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -672,6 +708,163 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     )
                     self.assertEqual(
                         result["derivation_state"]["status"], "NOT_CHECKED"
+                    )
+
+    def test_active_distribution_drift_is_runtime_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+
+            def drift(name: str) -> str:
+                return "0.0.0" if name == "docling-core" else {
+                    "docling": "2.113.0",
+                    "markitdown": "0.1.6",
+                }[name]
+
+            output = root / "drifted-diagnosis"
+            with mock.patch(
+                "tiny_corpus_workbench.runtime.importlib.metadata.version",
+                side_effect=drift,
+            ):
+                code, stdout, stderr = self.invoke(
+                    "diagnose",
+                    str(observation),
+                    "--output-root",
+                    str(output),
+                )
+            self.assertEqual(code, 6)
+            self.assertEqual(stdout, "")
+            self.assertIn("installed extractor versions", stderr)
+            self.assertFalse(output.exists())
+
+            from tiny_corpus_workbench import runtime as runtime_module
+
+            load_lock = runtime_module.tomllib.loads
+
+            def drift_lock(value: str) -> dict:
+                lock = load_lock(value)
+                for package in lock["package"]:
+                    if package["name"] == "docling-core":
+                        package["version"] = "0.0.0"
+                return lock
+
+            lock_output = root / "drifted-lock"
+            with mock.patch(
+                "tiny_corpus_workbench.runtime.tomllib.loads",
+                side_effect=drift_lock,
+            ):
+                code, stdout, stderr = self.invoke(
+                    "diagnose",
+                    str(observation),
+                    "--output-root",
+                    str(lock_output),
+                )
+            self.assertEqual(code, 6)
+            self.assertEqual(stdout, "")
+            self.assertIn("uv.lock extractor versions", stderr)
+            self.assertFalse(lock_output.exists())
+
+            code, stdout, _ = self.invoke(
+                "diagnose",
+                str(observation),
+                "--output-root",
+                str(root / "diagnoses"),
+            )
+            self.assertEqual(code, 0)
+            diagnosis = Path(json.loads(stdout)["manifest"]).parent
+            with mock.patch(
+                "tiny_corpus_workbench.runtime.importlib.metadata.version",
+                side_effect=drift,
+            ):
+                code, stdout, stderr = self.invoke(
+                    "verify-diagnosis",
+                    str(diagnosis),
+                    "--observation",
+                    str(observation),
+                )
+            self.assertEqual(code, 6)
+            self.assertEqual(stdout, "")
+            self.assertIn("installed extractor versions", stderr)
+
+    def test_verifier_rejects_generic_evidence_for_every_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            code, stdout, _ = self.invoke(
+                "diagnose",
+                str(observation),
+                "--output-root",
+                str(root / "diagnoses"),
+            )
+            self.assertEqual(code, 0)
+            diagnosis = Path(json.loads(stdout)["manifest"]).parent
+            original_manifest = json.loads(
+                (diagnosis / "diagnosis-manifest.json").read_text("utf-8")
+            )
+            original_findings = json.loads(
+                (diagnosis / "findings.json").read_text("utf-8")
+            )
+            for rule in RULESET_DESCRIPTOR["rules"]:
+                with self.subTest(rule_id=rule["rule_id"]):
+                    copied = root / rule["rule_id"] / diagnosis.name
+                    copied.parent.mkdir()
+                    shutil.copytree(diagnosis, copied)
+                    finding = {
+                        "finding_id": "0" * 64,
+                        "rule_id": rule["rule_id"],
+                        "rule_version": "1",
+                        "severity": SEVERITY_BY_RULE[rule["rule_id"]],
+                        "summary": SUMMARY_BY_RULE[rule["rule_id"]]
+                        .replace("_", " ")
+                        .title(),
+                        "document_refs": ["#/body"],
+                        "evidence": {"band": "top"},
+                    }
+                    identity = {
+                        "diagnosis_id": original_findings["diagnosis_id"],
+                        "rule_id": finding["rule_id"],
+                        "rule_version": finding["rule_version"],
+                        "document_refs": finding["document_refs"],
+                        "evidence": finding["evidence"],
+                    }
+                    finding["finding_id"] = hashlib.sha256(
+                        canonical_json(identity).rstrip(b"\n")
+                    ).hexdigest()
+                    finding_set = dict(original_findings)
+                    finding_set["findings"] = [finding]
+                    finding_set["summary"] = _summary([finding])
+                    findings_bytes = canonical_json(finding_set)
+                    report_bytes = render_report(finding_set)
+                    (copied / "findings.json").write_bytes(findings_bytes)
+                    (copied / "report.md").write_bytes(report_bytes)
+                    manifest = json.loads(json.dumps(original_manifest))
+                    manifest["status"] = "FINDINGS"
+                    manifest["summary"] = finding_set["summary"]
+                    for descriptor in manifest["artifacts"]:
+                        raw = (
+                            findings_bytes
+                            if descriptor["path"] == "findings.json"
+                            else report_bytes
+                        )
+                        descriptor["size"] = len(raw)
+                        descriptor["sha256"] = hashlib.sha256(raw).hexdigest()
+                    (copied / "diagnosis-manifest.json").write_bytes(
+                        canonical_json(manifest)
+                    )
+                    code, stdout, stderr = self.invoke(
+                        "verify-diagnosis", str(copied)
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    result = json.loads(stdout)
+                    self.assertEqual(
+                        result["artifact_integrity"]["status"], "BROKEN"
+                    )
+                    self.assertTrue(
+                        any(
+                            issue["code"] == "FINDINGS_INVALID"
+                            for issue in result["artifact_integrity"]["issues"]
+                        )
                     )
 
 

@@ -22,9 +22,14 @@ from tiny_corpus_workbench.diagnosis import (
     compute_diagnosis_id,
     make_finding_set,
     render_report,
+    validate_finding_contract,
 )
-from tiny_corpus_workbench.domain import RuntimeContractError, sanitize_message
-from tiny_corpus_workbench.source import sha256_file
+from tiny_corpus_workbench.domain import (
+    IntegrityError,
+    RuntimeContractError,
+    sanitize_message,
+)
+from tiny_corpus_workbench.runtime import active_locked_runtime
 from tiny_corpus_workbench.verification import FORMAT_CHECKER, verify_observation
 
 
@@ -150,6 +155,7 @@ def _observation_states(
 def verify_diagnosis(
     root: Path, observation_root: Path | None = None
 ) -> dict[str, Any]:
+    active_runtime = active_locked_runtime()
     issues: list[dict[str, Any]] = []
     expected = {"diagnosis-manifest.json", "findings.json", "report.md"}
     actual: set[str] = set()
@@ -254,17 +260,16 @@ def verify_diagnosis(
             from tiny_corpus_workbench import __version__
 
             runtime_ok = (
-                manifest["runtime"]["implementation"] == "CPython"
+                manifest["runtime"]["python"] == active_runtime["python"]
+                and manifest["runtime"]["implementation"]
+                == active_runtime["implementation"]
                 and manifest["runtime"]["package_version"] == __version__
                 and manifest["runtime"]["dependencies"]
-                == {
-                    "docling": "2.113.0",
-                    "docling-core": "2.87.1",
-                    "markitdown": "0.1.6",
-                }
-                and manifest["runtime"]["lockfile_sha256"] == sha256_file(Path("uv.lock"))
+                == active_runtime["dependencies"]
+                and manifest["runtime"]["lockfile_sha256"]
+                == active_runtime["lockfile_sha256"]
             )
-        except (OSError, KeyError, TypeError):
+        except (KeyError, TypeError):
             runtime_ok = False
         if not runtime_ok:
             issues.append(_issue("RUNTIME_MISMATCH", None, "runtime provenance differs"))
@@ -307,6 +312,16 @@ def verify_diagnosis(
             )
         expected_findings = []
         for finding in findings["findings"]:
+            try:
+                validate_finding_contract(finding)
+            except IntegrityError:
+                issues.append(
+                    _issue(
+                        "FINDINGS_INVALID",
+                        "findings.json",
+                        "rule-specific finding contract differs",
+                    )
+                )
             identity = {
                 "diagnosis_id": findings["diagnosis_id"],
                 "rule_id": finding["rule_id"],

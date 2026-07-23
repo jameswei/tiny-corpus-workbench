@@ -3,9 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import platform
 import stat
-import sys
 import tempfile
 import unicodedata
 import uuid
@@ -30,7 +28,7 @@ from tiny_corpus_workbench.domain import (
     IntegrityError,
     RuntimeContractError,
 )
-from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
+from tiny_corpus_workbench.runtime import active_locked_runtime
 from tiny_corpus_workbench.source import sha256_file
 from tiny_corpus_workbench.verification import FORMAT_CHECKER, verify_observation
 
@@ -128,6 +126,170 @@ TEXT_COLLECTIONS = (
 )
 SUMMARY_BY_RULE = {rule["rule_id"]: rule["name"] for rule in RULESET}
 SEVERITY_BY_RULE = {rule["rule_id"]: rule["severity"] for rule in RULESET}
+
+
+def validate_finding_contract(finding: dict[str, Any]) -> None:
+    rule_id = finding["rule_id"]
+    references = finding["document_refs"]
+    evidence = finding["evidence"]
+    keys = set(evidence)
+
+    def references_match(
+        *,
+        minimum: int,
+        maximum: int | None,
+        prefixes: tuple[str, ...],
+    ) -> bool:
+        return (
+            len(references) >= minimum
+            and (maximum is None or len(references) <= maximum)
+            and all(reference.startswith(prefixes) for reference in references)
+        )
+
+    valid = False
+    if rule_id == "TCW-D001":
+        valid = (
+            references == ["#/body"]
+            and keys == {"non_whitespace_characters"}
+            and type(evidence["non_whitespace_characters"]) is int
+            and evidence["non_whitespace_characters"] == 0
+        )
+    elif rule_id == "TCW-D002":
+        valid = (
+            references == ["#/body"]
+            and keys == {"non_whitespace_characters"}
+            and type(evidence["non_whitespace_characters"]) is int
+            and 1 <= evidence["non_whitespace_characters"] <= 199
+        )
+    elif rule_id == "TCW-D003":
+        offsets = evidence.get("code_point_offsets")
+        shared = (
+            isinstance(offsets, list)
+            and offsets
+            and all(type(offset) is int and offset >= 0 for offset in offsets)
+            and offsets == sorted(set(offsets))
+            and type(evidence.get("occurrence_count")) is int
+            and evidence.get("occurrence_count") == len(offsets)
+        )
+        text_shape = keys == {"code_point_offsets", "occurrence_count"}
+        table_shape = keys == {
+            "code_point_offsets",
+            "column",
+            "occurrence_count",
+            "row",
+        }
+        valid = shared and (
+            (
+                text_shape
+                and references_match(
+                    minimum=1, maximum=1, prefixes=("#/texts/",)
+                )
+            )
+            or (
+                table_shape
+                and references_match(
+                    minimum=1, maximum=1, prefixes=("#/tables/",)
+                )
+                and type(evidence["row"]) is int
+                and evidence["row"] >= 0
+                and type(evidence["column"]) is int
+                and evidence["column"] >= 0
+            )
+        )
+    elif rule_id == "TCW-D004":
+        valid = (
+            keys
+            == {"count", "normalized_character_count", "normalized_text_sha256"}
+            and references_match(minimum=2, maximum=None, prefixes=("#/texts/",))
+            and type(evidence["count"]) is int
+            and evidence["count"] == len(references)
+            and type(evidence["normalized_character_count"]) is int
+            and evidence["normalized_character_count"] >= 80
+        )
+    elif rule_id == "TCW-D005":
+        first_shape = keys == {"current_level", "previous_level"}
+        later_shape = keys == {
+            "current_level",
+            "previous_level",
+            "previous_ref",
+        }
+        current = evidence.get("current_level")
+        previous = evidence.get("previous_level")
+        valid = (
+            references_match(minimum=1, maximum=1, prefixes=("#/texts/",))
+            and type(current) is int
+            and type(previous) is int
+            and current > previous + 1
+            and (
+                (first_shape and previous == 0)
+                or (
+                    later_shape
+                    and previous >= 1
+                    and isinstance(evidence["previous_ref"], str)
+                    and evidence["previous_ref"].startswith("#/texts/")
+                )
+            )
+        )
+    elif rule_id == "TCW-D006":
+        relationship = evidence.get("relationship_kind")
+        if relationship == "orphan_caption":
+            valid = (
+                keys == {"relationship_kind"}
+                and references_match(
+                    minimum=1, maximum=1, prefixes=("#/texts/",)
+                )
+            )
+        elif relationship == "invalid_declared_caption":
+            declared = evidence.get("declared_ref")
+            owners = [
+                reference
+                for reference in references
+                if reference.startswith(("#/tables/", "#/pictures/"))
+            ]
+            expected = sorted(
+                set(owners + ([declared] if isinstance(declared, str) and declared else []))
+            )
+            valid = (
+                keys == {"declared_ref", "relationship_kind"}
+                and isinstance(declared, str)
+                and len(owners) == 1
+                and references == expected
+            )
+    elif rule_id == "TCW-D007":
+        pages = evidence.get("page_numbers")
+        valid = (
+            keys
+            == {
+                "band",
+                "normalized_character_count",
+                "normalized_text_sha256",
+                "page_count",
+                "page_numbers",
+            }
+            and references_match(minimum=1, maximum=None, prefixes=("#/texts/",))
+            and evidence["band"] in {"top", "bottom"}
+            and type(evidence["normalized_character_count"]) is int
+            and 3 <= evidence["normalized_character_count"] <= 200
+            and isinstance(pages, list)
+            and all(type(page) is int and page >= 1 for page in pages)
+            and pages == sorted(set(pages))
+            and len(pages) >= 3
+            and type(evidence["page_count"]) is int
+            and evidence["page_count"] == len(pages)
+        )
+    elif rule_id == "TCW-D008":
+        valid = (
+            keys == {"content_layer"}
+            and references_match(
+                minimum=1,
+                maximum=1,
+                prefixes=("#/texts/", "#/tables/", "#/pictures/"),
+            )
+            and isinstance(evidence["content_layer"], str)
+            and bool(evidence["content_layer"])
+        )
+    if not valid:
+        raise IntegrityError("finding violates its rule-specific evidence contract")
 
 
 def _normalize(value: str) -> str:
@@ -588,6 +750,7 @@ def validate_finding_set_semantics(
         raise IntegrityError("finding summary is inconsistent")
     known_references = set(_index(payload))
     for finding in findings:
+        validate_finding_contract(finding)
         if (
             finding["severity"] != SEVERITY_BY_RULE[finding["rule_id"]]
             or finding["summary"]
@@ -611,6 +774,9 @@ def validate_finding_set_semantics(
         for reference in finding["document_refs"]:
             if reference not in known_references and reference != unresolved_allowed:
                 raise IntegrityError("finding document reference is inconsistent")
+        previous_ref = finding["evidence"].get("previous_ref")
+        if previous_ref is not None and previous_ref not in known_references:
+            raise IntegrityError("finding document reference is inconsistent")
 
 
 def _summary(findings: list[dict[str, Any]]) -> dict[str, Any]:
@@ -801,6 +967,20 @@ def _validate_publication_parent(
             or bool(PureWindowsPath(value).drive)
         ):
             raise InputError(f"observation {label} is not a safe path component")
+    ancestor = output_root
+    while not (ancestor.exists() or ancestor.is_symlink()):
+        if ancestor.parent == ancestor:
+            break
+        ancestor = ancestor.parent
+    if not ancestor.is_dir():
+        raise InputError("diagnosis output path conflicts with a non-directory")
+    for component in (
+        output_root,
+        output_root / source_key,
+        output_root / source_key / observation_run_id,
+    ):
+        if (component.exists() or component.is_symlink()) and not component.is_dir():
+            raise InputError("diagnosis output path conflicts with a non-directory")
     try:
         observation = observation_root.resolve(strict=True)
         output = output_root.resolve(strict=False)
@@ -926,6 +1106,7 @@ def diagnose(root: Path, output_root: Path) -> Path:
     report_bytes = render_report(finding_set)
     now = datetime.now(UTC)
     run_id = f"{now.strftime('%Y%m%dT%H%M%S.%fZ')}-{uuid.uuid4().hex[:12]}"
+    runtime = active_locked_runtime()
     _validate_publication_parent(
         root,
         output_root,
@@ -954,15 +1135,6 @@ def diagnose(root: Path, output_root: Path) -> Path:
             "text/markdown",
         )
         from tiny_corpus_workbench import __version__
-        lock_path = Path("uv.lock")
-        if (
-            platform.python_implementation() != "CPython"
-            or sys.version_info[:2] != (3, 12)
-            or not lock_path.is_file()
-        ):
-            raise RuntimeContractError(
-                "diagnosis requires the locked CPython 3.12 runtime"
-            )
         manifest = {
             "schema_version": "tcw.diagnosis-manifest/v0.2",
             "milestone": "v0.2",
@@ -985,11 +1157,11 @@ def diagnose(root: Path, output_root: Path) -> Path:
                 "docling_document_schema": observation["docling_document_schema"],
             },
             "runtime": {
-                "python": platform.python_version(),
-                "implementation": platform.python_implementation(),
-                "lockfile_sha256": sha256_file(lock_path),
+                "python": runtime["python"],
+                "implementation": runtime["implementation"],
+                "lockfile_sha256": runtime["lockfile_sha256"],
                 "package_version": __version__,
-                "dependencies": dict(RUNTIME_DEPENDENCIES),
+                "dependencies": runtime["dependencies"],
             },
             "ruleset": {
                 **RULESET_DESCRIPTOR,

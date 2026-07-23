@@ -55,7 +55,8 @@ rename. It does not overwrite an existing run.
 The resolved publication parent must not be the observation or a path inside
 the observation. The source key and observation run ID must each be one safe
 path component. The resolved publication parent must stay inside the resolved
-output root.
+output root. The output root and existing publication path components must be
+directories.
 
 `diagnosis-manifest.json` records:
 
@@ -76,6 +77,8 @@ The diagnosis ID is a full SHA-256 hash over the observation identity, the
 observation manifest hash, the canonical document hash, and the ruleset.
 Finding IDs bind the diagnosis, rule, sorted document references, and canonical
 evidence.
+Each rule has one closed evidence shape and a rule-specific document-reference
+shape. Evidence fields from another rule are invalid.
 
 ## Rules
 
@@ -119,6 +122,9 @@ begin in a later milestone.
 
 `verify-diagnosis` always checks the diagnosis inventory, schemas, hashes,
 identities, counts, canonical ordering, and deterministic report.
+Diagnosis and verification read active installed distribution metadata. The
+installed extractor versions and the versions in `uv.lock` must match the fixed
+runtime contract before publication or rule rerun.
 
 `artifact_integrity` is one of:
 
