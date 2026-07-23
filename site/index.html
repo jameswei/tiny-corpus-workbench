@@ -133,7 +133,7 @@
       <div class="section-heading">
         <p class="kicker">Local by design</p>
         <h2 id="start-title">One workbench, several clear surfaces.</h2>
-        <p>Stable CLI contracts, static offline reports, and a loopback-only browser expose the same preparation history. Start with the repository's runnable Extraction Observatory path.</p>
+        <p>Stable CLI contracts, static offline reports, and a loopback-only browser expose the same preparation history. Start with extraction observation, then diagnose the canonical document without changing its evidence.</p>
       </div>
       <div class="surface-list">
         <p><strong>CLI</strong><span>Explicit local operations</span></p>
@@ -142,10 +142,14 @@
       </div>
       <pre class="command-block"><code>uv sync --frozen --python 3.12
 uv run --frozen docling-tools models download layout tableformer --output-dir .cache/docling/models
-uv run --frozen tcw observe fixtures/golden/policy-memo.pdf</code></pre>
+uv run --frozen tcw observe fixtures/golden/policy-memo.pdf
+uv run --frozen tcw diagnose OBSERVATION_DIRECTORY
+uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY --observation OBSERVATION_DIRECTORY</code></pre>
       <div class="resource-links">
         <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/docs/extraction-observatory.md">Read the Extraction Observatory guide</a>
+        <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/docs/evidence-based-diagnosis.md">Read the Evidence-Based Diagnosis guide</a>
         <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/learning/v0.1-extraction-observatory.md">Work through the Extraction Observatory learner module</a>
+        <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/learning/v0.2-evidence-based-diagnosis.md">Work through the Evidence-Based Diagnosis learner module</a>
       </div>
     </section>
 
