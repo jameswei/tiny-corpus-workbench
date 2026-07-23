@@ -246,13 +246,21 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
                 for reference in references
                 if reference.startswith(("#/tables/", "#/pictures/"))
             ]
+            declared_is_owner = isinstance(declared, str) and declared.startswith(
+                ("#/tables/", "#/pictures/")
+            )
+            owner_shape = (
+                declared_is_owner
+                and declared in owners
+                and len(owners) in {1, 2}
+            ) or (not declared_is_owner and len(owners) == 1)
             expected = sorted(
                 set(owners + ([declared] if isinstance(declared, str) and declared else []))
             )
             valid = (
                 keys == {"declared_ref", "relationship_kind"}
                 and isinstance(declared, str)
-                and len(owners) == 1
+                and owner_shape
                 and references == expected
             )
     elif rule_id == "TCW-D007":

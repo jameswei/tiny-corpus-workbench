@@ -962,6 +962,21 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(result["derivation_state"]["status"], "NOT_CHECKED")
 
             with mock.patch(
+                "tiny_corpus_workbench.diagnosis_verification.verify_observation",
+                side_effect=OSError("observation read failed"),
+            ):
+                code, stdout, _ = self.invoke(
+                    "verify-diagnosis",
+                    str(diagnosis),
+                    "--observation",
+                    str(observation),
+                )
+            self.assertEqual(code, 0)
+            result = json.loads(stdout)
+            self.assertEqual(result["observation_state"]["status"], "ERROR")
+            self.assertEqual(result["derivation_state"]["status"], "NOT_CHECKED")
+
+            with mock.patch(
                 "tiny_corpus_workbench.diagnosis_verification.make_finding_set",
                 side_effect=ValueError("rerun failed"),
             ):

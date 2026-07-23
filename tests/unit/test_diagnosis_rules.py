@@ -12,7 +12,10 @@ from docling_core.types.doc import (
     TableData,
 )
 
-from tiny_corpus_workbench.diagnosis import analyze_document
+from tiny_corpus_workbench.diagnosis import (
+    analyze_document,
+    validate_finding_contract,
+)
 
 
 DIAGNOSIS_ID = "a" * 64
@@ -239,6 +242,48 @@ class DiagnosisRuleTests(unittest.TestCase):
                 "orphan_caption",
             ],
         )
+
+    def test_non_caption_owner_reference_is_valid_d006_evidence(self) -> None:
+        owner = {
+            "self_ref": "#/tables/0",
+            "children": [],
+            "content_layer": "body",
+            "label": "table",
+            "prov": [],
+            "captions": [{"$ref": "#/tables/1"}],
+            "data": {"table_cells": [{"text": "owner"}]},
+        }
+        non_caption_target = {
+            "self_ref": "#/tables/1",
+            "children": [],
+            "content_layer": "body",
+            "label": "table",
+            "prov": [],
+            "captions": [],
+            "data": {"table_cells": [{"text": "target"}]},
+        }
+        findings = analyze_document(
+            document(tables=[owner, non_caption_target]),
+            media_type="text/markdown",
+            diagnosis_id=DIAGNOSIS_ID,
+        )
+        invalid = [
+            item
+            for item in findings
+            if item["rule_id"] == "TCW-D006"
+            and item["evidence"]["relationship_kind"]
+            == "invalid_declared_caption"
+        ]
+        self.assertEqual(len(invalid), 1)
+        self.assertEqual(
+            invalid[0]["document_refs"],
+            ["#/tables/0", "#/tables/1"],
+        )
+        self.assertEqual(
+            invalid[0]["evidence"]["declared_ref"],
+            "#/tables/1",
+        )
+        validate_finding_contract(invalid[0])
 
     def test_valid_caption_and_no_caption_are_not_d006_findings(self) -> None:
         cell = TableCell(

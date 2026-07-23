@@ -122,7 +122,7 @@ def _observation_states(
     except RuntimeContractError:
         raise
     except Exception:
-        return {"status": "ERROR"}, {"status": "ERROR"}
+        return {"status": "ERROR"}, {"status": "NOT_CHECKED"}
     try:
         payload = json.loads(document_bytes)
         try:

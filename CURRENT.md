@@ -20,8 +20,12 @@ Future work may use whichever sound engineering practices fit the task.
   `milestone/v0.2-evidence-based-diagnosis`.
 - The v0.2 plan is being executed through the explicitly requested
   plan-build-review workflow. A fresh milestone reviewer returned `PASS` on
-  2026-07-23 after all accepted findings were resolved. Publication now
-  requires owner approval and the pending push and pull-request checks.
+  2026-07-23 after all accepted findings were resolved.
+- Ready pull request
+  [#5](https://github.com/jameswei/tiny-corpus-workbench/pull/5) is open for
+  milestone v0.2. Its initial hosted `Fast validation` and `Full extraction`
+  checks passed. Every later pushed head must pass the same checks before
+  merge.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -70,11 +74,13 @@ The accepted v0.2 implementation is present on the milestone branch. It
 includes the two diagnosis commands, eight fixed rules, three public schemas,
 separate diagnostic fixtures, tests, a user guide, and a learning lesson.
 Builder verification covers the released v0.1 behavior, all twelve unchanged
-golden fixtures, and the new diagnosis corpus. Local acceptance passes 130
+golden fixtures, and the new diagnosis corpus. Local acceptance passes 131
 tests, deterministic fixture checks, static site validation, and clean-checkout
 portability verification.
 
 An independent milestone reviewer returned `PASS` on 2026-07-23 after all
-accepted findings were resolved. The branch has not been pushed, and no pull
-request, hosted CI run, merge, tag, or release has occurred. Publication now
-awaits owner approval followed by the normal push and pull-request checks.
+accepted findings were resolved. GitHub's automated review then identified two
+edge cases. The branch now includes both fixes and regression coverage. Pull
+request #5 is open and ready for review. No merge, tag, or v0.2 release has
+occurred. The next gate is green hosted checks on the latest head followed by
+explicit owner approval to merge.
