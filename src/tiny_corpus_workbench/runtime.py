@@ -14,6 +14,10 @@ from typing import Any, Final, Mapping
 from tiny_corpus_workbench.domain import RuntimeContractError
 
 
+LOCK_PATH = Path("uv.lock")
+EXPECTED_LOCKFILE_SHA256: Final = (
+    "c708fe8c2ce3a516a8a0e219b5b81bc0ee7b787e62c70c6b470a40ebc8dc55d0"
+)
 RUNTIME_DEPENDENCIES: Final[Mapping[str, str]] = MappingProxyType(
     {
         "docling": "2.113.0",
@@ -23,7 +27,10 @@ RUNTIME_DEPENDENCIES: Final[Mapping[str, str]] = MappingProxyType(
 )
 
 
-def active_locked_runtime(lock_path: Path = Path("uv.lock")) -> dict[str, Any]:
+def active_locked_runtime(lock_path: Path | None = None) -> dict[str, Any]:
+    from tiny_corpus_workbench import __version__
+
+    lock_path = LOCK_PATH if lock_path is None else lock_path
     if platform.python_implementation() != "CPython" or sys.version_info[:2] != (
         3,
         12,
@@ -35,6 +42,7 @@ def active_locked_runtime(lock_path: Path = Path("uv.lock")) -> dict[str, Any]:
         dependencies = {
             name: importlib.metadata.version(name) for name in RUNTIME_DEPENDENCIES
         }
+        package_version = importlib.metadata.version("tiny-corpus-workbench")
         lock_bytes = lock_path.read_bytes()
         lock = tomllib.loads(lock_bytes.decode("utf-8"))
         locked_packages = [
@@ -61,9 +69,18 @@ def active_locked_runtime(lock_path: Path = Path("uv.lock")) -> dict[str, Any]:
         raise RuntimeContractError(
             "uv.lock extractor versions do not match the diagnosis contract"
         )
+    if lock_sha256 != EXPECTED_LOCKFILE_SHA256:
+        raise RuntimeContractError(
+            "uv.lock bytes do not match the exact diagnosis lock contract"
+        )
+    if package_version != __version__:
+        raise RuntimeContractError(
+            "installed tiny-corpus-workbench metadata does not match the source version"
+        )
     return {
         "python": platform.python_version(),
         "implementation": platform.python_implementation(),
         "lockfile_sha256": lock_sha256,
+        "package_version": package_version,
         "dependencies": dependencies,
     }

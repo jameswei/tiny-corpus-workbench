@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import hashlib
 import json
+import re
 import shutil
 import tempfile
 import unittest
@@ -79,6 +80,44 @@ def unresolved_caption_docling(source: Path, destination: Path, model_root: Path
     (destination / "document.json").write_bytes(canonical_json(payload))
     (destination / "document.md").write_text("# unresolved caption\n", "utf-8")
     return "success", {"name": "DoclingDocument", "version": "1.10.0"}
+
+
+def mismatched_path_docling(kind: str):
+    def convert(source: Path, destination: Path, model_root: Path):
+        destination.mkdir(parents=True)
+        document = DoclingDocument(name=f"mismatched-{kind}")
+        if kind in {"text", "body_ref"}:
+            document.add_text(DocItemLabel.TEXT, "Broken \ufffd path")
+        elif kind == "table":
+            document.add_table(
+                TableData(
+                    table_cells=[],
+                    num_rows=0,
+                    num_cols=0,
+                )
+            )
+        elif kind == "picture":
+            document.add_picture()
+        elif kind == "group":
+            group = document.add_group()
+            document.add_text(DocItemLabel.TEXT, "Grouped text", parent=group)
+        payload = document.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if kind == "body_ref":
+            payload["body"]["children"][0]["$ref"] = "#/texts/99"
+        else:
+            collection = {
+                "text": "texts",
+                "table": "tables",
+                "picture": "pictures",
+                "group": "groups",
+            }[kind]
+            payload[collection][0]["self_ref"] = f"#/{collection}/99"
+        DoclingDocument.model_validate(payload)
+        (destination / "document.json").write_bytes(canonical_json(payload))
+        (destination / "document.md").write_text("# mismatched path\n", "utf-8")
+        return "success", {"name": "DoclingDocument", "version": "1.10.0"}
+
+    return convert
 
 
 def fake_markitdown(source: Path, destination: Path):
@@ -228,6 +267,113 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             result = json.loads(stdout)
             self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
             self.assertEqual(result["derivation_state"]["status"], "MATCH")
+
+    def test_canonical_collection_paths_are_required_before_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for kind in ("text", "table", "picture", "group", "body_ref"):
+                with self.subTest(kind=kind):
+                    case_root = root / kind
+                    observation = self.observation(
+                        case_root / "observations",
+                        mismatched_path_docling(kind),
+                    )
+                    self.assertEqual(
+                        verify_observation(observation)["artifact_integrity"][
+                            "status"
+                        ],
+                        "VERIFIED",
+                    )
+                    before = snapshot_tree(observation)
+                    output = case_root / "diagnoses"
+                    code, stdout, stderr = self.invoke(
+                        "diagnose",
+                        str(observation),
+                        "--output-root",
+                        str(output),
+                    )
+                    self.assertEqual(code, 4)
+                    self.assertEqual(stdout, "")
+                    self.assertTrue(
+                        "canonical Docling artifact paths" in stderr
+                        or "no usable Docling result" in stderr
+                    )
+                    self.assertFalse(output.exists())
+                    self.assertEqual(snapshot_tree(observation), before)
+
+    def test_rerun_cannot_match_legacy_mismatched_self_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(
+                root / "observations", mismatched_path_docling("text")
+            )
+
+            def legacy_index(payload: dict) -> dict:
+                values = {
+                    payload[name]["self_ref"]: payload[name]
+                    for name in ("body", "furniture")
+                }
+                for collection in (
+                    "texts",
+                    "pictures",
+                    "tables",
+                    "key_value_items",
+                    "form_items",
+                    "field_regions",
+                    "field_items",
+                    "groups",
+                ):
+                    for item in payload.get(collection, []):
+                        values[item["self_ref"]] = item
+                return values
+
+            def legacy_reading(payload: dict, index: dict) -> list[dict]:
+                ordered: list[dict] = []
+                visited: set[str] = set()
+
+                def visit(item: dict) -> None:
+                    reference = item["self_ref"]
+                    if reference in visited:
+                        return
+                    visited.add(reference)
+                    if reference != "#/body":
+                        ordered.append(item)
+                    for child in item.get("children", []):
+                        target = index.get(child["$ref"])
+                        if target is not None:
+                            visit(target)
+
+                visit(payload["body"])
+                return ordered
+
+            with mock.patch(
+                "tiny_corpus_workbench.diagnosis._index",
+                side_effect=legacy_index,
+            ), mock.patch(
+                "tiny_corpus_workbench.diagnosis._reading_order",
+                side_effect=legacy_reading,
+            ):
+                code, stdout, stderr = self.invoke(
+                    "diagnose",
+                    str(observation),
+                    "--output-root",
+                    str(root / "legacy-diagnoses"),
+                )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            diagnosis = Path(json.loads(stdout)["manifest"]).parent
+            code, stdout, stderr = self.invoke(
+                "verify-diagnosis",
+                str(diagnosis),
+                "--observation",
+                str(observation),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            result = json.loads(stdout)
+            self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
+            self.assertEqual(result["observation_state"]["status"], "MATCH")
+            self.assertEqual(result["derivation_state"]["status"], "ERROR")
 
     def test_output_overlap_is_rejected_without_observation_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -719,6 +865,7 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 return "0.0.0" if name == "docling-core" else {
                     "docling": "2.113.0",
                     "markitdown": "0.1.6",
+                    "tiny-corpus-workbench": "0.2.0",
                 }[name]
 
             output = root / "drifted-diagnosis"
@@ -739,19 +886,19 @@ class DiagnosisWorkflowTests(unittest.TestCase):
 
             from tiny_corpus_workbench import runtime as runtime_module
 
-            load_lock = runtime_module.tomllib.loads
-
-            def drift_lock(value: str) -> dict:
-                lock = load_lock(value)
-                for package in lock["package"]:
-                    if package["name"] == "docling-core":
-                        package["version"] = "0.0.0"
-                return lock
-
+            lock_text = Path("uv.lock").read_text("utf-8")
+            changed_lock, replacements = re.subn(
+                r'(?m)(name = "pydantic"\nversion = ")[^"]+',
+                r"\g<1>0.0.0",
+                lock_text,
+                count=1,
+            )
+            self.assertEqual(replacements, 1)
+            changed_lock_path = root / "changed-uv.lock"
+            changed_lock_path.write_text(changed_lock, "utf-8")
             lock_output = root / "drifted-lock"
-            with mock.patch(
-                "tiny_corpus_workbench.runtime.tomllib.loads",
-                side_effect=drift_lock,
+            with mock.patch.object(
+                runtime_module, "LOCK_PATH", changed_lock_path
             ):
                 code, stdout, stderr = self.invoke(
                     "diagnose",
@@ -761,8 +908,34 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 )
             self.assertEqual(code, 6)
             self.assertEqual(stdout, "")
-            self.assertIn("uv.lock extractor versions", stderr)
+            self.assertIn("uv.lock bytes", stderr)
             self.assertFalse(lock_output.exists())
+
+            stale_output = root / "stale-project"
+
+            def stale_project(name: str) -> str:
+                if name == "tiny-corpus-workbench":
+                    return "0.1.0"
+                return {
+                    "docling": "2.113.0",
+                    "docling-core": "2.87.1",
+                    "markitdown": "0.1.6",
+                }[name]
+
+            with mock.patch(
+                "tiny_corpus_workbench.runtime.importlib.metadata.version",
+                side_effect=stale_project,
+            ):
+                code, stdout, stderr = self.invoke(
+                    "diagnose",
+                    str(observation),
+                    "--output-root",
+                    str(stale_output),
+                )
+            self.assertEqual(code, 6)
+            self.assertEqual(stdout, "")
+            self.assertIn("installed tiny-corpus-workbench metadata", stderr)
+            self.assertFalse(stale_output.exists())
 
             code, stdout, _ = self.invoke(
                 "diagnose",
@@ -772,6 +945,33 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             diagnosis = Path(json.loads(stdout)["manifest"]).parent
+            for label, patcher, expected in (
+                (
+                    "stale-project",
+                    mock.patch(
+                        "tiny_corpus_workbench.runtime.importlib.metadata.version",
+                        side_effect=stale_project,
+                    ),
+                    "installed tiny-corpus-workbench metadata",
+                ),
+                (
+                    "changed-lock",
+                    mock.patch.object(
+                        runtime_module, "LOCK_PATH", changed_lock_path
+                    ),
+                    "uv.lock bytes",
+                ),
+            ):
+                with self.subTest(verifier=label), patcher:
+                    code, stdout, stderr = self.invoke(
+                        "verify-diagnosis",
+                        str(diagnosis),
+                        "--observation",
+                        str(observation),
+                    )
+                self.assertEqual(code, 6)
+                self.assertEqual(stdout, "")
+                self.assertIn(expected, stderr)
             with mock.patch(
                 "tiny_corpus_workbench.runtime.importlib.metadata.version",
                 side_effect=drift,

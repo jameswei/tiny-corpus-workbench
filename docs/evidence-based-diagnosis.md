@@ -73,6 +73,10 @@ human-readable rendering. Repeated diagnosis of the same observation produces
 byte-identical findings and reports. Run identifiers and timestamps in the
 manifest are intentionally unique.
 
+Each canonical item must declare the `self_ref` implied by its collection and
+array position. Child references must resolve through those canonical paths.
+Diagnosis rejects inconsistent paths before publication.
+
 The diagnosis ID is a full SHA-256 hash over the observation identity, the
 observation manifest hash, the canonical document hash, and the ruleset.
 Finding IDs bind the diagnosis, rule, sorted document references, and canonical
@@ -123,8 +127,9 @@ begin in a later milestone.
 `verify-diagnosis` always checks the diagnosis inventory, schemas, hashes,
 identities, counts, canonical ordering, and deterministic report.
 Diagnosis and verification read active installed distribution metadata. The
-installed extractor versions and the versions in `uv.lock` must match the fixed
-runtime contract before publication or rule rerun.
+installed project and extractor versions must match the source contract.
+`uv.lock` must match the committed exact-lock byte identity before publication
+or rule rerun.
 
 `artifact_integrity` is one of:
 

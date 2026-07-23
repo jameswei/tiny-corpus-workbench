@@ -321,14 +321,31 @@ def _index(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     values: dict[str, dict[str, Any]] = {}
     for root_name in ("body", "furniture"):
         item = payload.get(root_name)
-        if isinstance(item, dict) and isinstance(item.get("self_ref"), str):
-            values[item["self_ref"]] = item
+        canonical = f"#/{root_name}"
+        if not isinstance(item, dict) or item.get("self_ref") != canonical:
+            raise IntegrityError(
+                "canonical document item self_ref does not match its stored path"
+            )
+        values[canonical] = item
     for collection in (*TEXT_COLLECTIONS, "groups"):
         items = payload.get(collection, [])
-        if isinstance(items, list):
-            for item in items:
-                if isinstance(item, dict) and isinstance(item.get("self_ref"), str):
-                    values[item["self_ref"]] = item
+        if not isinstance(items, list):
+            raise IntegrityError("canonical document collection is invalid")
+        for position, item in enumerate(items):
+            canonical = f"#/{collection}/{position}"
+            if not isinstance(item, dict) or item.get("self_ref") != canonical:
+                raise IntegrityError(
+                    "canonical document item self_ref does not match its stored path"
+                )
+            values[canonical] = item
+    for item in values.values():
+        children = item.get("children", [])
+        if not isinstance(children, list):
+            raise IntegrityError("canonical document child references are invalid")
+        for child in children:
+            reference = _cref(child)
+            if reference is None or reference not in values:
+                raise IntegrityError("canonical document child reference is unresolved")
     return values
 
 
@@ -338,22 +355,19 @@ def _reading_order(
     ordered: list[dict[str, Any]] = []
     visited: set[str] = set()
 
-    def visit(item: dict[str, Any]) -> None:
-        reference = item.get("self_ref")
-        if not isinstance(reference, str) or reference in visited:
+    def visit(reference: str) -> None:
+        if reference in visited:
             return
         visited.add(reference)
+        item = index[reference]
         if reference != "#/body":
             ordered.append(item)
         for child in item.get("children", []):
             child_reference = _cref(child)
-            target = index.get(child_reference or "")
-            if target is not None:
-                visit(target)
+            if child_reference is not None:
+                visit(child_reference)
 
-    body = payload.get("body")
-    if isinstance(body, dict):
-        visit(body)
+    visit("#/body")
     return ordered
 
 
@@ -1066,6 +1080,12 @@ def _load_input(
             "canonical Docling artifact is unavailable"
         ) from error
     try:
+        _index(payload)
+    except IntegrityError as error:
+        raise CanonicalUnavailableError(
+            "canonical Docling artifact paths are inconsistent"
+        ) from error
+    try:
         document = DoclingDocument.model_validate(payload)
         list(document.iterate_items(with_groups=True))
         for child in document.body.children:
@@ -1134,7 +1154,6 @@ def diagnose(root: Path, output_root: Path) -> Path:
             "diagnostic-report",
             "text/markdown",
         )
-        from tiny_corpus_workbench import __version__
         manifest = {
             "schema_version": "tcw.diagnosis-manifest/v0.2",
             "milestone": "v0.2",
@@ -1160,7 +1179,7 @@ def diagnose(root: Path, output_root: Path) -> Path:
                 "python": runtime["python"],
                 "implementation": runtime["implementation"],
                 "lockfile_sha256": runtime["lockfile_sha256"],
-                "package_version": __version__,
+                "package_version": runtime["package_version"],
                 "dependencies": runtime["dependencies"],
             },
             "ruleset": {
