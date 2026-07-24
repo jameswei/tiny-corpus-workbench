@@ -7,7 +7,12 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from docling_core.types.doc import DocItemLabel, DoclingDocument
+from docling_core.types.doc import (
+    DocItemLabel,
+    DoclingDocument,
+    TableCell,
+    TableData,
+)
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import canonical_json
@@ -103,12 +108,78 @@ class ControlledRevisionTests(unittest.TestCase):
         )
 
     def test_code_and_formula_are_excluded(self) -> None:
+        for label in ("code", "formula"):
+            with self.subTest(label=label):
+                subject = self.subject()
+                subject["payload"]["texts"][0]["label"] = label
+                subject["document_bytes"] = canonical_json(subject["payload"])
+                rules = [
+                    item["rule_id"]
+                    for item in make_finding_set(subject)["findings"]
+                ]
+                self.assertNotIn("TCW-D009", rules)
+                self.assertNotIn("TCW-D010", rules)
+
+    def test_d010_boundaries_unicode_and_blank_lines(self) -> None:
+        cases = {
+            "one-letter-left": ("a-\nword " + "x" * 200, False),
+            "uppercase-right": ("alpha-\nWord " + "x" * 200, False),
+            "blank-line": ("alpha-\n\nword " + "x" * 200, False),
+            "crlf-horizontal": ("alpha- \t\r\n \tword " + "x" * 200, True),
+            "unicode": ("άλφα-\nβήτα " + "x" * 200, True),
+        }
+        for name, (value, expected) in cases.items():
+            with self.subTest(name=name):
+                document = DoclingDocument(name=name)
+                document.add_text(DocItemLabel.TEXT, value)
+                payload = document.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                )
+                subject = self.subject()
+                subject["payload"] = payload
+                subject["document_bytes"] = canonical_json(payload)
+                rules = {
+                    item["rule_id"]
+                    for item in make_finding_set(subject)["findings"]
+                }
+                self.assertEqual("TCW-D010" in rules, expected)
+
+    def test_d009_and_d010_cover_table_cells_with_coordinates(self) -> None:
+        document = DoclingDocument(name="table-cells")
+        document.add_text(DocItemLabel.TEXT, "x" * 200)
+        document.add_table(
+            TableData(
+                num_rows=1,
+                num_cols=1,
+                table_cells=[
+                    TableCell(
+                        start_row_offset_idx=0,
+                        end_row_offset_idx=1,
+                        start_col_offset_idx=0,
+                        end_col_offset_idx=1,
+                        text="Cell\u00a0 value and inter-\noperable text",
+                    )
+                ],
+            )
+        )
+        payload = document.model_dump(mode="json", by_alias=True, exclude_none=True)
         subject = self.subject()
-        subject["payload"]["texts"][0]["label"] = "code"
-        subject["document_bytes"] = canonical_json(subject["payload"])
-        rules = [item["rule_id"] for item in make_finding_set(subject)["findings"]]
-        self.assertNotIn("TCW-D009", rules)
-        self.assertNotIn("TCW-D010", rules)
+        subject["payload"] = payload
+        subject["document_bytes"] = canonical_json(payload)
+        findings = [
+            item
+            for item in make_finding_set(subject)["findings"]
+            if item["rule_id"] in {"TCW-D009", "TCW-D010"}
+            and item["document_refs"] == ["#/tables/0"]
+        ]
+        self.assertEqual([item["rule_id"] for item in findings], ["TCW-D009", "TCW-D010"])
+        self.assertTrue(
+            all(
+                item["evidence"]["row"] == 0
+                and item["evidence"]["column"] == 0
+                for item in findings
+            )
+        )
 
     def test_repeated_boilerplate_edit_moves_body_to_furniture(self) -> None:
         document = DoclingDocument(name="margin")
