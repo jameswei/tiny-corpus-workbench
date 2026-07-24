@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import platform
 import shutil
 import tempfile
 import unittest
+from collections import Counter
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -14,10 +16,17 @@ from docling_core.types.doc import DocItemLabel, DoclingDocument
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import canonical_json
-from tiny_corpus_workbench.diagnosis import diagnose as diagnose_v02
+from tiny_corpus_workbench.diagnosis import (
+    _canonicalize_findings,
+    diagnose as diagnose_v02,
+)
 from tiny_corpus_workbench.diagnosis_verification import verify_diagnosis as verify_v02
 from tiny_corpus_workbench.domain import InputError, IntegrityError
-from tiny_corpus_workbench.v03 import snapshot_tree, verify_diagnosis
+from tiny_corpus_workbench.v03 import (
+    _diagnosis_report,
+    snapshot_tree,
+    verify_diagnosis,
+)
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
@@ -91,6 +100,20 @@ class DiagnosisWorkflowTests(unittest.TestCase):
         self.assertEqual(code, 0, stderr)
         self.assertEqual(stderr, "")
         return Path(json.loads(stdout)["manifest"]).parent
+
+    def copy_diagnosis(self, diagnosis: Path, destination: Path) -> Path:
+        copied = destination / diagnosis.name
+        destination.mkdir(parents=True)
+        shutil.copytree(diagnosis, copied)
+        return copied
+
+    def refresh_diagnosis_descriptors(
+        self, diagnosis: Path, manifest: dict
+    ) -> None:
+        for descriptor in manifest["artifacts"]:
+            path = diagnosis / descriptor["path"]
+            descriptor["size"] = path.stat().st_size
+            descriptor["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
 
     def test_v03_diagnosis_is_deterministic_and_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -326,6 +349,120 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     self.assertIn(
                         json.loads(stdout)["artifact_integrity"]["status"],
                         {"INTEGRITY_MISMATCH", "BROKEN"},
+                    )
+
+    def test_verifier_rejects_manifest_encoding_and_descriptor_mapping_tampering(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(
+                root / "observations", whitespace_docling
+            )
+            diagnosis = self.publish(observation, root / "diagnoses")
+            for operation in (
+                "roles",
+                "media-types",
+                "paths",
+                "immutability",
+                "noncanonical-manifest",
+            ):
+                with self.subTest(operation=operation):
+                    copied = self.copy_diagnosis(
+                        diagnosis, root / operation
+                    )
+                    manifest_path = copied / "diagnosis-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    first, second = manifest["artifacts"]
+                    if operation == "roles":
+                        first["role"], second["role"] = (
+                            second["role"],
+                            first["role"],
+                        )
+                    elif operation == "media-types":
+                        first["media_type"], second["media_type"] = (
+                            second["media_type"],
+                            first["media_type"],
+                        )
+                    elif operation == "paths":
+                        first["path"], second["path"] = (
+                            second["path"],
+                            first["path"],
+                        )
+                        self.refresh_diagnosis_descriptors(copied, manifest)
+                    elif operation == "immutability":
+                        first["application_immutable"] = False
+                    else:
+                        manifest_path.write_text(
+                            json.dumps(manifest, indent=2), "utf-8"
+                        )
+                    if operation != "noncanonical-manifest":
+                        manifest_path.write_bytes(canonical_json(manifest))
+                    result = verify_diagnosis(copied)
+                    self.assertEqual(
+                        result["artifact_integrity"]["status"], "BROKEN"
+                    )
+
+    def test_verifier_rejects_self_consistent_v03_finding_metadata_tampering(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(
+                root / "observations", whitespace_docling
+            )
+            diagnosis = self.publish(observation, root / "diagnoses")
+            for rule_id, field, replacement in (
+                ("TCW-D009", "severity", "WARNING"),
+                ("TCW-D010", "severity", "INFO"),
+                ("TCW-D009", "summary", "Changed whitespace summary"),
+                ("TCW-D010", "summary", "Changed hyphenation summary"),
+                ("TCW-D009", "rule_version", "2"),
+            ):
+                with self.subTest(rule_id=rule_id, field=field):
+                    copied = self.copy_diagnosis(
+                        diagnosis, root / f"{rule_id}-{field}"
+                    )
+                    findings_path = copied / "findings.json"
+                    findings = json.loads(findings_path.read_text("utf-8"))
+                    target = next(
+                        item
+                        for item in findings["findings"]
+                        if item["rule_id"] == rule_id
+                    )
+                    target[field] = replacement
+                    findings["findings"] = _canonicalize_findings(
+                        findings["findings"]
+                    )
+                    severities = Counter(
+                        item["severity"] for item in findings["findings"]
+                    )
+                    rules = Counter(
+                        item["rule_id"] for item in findings["findings"]
+                    )
+                    findings["summary"] = {
+                        "total": len(findings["findings"]),
+                        "by_severity": {
+                            name: severities.get(name, 0)
+                            for name in ("ERROR", "WARNING", "INFO")
+                        },
+                        "by_rule": {
+                            name: rules.get(name, 0)
+                            for name in findings["summary"]["by_rule"]
+                        },
+                    }
+                    findings_path.write_bytes(canonical_json(findings))
+                    (copied / "report.md").write_bytes(
+                        _diagnosis_report(findings)
+                    )
+                    manifest_path = copied / "diagnosis-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    manifest["summary"] = findings["summary"]
+                    self.refresh_diagnosis_descriptors(copied, manifest)
+                    manifest_path.write_bytes(canonical_json(manifest))
+                    result = verify_diagnosis(copied)
+                    self.assertEqual(
+                        result["artifact_integrity"]["status"], "BROKEN"
                     )
 
     def test_optional_subject_states_are_advisory(self) -> None:

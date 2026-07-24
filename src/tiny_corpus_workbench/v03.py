@@ -113,6 +113,22 @@ REFINEMENT_ARTIFACTS = {
     "prepared/document.json": ("prepared-document-json", "application/json"),
     "prepared/document.md": ("prepared-document-markdown", "text/markdown"),
 }
+DIAGNOSIS_ARTIFACTS = {
+    "findings.json": ("diagnostic-findings", "application/json"),
+    "report.md": ("diagnostic-report", "text/markdown"),
+}
+V03_FINDING_METADATA = {
+    "TCW-D009": {
+        "rule_version": "1",
+        "severity": "INFO",
+        "summary": "Normalizable Whitespace",
+    },
+    "TCW-D010": {
+        "rule_version": "1",
+        "severity": "WARNING",
+        "summary": "Possible Line End Hyphenation",
+    },
+}
 
 
 def _validator(name: str) -> Draft202012Validator:
@@ -497,13 +513,11 @@ def _v3_finding(
         "document_refs": [target["ref"]],
         "evidence": stable,
     }
-    names = {"TCW-D009": "Normalizable Whitespace", "TCW-D010": "Possible Line End Hyphenation"}
+    metadata = V03_FINDING_METADATA[rule_id]
     return {
         "finding_id": _hash(canonical_json(identity).rstrip(b"\n")),
         "rule_id": rule_id,
-        "rule_version": "1",
-        "severity": "INFO" if rule_id == "TCW-D009" else "WARNING",
-        "summary": names[rule_id],
+        **metadata,
         "document_refs": [target["ref"]],
         "evidence": stable,
     }
@@ -627,6 +641,11 @@ def validate_finding_set(value: dict[str, Any]) -> None:
         if finding["rule_id"] in {item["rule_id"] for item in V02_RULES}:
             validate_v02_finding(finding)
             continue
+        if {
+            key: finding.get(key)
+            for key in ("rule_version", "severity", "summary")
+        } != V03_FINDING_METADATA.get(finding["rule_id"]):
+            raise IntegrityError("v0.3 finding metadata is inconsistent")
         evidence = finding["evidence"]
         offsets_name = (
             "code_point_offsets"
@@ -1367,7 +1386,9 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
         issues.append({"code": "DIRECTORY_UNEXPECTED", "path": path, "message": "directory is not expected"})
     manifest = findings = None
     try:
-        _, manifest = _load_json_regular(root / "diagnosis-manifest.json", "manifest")
+        manifest_bytes, manifest = _load_json_regular(
+            root / "diagnosis-manifest.json", "manifest"
+        )
         _, findings = _load_json_regular(root / "findings.json", "findings")
         _validate("diagnosis-manifest-v0.3.schema.json", manifest)
         _validate("finding-set-v0.3.schema.json", findings)
@@ -1382,6 +1403,20 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
             != ("FINDINGS" if findings["summary"]["total"] else "NO_FINDINGS")
         ):
             raise IntegrityError("diagnosis references differ")
+        if manifest_bytes != canonical_json(manifest):
+            raise IntegrityError("diagnosis manifest is not canonical")
+        artifact_paths = [item["path"] for item in manifest["artifacts"]]
+        if (
+            len(artifact_paths) != len(set(artifact_paths))
+            or set(artifact_paths) != set(DIAGNOSIS_ARTIFACTS)
+        ):
+            raise IntegrityError("diagnosis artifact inventory differs")
+        for descriptor in manifest["artifacts"]:
+            if (
+                descriptor["role"],
+                descriptor["media_type"],
+            ) != DIAGNOSIS_ARTIFACTS[descriptor["path"]]:
+                raise IntegrityError("diagnosis artifact descriptor differs")
         if (root / "findings.json").read_bytes() != canonical_json(findings):
             raise IntegrityError("findings are not canonical")
         if (root / "report.md").read_bytes() != _diagnosis_report(findings):

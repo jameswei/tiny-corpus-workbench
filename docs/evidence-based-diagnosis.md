@@ -131,7 +131,8 @@ Diagnosis neither modifies content nor approves a repair. See the
 ## Verification
 
 `verify-diagnosis` always checks the diagnosis inventory, schemas, hashes,
-identities, counts, canonical ordering, and deterministic report.
+identities, counts, canonical JSON, fixed rule metadata, exact artifact
+descriptor meanings, canonical ordering, and deterministic report.
 Diagnosis and verification read active installed distribution metadata. The
 installed project and extractor versions must match the source contract.
 `uv.lock` must match the committed exact-lock byte identity before publication
