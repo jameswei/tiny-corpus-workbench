@@ -1,0 +1,26 @@
+{
+  "fixtures": [
+    {
+      "expected_rules": [
+        "TCW-D010"
+      ],
+      "id": "line-end-hyphenation",
+      "license": "CC0-1.0",
+      "path": "fixtures/refinement/v0.3/line-end-hyphenation.md",
+      "sha256": "224d883743aeb6393c828199048eab7fe30599d431e8bcb007f3d7a19427ab5b",
+      "size": 128
+    },
+    {
+      "expected_rules": [
+        "TCW-D009"
+      ],
+      "id": "whitespace-cleanup",
+      "license": "CC0-1.0",
+      "path": "fixtures/refinement/v0.3/whitespace-cleanup.md",
+      "sha256": "5c710191a2669c877b8094d98ed474027493dbb255c9aad99c379d3c85603f3d",
+      "size": 139
+    }
+  ],
+  "generator": "tools/generate_refinement_fixtures.py",
+  "schema_version": "tcw.refinement-fixture-registry/v0.3"
+}

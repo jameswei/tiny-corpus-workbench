@@ -93,8 +93,10 @@ def _published_diagnosis_line(published: Path) -> dict[str, Any]:
     try:
         snapshot = _diagnosis_callable("diagnosis", "snapshot_tree")
         before = snapshot(published)
+        schema = json.loads(manifest_path.read_text("utf-8")).get("schema_version")
         verify = _diagnosis_callable(
-            "diagnosis_verification", "verify_diagnosis"
+            "v03" if schema == "tcw.diagnosis-manifest/v0.3" else "diagnosis_verification",
+            "verify_diagnosis",
         )
         verification = verify(published)
         if verification["artifact_integrity"]["status"] != "VERIFIED":
@@ -167,7 +169,7 @@ def parser() -> argparse.ArgumentParser:
         "diagnose", help="publish one application-immutable diagnosis"
     )
     diagnose_command.add_argument(
-        "observation_directory", metavar="OBSERVATION_DIRECTORY", type=Path
+        "document_directory", metavar="DOCUMENT_DIRECTORY", type=Path
     )
     diagnose_command.add_argument(
         "--output-root",
@@ -183,6 +185,33 @@ def parser() -> argparse.ArgumentParser:
     verify_diagnosis.add_argument(
         "--observation", metavar="OBSERVATION_DIRECTORY", type=Path
     )
+    verify_diagnosis.add_argument(
+        "--subject", metavar="DOCUMENT_DIRECTORY", type=Path
+    )
+    draft = commands.add_parser(
+        "draft-refinement", help="draft one explicit refinement decision"
+    )
+    draft.add_argument("diagnosis_directory", metavar="DIAGNOSIS_DIRECTORY", type=Path)
+    draft.add_argument("--finding", required=True, metavar="FINDING_ID")
+    draft.add_argument("--base", required=True, metavar="BASE_DIRECTORY", type=Path)
+    draft.add_argument("--output", required=True, metavar="DECISION_FILE", type=Path)
+    resolve = commands.add_parser(
+        "resolve-refinement", help="publish one approved or rejected refinement"
+    )
+    resolve.add_argument("decision_file", metavar="DECISION_FILE", type=Path)
+    resolve.add_argument("--diagnosis", required=True, metavar="DIAGNOSIS_DIRECTORY", type=Path)
+    resolve.add_argument("--base", required=True, metavar="BASE_DIRECTORY", type=Path)
+    resolve.add_argument(
+        "--output-root", type=Path, default=Path("build/controlled-revisions")
+    )
+    verify_refinement = commands.add_parser(
+        "verify-refinement", help="read and verify one refinement record"
+    )
+    verify_refinement.add_argument(
+        "refinement_directory", metavar="REFINEMENT_DIRECTORY", type=Path
+    )
+    verify_refinement.add_argument("--diagnosis", type=Path)
+    verify_refinement.add_argument("--base", type=Path)
     return root
 
 
@@ -518,19 +547,32 @@ def main(argv: list[str] | None = None) -> int:
             args.observation_directory, args.source, args.docling_artifacts
         )
     if args.command == "verify-diagnosis":
+        if args.observation is not None and args.subject is not None:
+            print("--observation and --subject are mutually exclusive", file=sys.stderr)
+            return int(ExitCode.INPUT)
         try:
-            command = _diagnosis_callable(
-                "diagnosis_verification", "verify_diagnosis_command"
-            )
+            schema = None
+            try:
+                schema = json.loads(
+                    (args.diagnosis_directory / "diagnosis-manifest.json").read_text("utf-8")
+                ).get("schema_version")
+            except Exception:
+                pass
+            if schema == "tcw.diagnosis-manifest/v0.3":
+                command = _diagnosis_callable("v03", "verify_diagnosis_command")
+                return command(
+                    args.diagnosis_directory, args.subject or args.observation
+                )
+            command = _diagnosis_callable("diagnosis_verification", "verify_diagnosis_command")
         except RuntimeContractError as error:
             print(sanitize_message(error), file=sys.stderr)
             return int(ExitCode.RUNTIME)
         return command(args.diagnosis_directory, args.observation)
     if args.command == "diagnose":
         try:
-            command = _diagnosis_callable("diagnosis", "diagnose")
+            command = _diagnosis_callable("v03", "diagnose")
             published = command(
-                args.observation_directory,
+                args.document_directory,
                 args.output_root,
             )
             line = _published_diagnosis_line(published)
@@ -545,6 +587,41 @@ def main(argv: list[str] | None = None) -> int:
             return int(ExitCode.INTERNAL)
         print(json.dumps(line, sort_keys=True, separators=(",", ":")))
         return int(ExitCode.SUCCESS)
+    if args.command in {"draft-refinement", "resolve-refinement", "verify-refinement"}:
+        try:
+            if args.command == "draft-refinement":
+                command = _diagnosis_callable("v03", "draft_refinement")
+                result = command(
+                    args.diagnosis_directory, args.finding, args.base, args.output
+                )
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+                return int(ExitCode.SUCCESS)
+            if args.command == "resolve-refinement":
+                command = _diagnosis_callable("v03", "resolve_refinement")
+                published = command(
+                    args.decision_file, args.diagnosis, args.base, args.output_root
+                )
+                manifest = json.loads(
+                    (published / "refinement-manifest.json").read_text("utf-8")
+                )
+                print(json.dumps({
+                    "manifest": str((published / "refinement-manifest.json").resolve()),
+                    "run_id": manifest["run_id"],
+                    "status": manifest["status"],
+                    "revision_id": manifest["revision_id"],
+                }, sort_keys=True, separators=(",", ":")))
+                return int(ExitCode.SUCCESS)
+            command = _diagnosis_callable("v03", "verify_refinement_command")
+            return command(args.refinement_directory, args.diagnosis, args.base)
+        except WorkbenchError as error:
+            print(sanitize_message(error), file=sys.stderr)
+            return int(error.exit_code)
+        except Exception as error:
+            print(
+                f"internal refinement failure: {sanitize_message(error)}",
+                file=sys.stderr,
+            )
+            return int(ExitCode.INTERNAL)
     try:
         exit_code, published = observe(args.source, args.output_root, args.docling_artifacts)
     except WorkbenchError as error:

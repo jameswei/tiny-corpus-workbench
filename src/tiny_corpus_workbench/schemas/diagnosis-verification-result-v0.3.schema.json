@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/diagnosis-verification-result-v0.3.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "diagnosis_directory", "artifact_integrity", "subject_state", "derivation_state"],
+  "properties": {
+    "schema_version": {"const": "tcw.diagnosis-verification-result/v0.3"},
+    "diagnosis_directory": {"type": "string"},
+    "artifact_integrity": {"$ref": "refinement-verification-result-v0.3.schema.json#/$defs/integrity"},
+    "subject_state": {"$ref": "refinement-verification-result-v0.3.schema.json#/$defs/external"},
+    "derivation_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {"status": {"enum": ["NOT_CHECKED", "MATCH", "MISMATCH", "ERROR"]}}
+    }
+  }
+}

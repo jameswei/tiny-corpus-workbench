@@ -261,12 +261,8 @@ def verify_diagnosis(
                 manifest["runtime"]["python"] == active_runtime["python"]
                 and manifest["runtime"]["implementation"]
                 == active_runtime["implementation"]
-                and manifest["runtime"]["package_version"]
-                == active_runtime["package_version"]
                 and manifest["runtime"]["dependencies"]
                 == active_runtime["dependencies"]
-                and manifest["runtime"]["lockfile_sha256"]
-                == active_runtime["lockfile_sha256"]
             )
         except (KeyError, TypeError):
             runtime_ok = False

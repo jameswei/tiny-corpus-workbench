@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/refinement-draft-v0.3.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "proposal", "decision"],
+  "properties": {
+    "schema_version": {"const": "tcw.refinement-draft/v0.3"},
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "diagnosis_id", "base", "finding", "refiner", "affected_refs", "forward_edits", "inverse_edits", "draft_id"],
+      "properties": {
+        "state": {"const": "REQUESTED"},
+        "diagnosis_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+        "base": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "subject_id", "canonical_document_sha256", "origin_observation_id"],
+          "properties": {
+            "kind": {"enum": ["OBSERVATION", "REVISION"]},
+            "subject_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+            "canonical_document_sha256": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+            "origin_observation_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"}
+          }
+        },
+        "finding": {"$ref": "finding-set-v0.3.schema.json#/$defs/finding"},
+        "refiner": {"$ref": "#/$defs/refiner"},
+        "affected_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^#/"}},
+        "forward_edits": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/edit"}},
+        "inverse_edits": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/edit"}},
+        "draft_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "decided_by", "note"],
+      "properties": {
+        "state": {"enum": ["PENDING", "APPROVED", "REJECTED"]},
+        "decided_by": {"type": ["string", "null"], "minLength": 1},
+        "note": {"type": ["string", "null"], "maxLength": 500}
+      }
+    }
+  },
+  "$defs": {
+    "refiner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["refiner_id", "name", "version"],
+      "properties": {
+        "refiner_id": {"enum": ["TCW-R001", "TCW-R002", "TCW-R003"]},
+        "name": {"enum": ["WHITESPACE_NORMALIZATION", "REPEATED_BOILERPLATE_REMOVAL", "DETERMINISTIC_DEHYPHENATION"]},
+        "version": {"const": "1"}
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "field"],
+      "properties": {
+        "ref": {"type": "string", "pattern": "^#/"},
+        "field": {"enum": ["text", "content_layer"]},
+        "row": {"type": "integer", "minimum": 0},
+        "column": {"type": "integer", "minimum": 0}
+      }
+    },
+    "edit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "before", "after"],
+      "properties": {
+        "target": {"$ref": "#/$defs/target"},
+        "before": {},
+        "after": {}
+      }
+    }
+  }
+}

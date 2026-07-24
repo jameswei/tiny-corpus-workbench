@@ -71,6 +71,11 @@ jobs:
           uv run --frozen --group fixtures python
           tools/generate_diagnosis_fixtures.py --check
 
+      - name: Check deterministic refinement fixture generation
+        run: >-
+          uv run --frozen --group fixtures python
+          tools/generate_refinement_fixtures.py --check
+
       - name: Verify fixture registry
         run: uv run --frozen --group fixtures python tools/verify_fixtures.py
 

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/transformation-history-v0.3.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "origin_observation_id", "revision_id", "transformations"],
+  "properties": {
+    "schema_version": {"const": "tcw.transformation-history/v0.3"},
+    "origin_observation_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+    "revision_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+    "transformations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["transformation_id", "state", "parent", "revision_id", "finding_id", "decision_id", "decided_by", "refiner", "affected_refs", "forward_edits", "inverse_edits", "base_document_base64", "prepared_document_sha256"],
+        "properties": {
+          "transformation_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+          "state": {"const": "APPLIED"},
+          "parent": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "subject_id", "canonical_document_sha256"],
+            "properties": {
+              "kind": {"enum": ["OBSERVATION", "REVISION"]},
+              "subject_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+              "canonical_document_sha256": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"}
+            }
+          },
+          "revision_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+          "finding_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+          "decision_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+          "decided_by": {"type": "string", "minLength": 1},
+          "refiner": {"$ref": "refinement-draft-v0.3.schema.json#/$defs/refiner"},
+          "affected_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^#/"}},
+          "forward_edits": {"type": "array", "minItems": 1, "items": {"$ref": "refinement-draft-v0.3.schema.json#/$defs/edit"}},
+          "inverse_edits": {"type": "array", "minItems": 1, "items": {"$ref": "refinement-draft-v0.3.schema.json#/$defs/edit"}},
+          "base_document_base64": {"type": "string", "minLength": 1},
+          "prepared_document_sha256": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"}
+        }
+      }
+    }
+  }
+}
