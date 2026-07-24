@@ -791,7 +791,11 @@ def _target(payload: dict[str, Any], reference: str, evidence: dict[str, Any]) -
     item = _index(payload).get(reference)
     if item is None:
         raise IntegrityError("finding reference is stale")
-    if "row" not in evidence:
+    has_row = "row" in evidence
+    has_column = "column" in evidence
+    if has_row != has_column:
+        raise IntegrityError("finding table-cell coordinates are incomplete")
+    if not has_row:
         return item
     for cell in _table_cells(item):
         if (

@@ -35,13 +35,16 @@ Future work may use whichever sound engineering practices fit the task.
   updates.
 - v0.3 is not released. The README released-milestone table intentionally
   stops at v0.2.
-- Local acceptance passes 155 unit tests and 161 complete tests, including the
+- Local acceptance passes 157 unit tests and 163 complete tests, including the
   real offline extractor matrix. Fixture generation, registries, the static
   site, compilation, checkout portability, and diff hygiene also pass.
 - The documented whitespace workflow passes `observe → diagnose → draft →
   resolve → verify` with derivation and reversibility both `MATCH`.
 - Independent milestone review returned `PASS` on 2026-07-24 after all
   blocking implementation and documentation findings were addressed.
+- A later Copilot review found one paired table-coordinate integrity gap. The
+  schema and replay guard now reject incomplete coordinates, with regression
+  coverage.
 - Hosted pull-request checks and owner publication approval remain required
   before release.
 - The project website remains a separate static publication surface at

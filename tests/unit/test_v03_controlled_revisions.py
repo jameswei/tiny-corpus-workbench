@@ -28,6 +28,7 @@ from tiny_corpus_workbench.domain import InputError, IntegrityError
 from tiny_corpus_workbench.v03 import (
     _apply_edits,
     _normalize_whitespace,
+    _target,
     make_finding_set,
     verify_diagnosis,
     verify_refinement,
@@ -366,6 +367,32 @@ class ControlledRevisionTests(unittest.TestCase):
                 for item in findings
             )
         )
+
+    def test_table_cell_target_rejects_incomplete_coordinates(self) -> None:
+        document = DoclingDocument(name="table-cell-target")
+        document.add_table(
+            TableData(
+                num_rows=1,
+                num_cols=1,
+                table_cells=[
+                    TableCell(
+                        start_row_offset_idx=0,
+                        end_row_offset_idx=1,
+                        start_col_offset_idx=0,
+                        end_col_offset_idx=1,
+                        text="Cell value",
+                    )
+                ],
+            )
+        )
+        payload = document.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        for incomplete in ({"row": 0}, {"column": 0}):
+            with self.subTest(coordinates=incomplete), self.assertRaisesRegex(
+                IntegrityError, "coordinates are incomplete"
+            ):
+                _target(payload, "#/tables/0", incomplete)
 
     def test_repeated_boilerplate_edit_moves_body_to_furniture(self) -> None:
         document = DoclingDocument(name="margin")

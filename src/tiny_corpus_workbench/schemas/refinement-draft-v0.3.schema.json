@@ -58,6 +58,10 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["ref", "field"],
+      "dependentRequired": {
+        "row": ["column"],
+        "column": ["row"]
+      },
       "properties": {
         "ref": {"type": "string", "pattern": "^#/"},
         "field": {"enum": ["text", "content_layer"]},
