@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import copy
 import hashlib
 import json
@@ -106,11 +105,14 @@ REFINERS = {
         "version": "1",
     },
 }
-_ALPHA = r"[^\W\d_]"
-_HYPHENATION = re.compile(
-    rf"(?<!{_ALPHA})({_ALPHA}{{2,}})-([^\S\r\n]*)(\r\n|\r|\n)([^\S\r\n]*)({_ALPHA}{{2,}})(?!{_ALPHA})",
-    re.UNICODE,
-)
+REFINEMENT_ARTIFACTS = {
+    "decision.json": ("refinement-decision", "application/json"),
+    "report.md": ("refinement-report", "text/markdown"),
+    "transformation.json": ("transformation", "application/json"),
+    "history.json": ("transformation-history", "application/json"),
+    "prepared/document.json": ("prepared-document-json", "application/json"),
+    "prepared/document.md": ("prepared-document-markdown", "text/markdown"),
+}
 
 
 def _validator(name: str) -> Draft202012Validator:
@@ -179,8 +181,37 @@ def _ensure_outside(inputs: Iterable[Path], target: Path) -> None:
         raise InputError("input or output path cannot be resolved safely") from error
 
 
+def _publication_parent(output_root: Path, components: Iterable[str]) -> Path:
+    """Create a publication parent without following nested symlinks."""
+    try:
+        if output_root.is_symlink():
+            raise InputError("output root must not be a symlink")
+        resolved_root = output_root.resolve(strict=False)
+        output_root.mkdir(parents=True, exist_ok=True)
+        if output_root.is_symlink() or output_root.resolve(strict=True) != resolved_root:
+            raise InputError("output root cannot be resolved safely")
+        parent = output_root
+        for component in components:
+            candidate = parent / component
+            if candidate.is_symlink():
+                raise InputError("publication parent must not contain symlinks")
+            if candidate.exists() and not candidate.is_dir():
+                raise InputError("publication parent component is not a directory")
+            candidate.mkdir(exist_ok=True)
+            if (
+                candidate.is_symlink()
+                or not candidate.resolve(strict=True).is_relative_to(resolved_root)
+            ):
+                raise InputError("publication parent escapes the output root")
+            parent = candidate
+        return parent
+    except InputError:
+        raise
+    except (OSError, RuntimeError) as error:
+        raise InputError("publication parent cannot be created safely") from error
+
+
 def _publish_directory(staging: Path, destination: Path) -> Path:
-    destination.parent.mkdir(parents=True, exist_ok=True)
     try:
         _rename_exclusive(staging, destination)
     except OSError as error:
@@ -341,9 +372,6 @@ def _normalize_whitespace(value: str) -> str:
 
 
 def _whitespace_span_offsets(value: str) -> list[int]:
-    normalized = _normalize_whitespace(value)
-    if normalized == value:
-        return []
     offsets: list[int] = []
     position = 0
     while position < len(value):
@@ -351,8 +379,8 @@ def _whitespace_span_offsets(value: str) -> list[int]:
         if character == "\r":
             offsets.append(position)
             position += 2 if value[position : position + 2] == "\r\n" else 1
-        elif character.isspace() and character != "\n":
-            offsets.append(position)
+        elif character.isspace() and character not in "\r\n":
+            start = position
             position += 1
             while (
                 position < len(value)
@@ -360,26 +388,79 @@ def _whitespace_span_offsets(value: str) -> list[int]:
                 and value[position] not in "\r\n"
             ):
                 position += 1
+            span = value[start:position]
+            at_line_start = start == 0 or value[start - 1] in "\r\n"
+            at_line_end = position == len(value) or value[position] in "\r\n"
+            if (
+                span != " "
+                or at_line_start
+                or at_line_end
+            ):
+                offsets.append(start)
         else:
             position += 1
-    if not offsets:
-        offsets.append(0)
     return offsets
 
 
-def _hyphen_matches(value: str) -> list[re.Match[str]]:
-    return [
-        match
-        for match in _HYPHENATION.finditer(value)
-        if match.group(5)[0].islower()
-    ]
+def _hyphen_matches(value: str) -> list[dict[str, int | str]]:
+    matches: list[dict[str, int | str]] = []
+    for hyphen in (index for index, character in enumerate(value) if character == "-"):
+        left_start = hyphen
+        while left_start > 0 and value[left_start - 1].isalpha():
+            left_start -= 1
+        left = value[left_start:hyphen]
+        if len(left) < 2 or not all(character.isalpha() for character in left):
+            continue
+        position = hyphen + 1
+        while (
+            position < len(value)
+            and value[position].isspace()
+            and value[position] not in "\r\n"
+        ):
+            position += 1
+        if value[position : position + 2] == "\r\n":
+            position += 2
+        elif position < len(value) and value[position] in "\r\n":
+            position += 1
+        else:
+            continue
+        while (
+            position < len(value)
+            and value[position].isspace()
+            and value[position] not in "\r\n"
+        ):
+            position += 1
+        right_start = position
+        while position < len(value) and value[position].isalpha():
+            position += 1
+        right = value[right_start:position]
+        if (
+            len(right) < 2
+            or not all(character.isalpha() for character in right)
+            or not right[0].islower()
+        ):
+            continue
+        matches.append(
+            {
+                "start": left_start,
+                "end": position,
+                "hyphen": hyphen,
+                "left": left,
+                "right": right,
+            }
+        )
+    return matches
 
 
 def _repair_hyphenation(value: str) -> str:
     matches = _hyphen_matches(value)
     for match in reversed(matches):
-        replacement = match.group(1) + match.group(5)
-        value = value[: match.start()] + replacement + value[match.end() :]
+        replacement = str(match["left"]) + str(match["right"])
+        value = (
+            value[: int(match["start"])]
+            + replacement
+            + value[int(match["end"]) :]
+        )
     return value
 
 
@@ -475,7 +556,7 @@ def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
             repaired = _repair_hyphenation(value)
             evidence = {
                 "hyphen_code_point_offsets": [
-                    match.start(1) + len(match.group(1)) for match in matches
+                    int(match["hyphen"]) for match in matches
                 ],
                 "occurrence_count": len(matches),
                 "original_text_sha256": _hash(value),
@@ -613,8 +694,6 @@ def _diagnosis_report(findings: dict[str, Any]) -> bytes:
 
 
 def diagnose(root: Path, output_root: Path) -> Path:
-    if output_root.is_symlink():
-        raise InputError("diagnosis output root must not be a symlink")
     subject = load_subject(root)
     findings = make_finding_set(subject)
     validate_finding_set(findings)
@@ -622,14 +701,16 @@ def diagnose(root: Path, output_root: Path) -> Path:
     report_bytes = _diagnosis_report(findings)
     now = datetime.now(UTC)
     run_id = f"{now.strftime('%Y%m%dT%H%M%S.%fZ')}-{uuid.uuid4().hex[:12]}"
+    source_key = _safe_component(subject["source"]["key"], "source key")
+    subject_id = _safe_component(subject["subject_id"], "subject ID")
     destination = (
-        output_root
-        / _safe_component(subject["source"]["key"], "source key")
-        / _safe_component(subject["subject_id"], "subject ID")
-        / run_id
+        output_root / source_key / subject_id / run_id
     )
     _ensure_outside([root], destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    publication_parent = _publication_parent(
+        output_root, (source_key, subject_id)
+    )
+    destination = publication_parent / run_id
     staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=destination.parent))
     try:
         (staging / "findings.json").write_bytes(findings_bytes)
@@ -759,7 +840,11 @@ def _proposal(
             value.get("$ref", value.get("cref"))
             for value in base["payload"]["body"].get("children", [])
         ]
-        for reference in finding["document_refs"]:
+        furniture = [
+            value.get("$ref", value.get("cref"))
+            for value in base["payload"]["furniture"].get("children", [])
+        ]
+        for ordinal, reference in enumerate(finding["document_refs"]):
             item = index.get(reference)
             if (
                 item is None
@@ -773,8 +858,13 @@ def _proposal(
                     "before": {
                         "content_layer": item.get("content_layer", "body"),
                         "body_index": body.index(reference),
+                        "parent": item.get("parent"),
                     },
-                    "after": {"content_layer": "furniture"},
+                    "after": {
+                        "content_layer": "furniture",
+                        "furniture_index": len(furniture) + ordinal,
+                        "parent": {"$ref": "#/furniture"},
+                    },
                 }
             )
     proposal = {
@@ -792,7 +882,7 @@ def _proposal(
         "forward_edits": edits,
         "inverse_edits": [
             {"target": edit["target"], "before": edit["after"], "after": edit["before"]}
-            for edit in reversed(edits)
+            for edit in edits
         ],
     }
     proposal["draft_id"] = _hash(canonical_json(proposal).rstrip(b"\n"))
@@ -820,6 +910,42 @@ def draft_refinement(
 
 def _apply_edits(payload: dict[str, Any], edits: list[dict[str, Any]]) -> dict[str, Any]:
     value = copy.deepcopy(payload)
+    initial_index = _index(value)
+    initial_body = [
+        item.get("$ref", item.get("cref"))
+        for item in value["body"]["children"]
+    ]
+    initial_furniture = [
+        item.get("$ref", item.get("cref"))
+        for item in value["furniture"]["children"]
+    ]
+    for edit in edits:
+        target_spec = edit["target"]
+        if target_spec["field"] != "content_layer":
+            continue
+        target = initial_index.get(target_spec["ref"])
+        before = edit["before"]
+        reference = target_spec["ref"]
+        if (
+            target is None
+            or target.get("content_layer", "body") != before["content_layer"]
+            or target.get("parent") != before["parent"]
+        ):
+            raise IntegrityError("edit precondition does not match")
+        membership = (
+            initial_body if "body_index" in before else initial_furniture
+        )
+        membership_index = before.get(
+            "body_index", before.get("furniture_index")
+        )
+        other = initial_furniture if membership is initial_body else initial_body
+        if (
+            type(membership_index) is not int
+            or membership_index >= len(membership)
+            or membership[membership_index] != reference
+            or reference in other
+        ):
+            raise IntegrityError("membership precondition does not match")
     for edit in edits:
         target_spec = edit["target"]
         target = _target(value, target_spec["ref"], target_spec)
@@ -828,18 +954,69 @@ def _apply_edits(payload: dict[str, Any], edits: list[dict[str, Any]]) -> dict[s
                 raise IntegrityError("edit precondition does not match")
             target["text"] = edit["after"]
             continue
-        if target.get("content_layer", "body") != edit["before"]["content_layer"]:
-            raise IntegrityError("edit precondition does not match")
         reference = target_spec["ref"]
         body = value["body"]["children"]
         furniture = value["furniture"]["children"]
         body_refs = [item.get("$ref", item.get("cref")) for item in body]
-        if reference not in body_refs:
-            raise IntegrityError("body membership precondition does not match")
-        body.pop(body_refs.index(reference))
-        furniture.append({"$ref": reference})
-        target["content_layer"] = "furniture"
+        furniture_refs = [item.get("$ref", item.get("cref")) for item in furniture]
+        before = edit["before"]
+        after = edit["after"]
+        if "body_index" in before:
+            source = body
+            source_refs = body_refs
+        else:
+            source = furniture
+            source_refs = furniture_refs
+        if reference not in source_refs:
+            raise IntegrityError("membership precondition does not match")
+        source_index = source_refs.index(reference)
+        source.pop(source_index)
+        if "body_index" in after:
+            destination = body
+            destination_index = after["body_index"]
+        else:
+            destination = furniture
+            destination_index = after["furniture_index"]
+        if destination_index > len(destination):
+            raise IntegrityError("membership destination is invalid")
+        destination.insert(destination_index, {"$ref": reference})
+        target["content_layer"] = after["content_layer"]
+        target["parent"] = after["parent"]
     return value
+
+
+def _draft_identity(proposal: dict[str, Any]) -> str:
+    identity = {key: value for key, value in proposal.items() if key != "draft_id"}
+    return _hash(canonical_json(identity).rstrip(b"\n"))
+
+
+def _revision_identity(
+    parent_id: str, base_sha256: str, draft_id: str, prepared_sha256: str
+) -> str:
+    return _hash(
+        canonical_json(
+            {
+                "parent": parent_id,
+                "base_sha256": base_sha256,
+                "draft_id": draft_id,
+                "prepared_sha256": prepared_sha256,
+            }
+        ).rstrip(b"\n")
+    )
+
+
+def _transformation_identity(
+    revision_id: str, draft_id: str, refiner: dict[str, Any]
+) -> str:
+    return _hash(
+        canonical_json(
+            {
+                "revision_id": revision_id,
+                "draft_id": draft_id,
+                "refiner": refiner,
+            }
+        ).rstrip(b"\n")
+    )
 
 
 def _prepared_bytes(payload: dict[str, Any]) -> tuple[bytes, bytes]:
@@ -849,6 +1026,40 @@ def _prepared_bytes(payload: dict[str, Any]) -> tuple[bytes, bytes]:
     )
     markdown = (document.export_to_markdown().rstrip() + "\n").encode()
     return document_bytes, markdown
+
+
+def _json_bytes_like(
+    payload: dict[str, Any],
+    reference_payload: dict[str, Any],
+    reference_bytes: bytes,
+) -> bytes:
+    def ordered_like(value: Any, reference: Any) -> Any:
+        if isinstance(value, dict) and isinstance(reference, dict):
+            return {
+                key: ordered_like(value[key], reference.get(key))
+                for key in [*reference, *(item for item in value if item not in reference)]
+            }
+        if isinstance(value, list) and isinstance(reference, list):
+            return [
+                ordered_like(item, reference[index] if index < len(reference) else None)
+                for index, item in enumerate(value)
+            ]
+        return value
+
+    ordered = ordered_like(payload, reference_payload)
+    if reference_bytes == canonical_json(reference_payload):
+        return canonical_json(payload)
+    indented_reference = json.dumps(
+        reference_payload, ensure_ascii=False, indent=2
+    ).encode()
+    if reference_bytes == indented_reference:
+        return json.dumps(ordered, ensure_ascii=False, indent=2).encode()
+    ascii_indented_reference = json.dumps(
+        reference_payload, ensure_ascii=True, indent=2
+    ).encode()
+    if reference_bytes == ascii_indented_reference:
+        return json.dumps(ordered, ensure_ascii=True, indent=2).encode()
+    raise IntegrityError("base document JSON serialization is unsupported")
 
 
 def _render_refinement(manifest: dict[str, Any], decision: dict[str, Any]) -> bytes:
@@ -875,8 +1086,6 @@ def resolve_refinement(
     base_root: Path,
     output_root: Path,
 ) -> Path:
-    if output_root.is_symlink():
-        raise InputError("refinement output root must not be a symlink")
     decision_before = _file_identity(decision_file)
     diagnosis_before = snapshot_tree(diagnosis_root)
     base_before = snapshot_tree(base_root)
@@ -898,7 +1107,8 @@ def resolve_refinement(
     source_key = _safe_component(base["source"]["key"], "source key")
     destination = output_root / source_key / origin / run_id
     _ensure_outside([diagnosis_root, base_root], destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    publication_parent = _publication_parent(output_root, (source_key, origin))
+    destination = publication_parent / run_id
     staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=destination.parent))
     try:
         finalized = copy.deepcopy(draft)
@@ -911,25 +1121,15 @@ def resolve_refinement(
                 base["payload"], expected["forward_edits"]
             )
             document_bytes, markdown_bytes = _prepared_bytes(prepared_payload)
-            revision_id = _hash(
-                canonical_json(
-                    {
-                        "parent": base["subject_id"],
-                        "base_sha256": _hash(base["document_bytes"]),
-                        "draft_id": expected["draft_id"],
-                        "prepared_sha256": _hash(document_bytes),
-                    }
-                ).rstrip(b"\n")
+            revision_id = _revision_identity(
+                base["subject_id"],
+                _hash(base["document_bytes"]),
+                expected["draft_id"],
+                _hash(document_bytes),
             )
             transformation = {
-                "transformation_id": _hash(
-                    canonical_json(
-                        {
-                            "revision_id": revision_id,
-                            "draft_id": expected["draft_id"],
-                            "refiner": expected["refiner"],
-                        }
-                    ).rstrip(b"\n")
+                "transformation_id": _transformation_identity(
+                    revision_id, expected["draft_id"], expected["refiner"]
                 ),
                 "state": "APPLIED",
                 "parent": {
@@ -945,7 +1145,6 @@ def resolve_refinement(
                 "affected_refs": expected["affected_refs"],
                 "forward_edits": expected["forward_edits"],
                 "inverse_edits": expected["inverse_edits"],
-                "base_document_base64": base64.b64encode(base["document_bytes"]).decode(),
                 "prepared_document_sha256": _hash(document_bytes),
             }
             history = {
@@ -984,15 +1183,7 @@ def resolve_refinement(
             "artifacts": [],
         }
         (staging / "report.md").write_bytes(_render_refinement(manifest, finalized))
-        role_map = {
-            "decision.json": ("refinement-decision", "application/json"),
-            "report.md": ("refinement-report", "text/markdown"),
-            "transformation.json": ("transformation", "application/json"),
-            "history.json": ("transformation-history", "application/json"),
-            "prepared/document.json": ("prepared-document-json", "application/json"),
-            "prepared/document.md": ("prepared-document-markdown", "text/markdown"),
-        }
-        for relative, (role, media_type) in role_map.items():
+        for relative, (role, media_type) in REFINEMENT_ARTIFACTS.items():
             path = staging / relative
             if path.is_file():
                 artifacts.append(_artifact(path, staging, role, media_type))
@@ -1026,6 +1217,142 @@ def _inventory(root: Path) -> tuple[set[str], set[str], list[dict[str, Any]]]:
     except OSError:
         issues.append({"code": "INVENTORY_INVALID", "path": None, "message": "directory inventory is unreadable"})
     return files, directories, issues
+
+
+def _validate_refinement_semantics(
+    root: Path,
+    manifest: dict[str, Any],
+    decision: dict[str, Any],
+    transformation: dict[str, Any] | None,
+    history: dict[str, Any] | None,
+) -> None:
+    status = manifest["status"]
+    proposal = decision["proposal"]
+    decision_value = decision["decision"]
+    if proposal["draft_id"] != _draft_identity(proposal):
+        raise IntegrityError("draft identity is inconsistent")
+    if (
+        manifest["draft_id"] != proposal["draft_id"]
+        or manifest["diagnosis_id"] != proposal["diagnosis_id"]
+        or manifest["base"]["kind"] != proposal["base"]["kind"]
+        or manifest["base"]["subject_id"] != proposal["base"]["subject_id"]
+        or manifest["base"]["canonical_document_sha256"]
+        != proposal["base"]["canonical_document_sha256"]
+        or manifest["origin_observation_id"]
+        != proposal["base"]["origin_observation_id"]
+    ):
+        raise IntegrityError("decision and manifest references differ")
+
+    artifact_paths = [item["path"] for item in manifest["artifacts"]]
+    expected_paths = (
+        set(REFINEMENT_ARTIFACTS)
+        if status == "APPLIED"
+        else {"decision.json", "report.md"}
+    )
+    if len(artifact_paths) != len(set(artifact_paths)) or set(artifact_paths) != expected_paths:
+        raise IntegrityError("artifact inventory differs from refinement status")
+    for descriptor in manifest["artifacts"]:
+        if (
+            descriptor["role"],
+            descriptor["media_type"],
+        ) != REFINEMENT_ARTIFACTS[descriptor["path"]]:
+            raise IntegrityError("artifact descriptor role differs")
+
+    if status == "REJECTED":
+        if (
+            manifest["revision_id"] is not None
+            or decision_value["state"] != "REJECTED"
+            or not decision_value["decided_by"]
+            or transformation is not None
+            or history is not None
+        ):
+            raise IntegrityError("rejected refinement contract differs")
+        return
+
+    if (
+        manifest["revision_id"] is None
+        or decision_value["state"] != "APPROVED"
+        or not decision_value["decided_by"]
+        or transformation is None
+        or history is None
+    ):
+        raise IntegrityError("applied refinement contract differs")
+    _validate("transformation-history-v0.3.schema.json", history)
+    if (root / "transformation.json").read_bytes() != canonical_json(transformation):
+        raise IntegrityError("transformation is not canonical")
+    if (root / "history.json").read_bytes() != canonical_json(history):
+        raise IntegrityError("history is not canonical")
+    if not history["transformations"] or history["transformations"][-1] != transformation:
+        raise IntegrityError("transformation is not the history tail")
+    if (
+        history["origin_observation_id"] != manifest["origin_observation_id"]
+        or history["revision_id"] != manifest["revision_id"]
+        or transformation["revision_id"] != manifest["revision_id"]
+        or transformation["parent"]["kind"] != manifest["base"]["kind"]
+        or transformation["parent"]["subject_id"] != manifest["base"]["subject_id"]
+        or transformation["parent"]["canonical_document_sha256"]
+        != manifest["base"]["canonical_document_sha256"]
+        or transformation["finding_id"] != proposal["finding"]["finding_id"]
+        or transformation["decision_id"] != proposal["draft_id"]
+        or transformation["decided_by"] != decision_value["decided_by"]
+        or transformation["refiner"] != proposal["refiner"]
+        or transformation["affected_refs"] != proposal["affected_refs"]
+        or transformation["forward_edits"] != proposal["forward_edits"]
+        or transformation["inverse_edits"] != proposal["inverse_edits"]
+    ):
+        raise IntegrityError("transformation references differ")
+
+    previous = None
+    for index, item in enumerate(history["transformations"]):
+        expected_revision_id = _revision_identity(
+            item["parent"]["subject_id"],
+            item["parent"]["canonical_document_sha256"],
+            item["decision_id"],
+            item["prepared_document_sha256"],
+        )
+        expected_transformation_id = _transformation_identity(
+            item["revision_id"], item["decision_id"], item["refiner"]
+        )
+        if (
+            item["revision_id"] != expected_revision_id
+            or item["transformation_id"] != expected_transformation_id
+        ):
+            raise IntegrityError(
+                "revision or transformation identity is inconsistent"
+            )
+        if index == 0:
+            if (
+                item["parent"]["kind"] != "OBSERVATION"
+                or item["parent"]["subject_id"] != manifest["origin_observation_id"]
+            ):
+                raise IntegrityError("history origin is inconsistent")
+        elif (
+            previous is None
+            or item["parent"]["kind"] != "REVISION"
+            or item["parent"]["subject_id"] != previous["revision_id"]
+            or item["parent"]["canonical_document_sha256"]
+            != previous["prepared_document_sha256"]
+        ):
+            raise IntegrityError("history parent chain is inconsistent")
+        previous = item
+
+    prepared_bytes, prepared_payload = _load_json_regular(
+        root / "prepared/document.json", "prepared document"
+    )
+    if canonical_json(prepared_payload) != prepared_bytes:
+        raise IntegrityError("prepared document is not canonical")
+    prepared_sha256 = _hash(prepared_bytes)
+    expected_revision_id = _revision_identity(
+        manifest["base"]["subject_id"],
+        manifest["base"]["canonical_document_sha256"],
+        manifest["draft_id"],
+        prepared_sha256,
+    )
+    if (
+        transformation["prepared_document_sha256"] != prepared_sha256
+        or manifest["revision_id"] != expected_revision_id
+    ):
+        raise IntegrityError("revision identity is inconsistent")
 
 
 def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, Any]:
@@ -1120,12 +1447,17 @@ def verify_refinement(
 ) -> dict[str, Any]:
     active_locked_runtime()
     files, directories, issues = _inventory(root)
-    manifest = decision = None
+    manifest = decision = transformation = history = None
     try:
         _, manifest = _load_json_regular(root / "refinement-manifest.json", "manifest")
         _, decision = _load_json_regular(root / "decision.json", "decision")
         _validate("refinement-manifest-v0.3.schema.json", manifest)
         _validate("refinement-draft-v0.3.schema.json", decision)
+        if manifest["status"] == "APPLIED":
+            _, transformation = _load_json_regular(
+                root / "transformation.json", "transformation"
+            )
+            _, history = _load_json_regular(root / "history.json", "history")
         expected = {"refinement-manifest.json", *[item["path"] for item in manifest["artifacts"]]}
         for path in sorted(expected - files):
             issues.append({"code": "FILE_MISSING", "path": path, "message": "expected file is missing"})
@@ -1143,6 +1475,9 @@ def verify_refinement(
                 issues.append({"code": "HASH_MISMATCH", "path": descriptor["path"], "message": "descriptor differs"})
         if root.name != manifest["run_id"] or decision["proposal"]["draft_id"] != manifest["draft_id"]:
             raise IntegrityError("refinement identity differs")
+        _validate_refinement_semantics(
+            root, manifest, decision, transformation, history
+        )
     except (InputError, IntegrityError, OSError, KeyError, TypeError):
         issues.append({"code": "MANIFEST_INVALID", "path": "refinement-manifest.json", "message": "refinement contract is invalid"})
     diagnosis_state = {"status": "NOT_CHECKED"}
@@ -1152,28 +1487,69 @@ def verify_refinement(
     if diagnosis_root is not None and manifest is not None:
         try:
             _, diagnosis_manifest = _load_json_regular(diagnosis_root / "diagnosis-manifest.json", "diagnosis")
-            diagnosis_state = {"status": "MATCH" if diagnosis_manifest["diagnosis_id"] == manifest["diagnosis_id"] else "CHANGED"}
+            diagnosis_report = verify_diagnosis(diagnosis_root)
+            matches = (
+                diagnosis_report["artifact_integrity"]["status"] == "VERIFIED"
+                and diagnosis_manifest["diagnosis_id"] == manifest["diagnosis_id"]
+            )
+            diagnosis_state = {"status": "MATCH" if matches else "CHANGED"}
         except Exception:
             diagnosis_state = {"status": "MISSING" if not diagnosis_root.exists() else "ERROR"}
     if base_root is not None and manifest is not None:
         try:
             base = load_subject(base_root)
             matches = base["subject_id"] == manifest["base"]["subject_id"] and _hash(base["document_bytes"]) == manifest["base"]["canonical_document_sha256"]
+            if (
+                matches
+                and manifest["status"] == "APPLIED"
+                and history is not None
+                and base["history"] != history["transformations"][:-1]
+            ):
+                matches = False
             base_state = {"status": "MATCH" if matches else "CHANGED"}
-            if matches and manifest["status"] == "APPLIED":
-                _, transformation = _load_json_regular(root / "transformation.json", "transformation")
-                forward = _apply_edits(base["payload"], transformation["forward_edits"])
-                forward_bytes, _ = _prepared_bytes(forward)
-                prepared = (root / "prepared/document.json").read_bytes()
-                derivation = {"status": "MATCH" if forward_bytes == prepared else "MISMATCH"}
-                inverse_bytes = base64.b64decode(transformation["base_document_base64"], validate=True)
-                reversibility = {"status": "MATCH" if inverse_bytes == base["document_bytes"] else "MISMATCH"}
         except RuntimeContractError:
             raise
         except Exception:
             base_state = {"status": "ERROR"}
-            derivation = {"status": "ERROR"} if manifest.get("status") == "APPLIED" else derivation
-            reversibility = {"status": "ERROR"} if manifest.get("status") == "APPLIED" else reversibility
+            base = None
+            matches = False
+        if matches and manifest["status"] == "APPLIED" and transformation is not None:
+            try:
+                forward = _apply_edits(base["payload"], transformation["forward_edits"])
+                forward_bytes, _ = _prepared_bytes(forward)
+                prepared_bytes, prepared_payload = _load_json_regular(
+                    root / "prepared/document.json", "prepared document"
+                )
+                derivation = {
+                    "status": "MATCH"
+                    if forward_bytes == prepared_bytes
+                    else "MISMATCH"
+                }
+            except RuntimeContractError:
+                raise
+            except Exception:
+                derivation = {"status": "ERROR"}
+            try:
+                _, prepared_payload = _load_json_regular(
+                    root / "prepared/document.json", "prepared document"
+                )
+                reversed_payload = _apply_edits(
+                    prepared_payload, transformation["inverse_edits"]
+                )
+                reversed_bytes = _json_bytes_like(
+                    reversed_payload,
+                    base["payload"],
+                    base["document_bytes"],
+                )
+                reversibility = {
+                    "status": "MATCH"
+                    if reversed_bytes == base["document_bytes"]
+                    else "MISMATCH"
+                }
+            except RuntimeContractError:
+                raise
+            except Exception:
+                reversibility = {"status": "ERROR"}
     status = "VERIFIED" if not issues else ("BROKEN" if any(item["code"] == "MANIFEST_INVALID" for item in issues) else "INTEGRITY_MISMATCH")
     result = {
         "schema_version": "tcw.refinement-verification-result/v0.3",

@@ -102,14 +102,20 @@ next draft and resolution.
 ## Verification and reversibility
 
 `verify-refinement` always checks the closed schemas, exact inventory, regular
-file kinds, sizes, hashes, identities, status, and history shape.
+file kinds, sizes, hashes, identities, status, and history shape. It also
+checks canonical transformation and history JSON, the transformation history
+tail, revision identities, and every parent link.
 
 Without optional inputs, diagnosis and base states are `NOT_CHECKED`. A
 rejected record uses `NOT_APPLICABLE` for derivation and reversibility.
 
 With matching `--diagnosis` and `--base`, verification recomputes the forward
 edit and requires byte equality with `prepared/document.json`. It also replays
-the inverse evidence and requires the original base document bytes.
+the inverse edits against the prepared payload and requires byte equality with
+the supplied base `document.json`. The transformation does not store a copy of
+the base document as reversal proof. The supplied diagnosis must pass its own
+integrity checks, and a child history must contain the unchanged parent
+history before its new transformation.
 
 Copy a publication before a tamper experiment. For example, edit `report.md`
 in the copy and verify it. The verifier reports an integrity failure and exits

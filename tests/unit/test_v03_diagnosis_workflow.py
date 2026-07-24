@@ -267,6 +267,34 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertIn(code, (2, 5))
             self.assertEqual(stdout, "")
 
+            observation_manifest = json.loads(
+                (observation / "manifest.json").read_text("utf-8")
+            )
+            source_key = observation_manifest["source"]["key"]
+            subject_id = observation_manifest["observation_id"]
+            for level in ("source-key", "subject-id"):
+                with self.subTest(level=level):
+                    nested_output = root / f"nested-{level}"
+                    nested_output.mkdir()
+                    if level == "source-key":
+                        (nested_output / source_key).symlink_to(
+                            outside, target_is_directory=True
+                        )
+                    else:
+                        (nested_output / source_key).mkdir()
+                        (nested_output / source_key / subject_id).symlink_to(
+                            outside, target_is_directory=True
+                        )
+                    code, stdout, _ = self.invoke(
+                        "diagnose",
+                        str(observation),
+                        "--output-root",
+                        str(nested_output),
+                    )
+                    self.assertEqual(code, 2)
+                    self.assertEqual(stdout, "")
+                    self.assertFalse(any(outside.rglob("diagnosis-manifest.json")))
+
     def test_verifier_detects_inventory_hash_json_and_symlink_corruption(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

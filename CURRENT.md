@@ -35,7 +35,7 @@ Future work may use whichever sound engineering practices fit the task.
   updates.
 - v0.3 is not released. The README released-milestone table intentionally
   stops at v0.2.
-- Local acceptance passes 142 unit tests and 147 complete tests, including the
+- Local acceptance passes 147 unit tests and 152 complete tests, including the
   real offline extractor matrix. Fixture generation, registries, the static
   site, compilation, checkout portability, and diff hygiene also pass.
 - The documented whitespace workflow passes `observe → diagnose → draft →

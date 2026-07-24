@@ -47,5 +47,22 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "APPLIED"}}},
+      "then": {
+        "properties": {
+          "revision_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+          "artifacts": {"minItems": 6, "maxItems": 6}
+        }
+      },
+      "else": {
+        "properties": {
+          "revision_id": {"type": "null"},
+          "artifacts": {"minItems": 2, "maxItems": 2}
+        }
+      }
+    }
+  ]
 }
