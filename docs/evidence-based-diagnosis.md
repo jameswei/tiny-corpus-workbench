@@ -95,10 +95,12 @@ Each canonical item must declare the `self_ref` implied by its collection and
 array position. Child references must resolve through those canonical paths.
 Diagnosis rejects inconsistent paths before publication.
 
-The v0.3 diagnosis ID is a full SHA-256 hash over the subject descriptor and
-the complete ruleset. The descriptor includes the subject kind and ID,
-canonical document path, size and hash, and originating observation ID. The
-subject manifest hash is provenance; it is not an input to the diagnosis ID.
+The v0.3 diagnosis ID is a full SHA-256 hash over canonical JSON with three
+inputs: the subject descriptor, the canonical document SHA-256 as a separate
+input, and the complete ruleset. The descriptor includes the subject kind and
+ID, canonical document path, size and hash, and originating observation ID.
+The subject manifest hash is provenance; it is not an input to the diagnosis
+ID.
 The v0.2 diagnosis ID instead binds the observation ID, observation manifest
 hash, canonical document hash, and complete v0.2 ruleset.
 Finding IDs bind the diagnosis, rule, sorted document references, and canonical
