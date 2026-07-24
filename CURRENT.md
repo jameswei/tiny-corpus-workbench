@@ -1,6 +1,6 @@
 # Handoff Snapshot
 
-**Last updated:** 2026-07-23
+**Last updated:** 2026-07-24
 
 This is an informational handoff, not a required agent workflow or taskboard.
 Future work may use whichever sound engineering practices fit the task.
@@ -24,7 +24,11 @@ Future work may use whichever sound engineering practices fit the task.
   documentation, and learning material.
 - Final hosted `Fast validation`, `Full extraction`, and website deployment
   passed on the `v0.2.0` release target.
-- No later milestone is active. The roadmap does not activate one.
+- Milestone v0.3, Controlled Revisions, is active by owner approval.
+- Its accepted implementation contract is
+  `docs/plans/v0.3-controlled-revisions.md`.
+- No v0.3 product implementation has started. The accepted handoff routes the
+  milestone to a later `plan-build-review` workflow.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -57,6 +61,31 @@ downstream concerns and remain outside the initial project.
 Original sources and raw extraction artifacts remain immutable. Diagnosis does
 not authorize mutation, and interpretive refinements require explicit human
 confirmation.
+
+## Active milestone
+
+Milestone v0.3 adds explicit refinement decisions and immutable prepared
+revisions. It introduces fixed refiners for whitespace normalization, repeated
+boilerplate removal, and deterministic dehyphenation. One approved finding
+produces one successor revision. A rejected finding produces an immutable
+decision record without changing the document.
+
+The accepted plan requires reversible transformation history, before-and-after
+hashes, forward and inverse verification, chained revision support, and
+backward verification of v0.2 diagnoses. It preserves `orig`, provenance,
+stable document references, sources, observations, diagnoses, and earlier
+revisions.
+
+The milestone also requires coordinated updates to `README.md`, the static
+landing page, the user guide, and the learning hub and lesson. These public and
+learning changes are part of milestone acceptance, not optional release
+polish.
+
+The next implementation workflow should create
+`milestone/v0.3-controlled-revisions` from the current clean `main`, follow
+`docs/plans/v0.3-controlled-revisions.md`, and withhold reviewer `PASS` until
+the complete code, verification, documentation, learning, website, and release
+contracts pass.
 
 ## Latest completed milestone
 
