@@ -50,6 +50,7 @@ def main() -> int:
             ("tools/verify_fixtures.py",),
             ("tools/generate_fixtures.py", "--check"),
             ("tools/generate_diagnosis_fixtures.py", "--check"),
+            ("tools/generate_refinement_fixtures.py", "--check"),
         )
         for arguments in commands:
             completed = run(sys.executable, *arguments, cwd=checkout)

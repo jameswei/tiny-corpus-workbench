@@ -24,7 +24,7 @@
     <section class="hero" aria-labelledby="hero-title">
       <p class="eyebrow">Local document preparation workbench</p>
       <h1 id="hero-title">Prepare documents without losing the evidence.</h1>
-      <p class="lede">Extract and diagnose documents through a local, evidence-preserving record. Keep every finding inspectable and every change under human control.</p>
+      <p class="lede">Extract, diagnose, and refine documents through a local, evidence-preserving record. Keep every finding inspectable and every change under human control.</p>
       <div class="actions">
         <a class="button primary" href="#quick-start">Start locally</a>
         <a class="button secondary" href="https://github.com/jameswei/tiny-corpus-workbench">View GitHub</a>
@@ -75,14 +75,14 @@
           <span>Patterns across mixed formats</span>
         </li>
       </ol>
-      <p class="workflow-note">The runnable local path covers source capture, extraction observation, evidence-based diagnosis, and read-only verification. The same evidence model provides the foundation for controlled revisions, corpus comparison, and visual exploration.</p>
+      <p class="workflow-note">The runnable local path covers source capture, extraction observation, evidence-based diagnosis, explicit decisions, reversible transformations, prepared revisions, and read-only verification. Corpus comparison and visual exploration remain future work.</p>
     </section>
 
     <section id="capabilities" class="section" aria-labelledby="capabilities-title">
       <div class="section-heading">
         <p class="kicker">One inspectable history</p>
         <h2 id="capabilities-title">Build every capability on evidence.</h2>
-        <p>Extraction and diagnosis establish one inspectable trail. Controlled revisions and corpus comparison extend the same product direction.</p>
+        <p>Extraction, diagnosis, and controlled revisions establish one inspectable trail. Corpus comparison extends the same product direction.</p>
       </div>
       <div class="grid capability-grid">
         <article class="card">
@@ -96,9 +96,9 @@
           <p>Record deterministic findings with evidence, stable identifiers, severity, provenance, and affected items.</p>
         </article>
         <article class="card">
-          <p class="card-number">03 · Product direction</p>
+          <p class="card-number">03 · Available</p>
           <h3>Refine</h3>
-          <p>Require explicit decisions, create new prepared revisions, and preserve reversible operations.</p>
+          <p>Resolve one finding at a time, create immutable prepared revisions, and preserve reversible transformation history.</p>
         </article>
         <article class="card">
           <p class="card-number">04 · Product direction</p>
@@ -112,13 +112,13 @@
       <div class="section-heading">
         <p class="kicker">Trust and control</p>
         <h2 id="trust-title">Preserve evidence. Keep people in control.</h2>
-        <p>The current extraction and diagnosis records stay inspectable, but evidence alone never grants authority to change a document.</p>
+        <p>Extraction, diagnosis, decisions, and revisions stay inspectable. Evidence alone never grants authority to change a document.</p>
       </div>
       <div class="grid two-column">
         <article class="claim verified">
           <p class="claim-label">Evidence stays inspectable</p>
           <h3>Retain the record.</h3>
-          <p>Original sources, raw extraction artifacts, findings, hashes, and verification evidence are retained instead of silently overwritten.</p>
+          <p>Original sources, raw extraction artifacts, findings, decisions, transformations, histories, hashes, and revisions remain inspectable.</p>
         </article>
         <article class="claim authority">
           <p class="claim-label">People retain authority</p>
@@ -133,18 +133,22 @@
       <div class="section-heading">
         <p class="kicker">Local by design</p>
         <h2 id="start-title">Run the implemented path locally.</h2>
-        <p>The current CLI publishes extraction observations, deterministic diagnosis reports, and independent verification results. Start with extraction observation, then diagnose the canonical document without changing its evidence.</p>
+        <p>The CLI publishes observations, diagnoses, explicit decisions, prepared revisions, and independent verification results. One approval creates one successor revision.</p>
       </div>
       <div class="surface-list">
-        <p><strong>CLI · Available</strong><span>Explicit local observation and diagnosis</span></p>
+        <p><strong>CLI · Available</strong><span>Observation, diagnosis, decisions, and controlled revisions</span></p>
         <p><strong>Diagnosis report · Available</strong><span>Deterministic portable evidence</span></p>
+        <p><strong>Prepared revision · Available</strong><span>Reversible, attributable transformation history</span></p>
         <p><strong>Visual workbench · Product direction</strong><span>Local exploration on the same evidence trail</span></p>
       </div>
       <pre class="command-block"><code>uv sync --frozen --python 3.12
 uv run --frozen docling-tools models download layout tableformer --output-dir .cache/docling/models
 uv run --frozen tcw observe fixtures/golden/policy-memo.pdf
 uv run --frozen tcw diagnose OBSERVATION_DIRECTORY
-uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY --observation OBSERVATION_DIRECTORY</code></pre>
+uv run --frozen tcw draft-refinement DIAGNOSIS_DIRECTORY --finding FINDING_ID --base OBSERVATION_DIRECTORY --output decision.json
+# Edit only the decision fields, then:
+uv run --frozen tcw resolve-refinement decision.json --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
+uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY</code></pre>
       <div class="resource-links">
         <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/learning/README.md">Explore all learning materials</a>
       </div>

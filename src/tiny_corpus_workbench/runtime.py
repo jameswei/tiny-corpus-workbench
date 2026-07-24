@@ -16,7 +16,7 @@ from tiny_corpus_workbench.domain import RuntimeContractError
 
 LOCK_PATH = Path("uv.lock")
 EXPECTED_LOCKFILE_SHA256: Final = (
-    "c708fe8c2ce3a516a8a0e219b5b81bc0ee7b787e62c70c6b470a40ebc8dc55d0"
+    "013ff8962de07dc91077bb3029a1746ba20e7725fa89d293be7666a9d8d05e65"
 )
 RUNTIME_DEPENDENCIES: Final[Mapping[str, str]] = MappingProxyType(
     {

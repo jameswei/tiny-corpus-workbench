@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/refinement-verification-result-v0.3.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "refinement_directory", "artifact_integrity", "diagnosis_state", "base_state", "derivation_state", "reversibility_state"],
+  "properties": {
+    "schema_version": {"const": "tcw.refinement-verification-result/v0.3"},
+    "refinement_directory": {"type": "string"},
+    "artifact_integrity": {"$ref": "#/$defs/integrity"},
+    "diagnosis_state": {"$ref": "#/$defs/external"},
+    "base_state": {"$ref": "#/$defs/external"},
+    "derivation_state": {"$ref": "#/$defs/derivation"},
+    "reversibility_state": {"$ref": "#/$defs/derivation"}
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "path", "message"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+        "path": {"type": ["string", "null"]},
+        "message": {"type": "string", "minLength": 1}
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "issues"],
+      "properties": {
+        "status": {"enum": ["VERIFIED", "INTEGRITY_MISMATCH", "BROKEN"]},
+        "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}}
+      }
+    },
+    "external": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {"status": {"enum": ["NOT_CHECKED", "MATCH", "CHANGED", "MISSING", "ERROR"]}}
+    },
+    "derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {"status": {"enum": ["NOT_CHECKED", "NOT_APPLICABLE", "MATCH", "MISMATCH", "ERROR"]}}
+    }
+  }
+}

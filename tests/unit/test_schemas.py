@@ -111,6 +111,38 @@ class SchemaTests(unittest.TestCase):
             with self.subTest(schema=name), self.assertRaises(ValidationError):
                 Draft202012Validator(schema).validate({})
 
+    def test_v03_table_coordinates_are_an_all_or_nothing_pair(self) -> None:
+        draft_schema = json.loads(
+            (SCHEMAS / "refinement-draft-v0.3.schema.json").read_text("utf-8")
+        )
+        target_validator = Draft202012Validator(draft_schema["$defs"]["target"])
+        target_validator.validate(
+            {"ref": "#/tables/0", "field": "text", "row": 0, "column": 0}
+        )
+        target_validator.validate({"ref": "#/texts/0", "field": "text"})
+        for incomplete in (
+            {"ref": "#/tables/0", "field": "text", "row": 0},
+            {"ref": "#/tables/0", "field": "text", "column": 0},
+        ):
+            with self.subTest(target=incomplete), self.assertRaises(
+                ValidationError
+            ):
+                target_validator.validate(incomplete)
+
+        finding_schema = json.loads(
+            (SCHEMAS / "finding-set-v0.3.schema.json").read_text("utf-8")
+        )
+        evidence_schema = finding_schema["$defs"]["finding"]["properties"][
+            "evidence"
+        ]
+        evidence_validator = Draft202012Validator(evidence_schema)
+        evidence_validator.validate({"row": 0, "column": 0})
+        for incomplete in ({"row": 0}, {"column": 0}):
+            with self.subTest(evidence=incomplete), self.assertRaises(
+                ValidationError
+            ):
+                evidence_validator.validate(incomplete)
+
     def test_manifest_requires_one_ordered_result_per_extractor(self) -> None:
         schema = json.loads(
             (SCHEMAS / "preparation-manifest-v0.1.schema.json").read_text("utf-8")

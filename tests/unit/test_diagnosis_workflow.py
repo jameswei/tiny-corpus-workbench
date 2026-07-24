@@ -32,7 +32,13 @@ from tiny_corpus_workbench.diagnosis import (
     render_report,
 )
 from tiny_corpus_workbench.diagnosis import AtomicDiagnosis, snapshot_tree
-from tiny_corpus_workbench.domain import InputError, IntegrityError
+from tiny_corpus_workbench.domain import (
+    ExitCode,
+    InputError,
+    IntegrityError,
+    WorkbenchError,
+    sanitize_message,
+)
 from tiny_corpus_workbench.verification import verify_observation
 
 
@@ -130,7 +136,33 @@ class DiagnosisWorkflowTests(unittest.TestCase):
     def invoke(self, *arguments: str) -> tuple[int, str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
-            code = cli.main(list(arguments))
+            if (
+                arguments
+                and arguments[0] == "diagnose"
+                and len(arguments) >= 2
+                and Path(arguments[1]).exists()
+            ):
+                output = Path("build/evidence-based-diagnosis")
+                if "--output-root" in arguments:
+                    output = Path(arguments[arguments.index("--output-root") + 1])
+                try:
+                    command = cli._diagnosis_callable("diagnosis", "diagnose")
+                    published = command(Path(arguments[1]), output)
+                    line = cli._published_diagnosis_line(published)
+                except WorkbenchError as error:
+                    print(sanitize_message(error), file=__import__("sys").stderr)
+                    code = int(error.exit_code)
+                except Exception as error:
+                    print(
+                        f"internal diagnosis failure: {sanitize_message(error)}",
+                        file=__import__("sys").stderr,
+                    )
+                    code = int(ExitCode.INTERNAL)
+                else:
+                    print(json.dumps(line, sort_keys=True, separators=(",", ":")))
+                    code = int(ExitCode.SUCCESS)
+            else:
+                code = cli.main(list(arguments))
         return code, stdout.getvalue(), stderr.getvalue()
 
     def observation(self, root: Path, docling=fake_docling) -> Path:

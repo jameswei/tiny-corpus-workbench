@@ -28,7 +28,7 @@ requires all applicable writing rules and controlled-dictionary checks.
 | --- | --- | --- | --- |
 | v0.1 | [Extraction Observatory](v0.1-extraction-observatory.md) | Available | 60–90 minutes |
 | v0.2 | [Evidence-Based Diagnosis](v0.2-evidence-based-diagnosis.md) | Available | 45–60 minutes |
-| v0.3 | Controlled Revisions | Planned | — |
+| v0.3 | [Controlled Revisions](v0.3-controlled-revisions.md) | Available | 60 minutes |
 | v0.4 | Corpus Inspection and Comparison | Planned | — |
 | v0.5 | Local Visual Workbench | Planned | — |
 
@@ -46,8 +46,12 @@ Use these companion documents when you need more precision:
   artifacts, compatibility, and exit-code contract
 - [Evidence-Based Diagnosis guide](../docs/evidence-based-diagnosis.md): rules,
   findings, verification states, and integrity limits
+- [Controlled Revisions guide](../docs/controlled-revisions.md): decisions,
+  refiners, revision lineage, and reversibility
 - [Accepted v0.1 plan](../docs/plans/v0.1-extraction-observatory.md): complete
   implementation and review contract
 - [Accepted v0.2 plan](../docs/plans/v0.2-evidence-based-diagnosis.md): complete
   diagnosis implementation and review contract
+- [Accepted v0.3 plan](../docs/plans/v0.3-controlled-revisions.md): complete
+  controlled-revision implementation and review contract
 - [Project roadmap](../docs/roadmap.md): milestone sequence and boundaries

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/diagnosis-manifest-v0.3.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "milestone", "run_id", "diagnosis_id", "created_at", "status", "source", "subject", "subject_manifest_size", "subject_manifest_sha256", "runtime", "ruleset", "summary", "artifacts"],
+  "properties": {
+    "schema_version": {"const": "tcw.diagnosis-manifest/v0.3"},
+    "milestone": {"const": "v0.3"},
+    "run_id": {"type": "string", "minLength": 1},
+    "diagnosis_id": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["FINDINGS", "NO_FINDINGS"]},
+    "source": {"$ref": "#/$defs/source"},
+    "subject": {"$ref": "finding-set-v0.3.schema.json#/$defs/subject"},
+    "subject_manifest_size": {"type": "integer", "minimum": 1},
+    "subject_manifest_sha256": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+    "runtime": {"$ref": "#/$defs/runtime"},
+    "ruleset": {"$ref": "finding-set-v0.3.schema.json#/$defs/ruleset"},
+    "summary": {"$ref": "finding-set-v0.3.schema.json#/$defs/summary"},
+    "artifacts": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/artifact"}}
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "media_type", "size", "sha256"],
+      "properties": {
+        "key": {"type": "string", "minLength": 1},
+        "media_type": {"type": "string", "minLength": 1},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "implementation", "lockfile_sha256", "package_version", "dependencies"],
+      "properties": {
+        "python": {"type": "string", "pattern": "^3\\.12"},
+        "implementation": {"const": "CPython"},
+        "lockfile_sha256": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+        "package_version": {"const": "0.3.0"},
+        "dependencies": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["docling", "docling-core", "markitdown"],
+          "properties": {
+            "docling": {"const": "2.113.0"},
+            "docling-core": {"const": "2.87.1"},
+            "markitdown": {"const": "0.1.6"}
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "media_type", "size", "sha256", "application_immutable"],
+      "properties": {
+        "path": {"enum": ["findings.json", "report.md"]},
+        "role": {"enum": ["diagnostic-findings", "diagnostic-report"]},
+        "media_type": {"enum": ["application/json", "text/markdown"]},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "finding-set-v0.3.schema.json#/$defs/hash"},
+        "application_immutable": {"const": true}
+      }
+    }
+  }
+}

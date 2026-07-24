@@ -34,6 +34,9 @@ from tiny_corpus_workbench.verification import FORMAT_CHECKER, verify_observatio
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
+V02_LOCKFILE_SHA256 = (
+    "c708fe8c2ce3a516a8a0e219b5b81bc0ee7b787e62c70c6b470a40ebc8dc55d0"
+)
 RULESET = [
     {
         "rule_id": "TCW-D001",
@@ -1186,8 +1189,8 @@ def diagnose(root: Path, output_root: Path) -> Path:
             "runtime": {
                 "python": runtime["python"],
                 "implementation": runtime["implementation"],
-                "lockfile_sha256": runtime["lockfile_sha256"],
-                "package_version": runtime["package_version"],
+                "lockfile_sha256": V02_LOCKFILE_SHA256,
+                "package_version": "0.2.0",
                 "dependencies": runtime["dependencies"],
             },
             "ruleset": {

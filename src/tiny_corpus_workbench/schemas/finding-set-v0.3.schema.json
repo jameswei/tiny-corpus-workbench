@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/finding-set-v0.3.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "diagnosis_id", "subject", "ruleset", "summary", "findings"],
+  "properties": {
+    "schema_version": {"const": "tcw.finding-set/v0.3"},
+    "diagnosis_id": {"$ref": "#/$defs/hash"},
+    "subject": {"$ref": "#/$defs/subject"},
+    "ruleset": {"$ref": "#/$defs/ruleset"},
+    "summary": {"$ref": "#/$defs/summary"},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "subject_id", "canonical_document_path", "canonical_document_size", "canonical_document_sha256", "origin_observation_id"],
+      "properties": {
+        "kind": {"enum": ["OBSERVATION", "REVISION"]},
+        "subject_id": {"$ref": "#/$defs/hash"},
+        "canonical_document_path": {"enum": ["docling/document.json", "prepared/document.json"]},
+        "canonical_document_size": {"type": "integer", "minimum": 1},
+        "canonical_document_sha256": {"$ref": "#/$defs/hash"},
+        "origin_observation_id": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "name", "version", "severity", "parameters"],
+      "properties": {
+        "rule_id": {"type": "string", "pattern": "^TCW-D0(0[1-9]|10)$"},
+        "name": {"type": "string", "minLength": 1},
+        "version": {"const": "1"},
+        "severity": {"enum": ["ERROR", "WARNING", "INFO"]},
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minimum": {"type": "integer"},
+            "maximum": {"type": "integer"},
+            "character": {"type": "string"},
+            "minimum_characters": {"type": "integer"},
+            "first_level": {"type": "integer"},
+            "maximum_increase": {"type": "integer"},
+            "maximum_characters": {"type": "integer"},
+            "minimum_pages": {"type": "integer"},
+            "top_maximum": {"type": "number"},
+            "bottom_minimum": {"type": "number"},
+            "line_endings": {"type": "string"},
+            "horizontal_whitespace": {"type": "string"},
+            "preserve_internal_line_breaks": {"type": "boolean"},
+            "minimum_fragment_code_points": {"type": "integer"},
+            "logical_line_breaks": {"type": "integer"},
+            "right_initial": {"type": "string"}
+          }
+        }
+      }
+    },
+    "ruleset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "rules"],
+      "properties": {
+        "name": {"const": "tcw-evidence-based-diagnosis"},
+        "version": {"const": "v0.3"},
+        "parameter_sha256": {"$ref": "#/$defs/hash"},
+        "rules": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/rule"}}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "by_severity", "by_rule"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "by_severity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ERROR", "WARNING", "INFO"],
+          "properties": {
+            "ERROR": {"type": "integer", "minimum": 0},
+            "WARNING": {"type": "integer", "minimum": 0},
+            "INFO": {"type": "integer", "minimum": 0}
+          }
+        },
+        "by_rule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["TCW-D001", "TCW-D002", "TCW-D003", "TCW-D004", "TCW-D005", "TCW-D006", "TCW-D007", "TCW-D008", "TCW-D009", "TCW-D010"],
+          "properties": {
+            "TCW-D001": {"type": "integer", "minimum": 0},
+            "TCW-D002": {"type": "integer", "minimum": 0},
+            "TCW-D003": {"type": "integer", "minimum": 0},
+            "TCW-D004": {"type": "integer", "minimum": 0},
+            "TCW-D005": {"type": "integer", "minimum": 0},
+            "TCW-D006": {"type": "integer", "minimum": 0},
+            "TCW-D007": {"type": "integer", "minimum": 0},
+            "TCW-D008": {"type": "integer", "minimum": 0},
+            "TCW-D009": {"type": "integer", "minimum": 0},
+            "TCW-D010": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "scalar": {"type": ["string", "integer", "number", "boolean"]},
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finding_id", "rule_id", "rule_version", "severity", "summary", "document_refs", "evidence"],
+      "properties": {
+        "finding_id": {"$ref": "#/$defs/hash"},
+        "rule_id": {"type": "string", "pattern": "^TCW-D0(0[1-9]|10)$"},
+        "rule_version": {"const": "1"},
+        "severity": {"enum": ["ERROR", "WARNING", "INFO"]},
+        "summary": {"type": "string", "minLength": 1},
+        "document_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^#/"}},
+        "evidence": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "dependentRequired": {
+            "row": ["column"],
+            "column": ["row"]
+          },
+          "properties": {
+            "non_whitespace_characters": {"type": "integer", "minimum": 0},
+            "code_point_offsets": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+            "hyphen_code_point_offsets": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+            "occurrence_count": {"type": "integer", "minimum": 1},
+            "row": {"type": "integer", "minimum": 0},
+            "column": {"type": "integer", "minimum": 0},
+            "count": {"type": "integer", "minimum": 2},
+            "normalized_character_count": {"type": "integer", "minimum": 1},
+            "normalized_text_sha256": {"$ref": "#/$defs/hash"},
+            "original_text_sha256": {"$ref": "#/$defs/hash"},
+            "repaired_text_sha256": {"$ref": "#/$defs/hash"},
+            "current_level": {"type": "integer", "minimum": 1},
+            "previous_level": {"type": "integer", "minimum": 0},
+            "previous_ref": {"type": "string", "pattern": "^#/"},
+            "declared_ref": {"type": "string"},
+            "relationship_kind": {"enum": ["orphan_caption", "invalid_declared_caption"]},
+            "band": {"enum": ["top", "bottom"]},
+            "page_count": {"type": "integer", "minimum": 3},
+            "page_numbers": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+            "content_layer": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}
