@@ -17,7 +17,8 @@ contains two Markdown sources and one deterministic three-page PDF. Generate
 or check it with `tools/generate_diagnosis_fixtures.py`. Its registry records
 expected rule identifiers, file sizes, hashes, and the CC0-1.0 license.
 
-The `refinement/v0.3/` directory contains deterministic Markdown sources for
-whitespace normalization and line-end dehyphenation. Check their registry with
+The `refinement/v0.3/` directory is a mixed-format fixture set. It contains a
+deterministic Markdown source for whitespace normalization and a deterministic
+DOCX source for line-end dehyphenation. Check their registry with
 `tools/generate_refinement_fixtures.py --check`. The repeated-margin refiner
 reuses `diagnosis/v0.2/repeated-margin.pdf`.
