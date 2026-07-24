@@ -115,6 +115,36 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             descriptor["size"] = path.stat().st_size
             descriptor["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
 
+    def rewrite_diagnosis_identity(
+        self,
+        diagnosis: Path,
+        findings: dict,
+        manifest: dict,
+        diagnosis_id: str,
+    ) -> None:
+        findings["diagnosis_id"] = diagnosis_id
+        for finding in findings["findings"]:
+            finding["finding_id"] = hashlib.sha256(
+                canonical_json(
+                    {
+                        "diagnosis_id": diagnosis_id,
+                        "rule_id": finding["rule_id"],
+                        "rule_version": finding["rule_version"],
+                        "document_refs": finding["document_refs"],
+                        "evidence": finding["evidence"],
+                    }
+                ).rstrip(b"\n")
+            ).hexdigest()
+        findings["findings"] = _canonicalize_findings(findings["findings"])
+        manifest["diagnosis_id"] = diagnosis_id
+        manifest["subject"] = findings["subject"]
+        (diagnosis / "findings.json").write_bytes(canonical_json(findings))
+        (diagnosis / "report.md").write_bytes(_diagnosis_report(findings))
+        self.refresh_diagnosis_descriptors(diagnosis, manifest)
+        (diagnosis / "diagnosis-manifest.json").write_bytes(
+            canonical_json(manifest)
+        )
+
     def test_v03_diagnosis_is_deterministic_and_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -484,6 +514,92 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             manifest_path.write_bytes(canonical_json(manifest))
             changed = verify_diagnosis(diagnosis, copied)
             self.assertIn(changed["subject_state"]["status"], {"CHANGED", "ERROR"})
+
+    def test_diagnosis_identity_and_complete_subject_descriptor_are_verified(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(
+                root / "observations", whitespace_docling
+            )
+            diagnosis = self.publish(observation, root / "diagnoses")
+            for operation in (
+                "diagnosis-id",
+                "document-size",
+                "document-path",
+                "subject-manifest-size",
+                "subject-manifest-hash",
+            ):
+                with self.subTest(operation=operation):
+                    copied = self.copy_diagnosis(
+                        diagnosis, root / operation
+                    )
+                    findings = json.loads(
+                        (copied / "findings.json").read_text("utf-8")
+                    )
+                    manifest = json.loads(
+                        (copied / "diagnosis-manifest.json").read_text("utf-8")
+                    )
+                    if operation == "diagnosis-id":
+                        diagnosis_id = "f" * 64
+                    elif operation in {"document-size", "document-path"}:
+                        if operation == "document-size":
+                            findings["subject"][
+                                "canonical_document_size"
+                            ] += 1
+                        else:
+                            findings["subject"][
+                                "canonical_document_path"
+                            ] = "prepared/document.json"
+                        diagnosis_id = hashlib.sha256(
+                            canonical_json(
+                                {
+                                    "subject": findings["subject"],
+                                    "canonical_document_sha256": findings[
+                                        "subject"
+                                    ]["canonical_document_sha256"],
+                                    "ruleset": findings["ruleset"],
+                                }
+                            ).rstrip(b"\n")
+                        ).hexdigest()
+                    else:
+                        key = (
+                            "subject_manifest_size"
+                            if operation == "subject-manifest-size"
+                            else "subject_manifest_sha256"
+                        )
+                        manifest[key] = (
+                            manifest[key] + 1
+                            if key == "subject_manifest_size"
+                            else "f" * 64
+                        )
+                        (copied / "diagnosis-manifest.json").write_bytes(
+                            canonical_json(manifest)
+                        )
+                        result = verify_diagnosis(copied, observation)
+                        self.assertEqual(
+                            result["artifact_integrity"]["status"], "VERIFIED"
+                        )
+                        self.assertEqual(
+                            result["subject_state"]["status"], "CHANGED"
+                        )
+                        continue
+                    self.rewrite_diagnosis_identity(
+                        copied, findings, manifest, diagnosis_id
+                    )
+                    result = verify_diagnosis(copied, observation)
+                    if operation == "diagnosis-id":
+                        self.assertEqual(
+                            result["artifact_integrity"]["status"], "BROKEN"
+                        )
+                    else:
+                        self.assertEqual(
+                            result["artifact_integrity"]["status"], "VERIFIED"
+                        )
+                        self.assertEqual(
+                            result["subject_state"]["status"], "CHANGED"
+                        )
 
     def test_runtime_drift_is_exit_six_without_publication(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

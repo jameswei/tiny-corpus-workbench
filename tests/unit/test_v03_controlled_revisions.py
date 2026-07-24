@@ -598,6 +598,45 @@ class ControlledRevisionTests(unittest.TestCase):
                         any(outside.rglob("refinement-manifest.json"))
                     )
 
+    def test_complete_refinement_base_descriptor_is_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
+        ):
+            root = Path(directory)
+            observation, diagnosis, revision = self.approve_rule(
+                root / "base", "TCW-D009"
+            )
+            for operation in (
+                "document-size",
+                "document-path",
+                "source",
+                "origin-run",
+            ):
+                with self.subTest(operation=operation):
+                    copied = self.copy_record(revision, root / operation)
+                    manifest_path = copied / "refinement-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    if operation == "document-size":
+                        manifest["base"]["canonical_document_size"] += 1
+                    elif operation == "document-path":
+                        manifest["base"][
+                            "canonical_document_path"
+                        ] = "prepared/document.json"
+                    elif operation == "source":
+                        manifest["source"]["key"] += "-changed"
+                    else:
+                        manifest["origin_observation_run_id"] += "-changed"
+                    manifest_path.write_bytes(canonical_json(manifest))
+                    result = verify_refinement(
+                        copied, diagnosis, observation
+                    )
+                    self.assertEqual(
+                        result["artifact_integrity"]["status"], "VERIFIED"
+                    )
+                    self.assertEqual(
+                        result["base_state"]["status"], "CHANGED"
+                    )
+
     def test_approve_verify_rediagnose_chain_and_reject(self) -> None:
         with tempfile.TemporaryDirectory() as directory, mock.patch(
             "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME

@@ -326,6 +326,7 @@ def _observation_subject(root: Path) -> dict[str, Any]:
             key: manifest["source"][key]
             for key in ("key", "media_type", "size", "sha256")
         },
+        "manifest_path": "manifest.json",
         "manifest_bytes": manifest_bytes,
         "manifest": manifest,
         "document_path": descriptor["path"],
@@ -359,6 +360,7 @@ def _refinement_subject(root: Path) -> dict[str, Any]:
         "origin_observation_id": manifest["origin_observation_id"],
         "origin_observation_run_id": manifest["origin_observation_run_id"],
         "source": manifest["source"],
+        "manifest_path": "refinement-manifest.json",
         "manifest_bytes": manifest_bytes,
         "manifest": manifest,
         "document_path": "prepared/document.json",
@@ -523,8 +525,8 @@ def _v3_finding(
     }
 
 
-def compute_diagnosis_id(subject: dict[str, Any]) -> str:
-    descriptor = {
+def _subject_descriptor(subject: dict[str, Any]) -> dict[str, Any]:
+    return {
         "kind": subject["kind"],
         "subject_id": subject["subject_id"],
         "canonical_document_path": subject["document_path"],
@@ -532,6 +534,11 @@ def compute_diagnosis_id(subject: dict[str, Any]) -> str:
         "canonical_document_sha256": _hash(subject["document_bytes"]),
         "origin_observation_id": subject["origin_observation_id"],
     }
+
+
+def _diagnosis_identity(
+    descriptor: dict[str, Any], ruleset: dict[str, Any]
+) -> str:
     return _hash(
         canonical_json(
             {
@@ -539,10 +546,14 @@ def compute_diagnosis_id(subject: dict[str, Any]) -> str:
                 "canonical_document_sha256": descriptor[
                     "canonical_document_sha256"
                 ],
-                "ruleset": RULESET,
+                "ruleset": ruleset,
             }
         ).rstrip(b"\n")
     )
+
+
+def compute_diagnosis_id(subject: dict[str, Any]) -> str:
+    return _diagnosis_identity(_subject_descriptor(subject), RULESET)
 
 
 def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
@@ -593,14 +604,7 @@ def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": "tcw.finding-set/v0.3",
         "diagnosis_id": diagnosis_id,
-        "subject": {
-            "kind": subject["kind"],
-            "subject_id": subject["subject_id"],
-            "canonical_document_path": subject["document_path"],
-            "canonical_document_size": len(subject["document_bytes"]),
-            "canonical_document_sha256": _hash(subject["document_bytes"]),
-            "origin_observation_id": subject["origin_observation_id"],
-        },
+        "subject": _subject_descriptor(subject),
         "ruleset": RULESET,
         "summary": summary,
         "findings": findings,
@@ -1393,8 +1397,13 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
         _validate("diagnosis-manifest-v0.3.schema.json", manifest)
         _validate("finding-set-v0.3.schema.json", findings)
         validate_finding_set(findings)
+        expected_diagnosis_id = _diagnosis_identity(
+            findings["subject"], findings["ruleset"]
+        )
         if root.name != manifest["run_id"] or findings["diagnosis_id"] != manifest["diagnosis_id"]:
             raise IntegrityError("diagnosis identity differs")
+        if findings["diagnosis_id"] != expected_diagnosis_id:
+            raise IntegrityError("diagnosis identity is inconsistent")
         if (
             manifest["subject"] != findings["subject"]
             or manifest["summary"] != findings["summary"]
@@ -1435,9 +1444,19 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
         else:
             try:
                 subject = load_subject(subject_root)
+                canonical_manifest_path = (
+                    "manifest.json"
+                    if manifest["subject"]["kind"] == "OBSERVATION"
+                    else "refinement-manifest.json"
+                )
                 matches = (
-                    subject["subject_id"] == manifest["subject"]["subject_id"]
-                    and _hash(subject["document_bytes"]) == manifest["subject"]["canonical_document_sha256"]
+                    _subject_descriptor(subject) == manifest["subject"]
+                    and subject["manifest_path"] == canonical_manifest_path
+                    and len(subject["manifest_bytes"])
+                    == manifest["subject_manifest_size"]
+                    and _hash(subject["manifest_bytes"])
+                    == manifest["subject_manifest_sha256"]
+                    and subject["source"] == manifest["source"]
                 )
                 subject_state = {"status": "MATCH" if matches else "CHANGED"}
                 if matches:
@@ -1533,7 +1552,21 @@ def verify_refinement(
     if base_root is not None and manifest is not None:
         try:
             base = load_subject(base_root)
-            matches = base["subject_id"] == manifest["base"]["subject_id"] and _hash(base["document_bytes"]) == manifest["base"]["canonical_document_sha256"]
+            matches = (
+                manifest["base"]
+                == {
+                    "kind": base["kind"],
+                    "subject_id": base["subject_id"],
+                    "canonical_document_path": base["document_path"],
+                    "canonical_document_size": len(base["document_bytes"]),
+                    "canonical_document_sha256": _hash(base["document_bytes"]),
+                }
+                and manifest["origin_observation_id"]
+                == base["origin_observation_id"]
+                and manifest["origin_observation_run_id"]
+                == base["origin_observation_run_id"]
+                and manifest["source"] == base["source"]
+            )
             if (
                 matches
                 and manifest["status"] == "APPLIED"
