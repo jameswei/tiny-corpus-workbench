@@ -942,7 +942,18 @@ def _apply_edits(payload: dict[str, Any], edits: list[dict[str, Any]]) -> dict[s
         item.get("$ref", item.get("cref"))
         for item in value["furniture"]["children"]
     ]
-    for edit in edits:
+    ordered_edits = sorted(
+        edits,
+        key=lambda edit: (
+            edit["target"]["field"] != "text",
+            0
+            if edit["target"]["field"] == "text"
+            else edit["after"].get(
+                "body_index", edit["after"].get("furniture_index", 0)
+            ),
+        ),
+    )
+    for edit in ordered_edits:
         target_spec = edit["target"]
         if target_spec["field"] != "content_layer":
             continue
@@ -969,7 +980,7 @@ def _apply_edits(payload: dict[str, Any], edits: list[dict[str, Any]]) -> dict[s
             or reference in other
         ):
             raise IntegrityError("membership precondition does not match")
-    for edit in edits:
+    for edit in ordered_edits:
         target_spec = edit["target"]
         target = _target(value, target_spec["ref"], target_spec)
         if target_spec["field"] == "text":
@@ -1144,6 +1155,20 @@ def resolve_refinement(
                 base["payload"], expected["forward_edits"]
             )
             document_bytes, markdown_bytes = _prepared_bytes(prepared_payload)
+            replayed_payload = _apply_edits(
+                base["payload"], expected["forward_edits"]
+            )
+            replayed_bytes, _ = _prepared_bytes(replayed_payload)
+            if replayed_bytes != document_bytes:
+                raise IntegrityError("forward refinement replay differs")
+            reversed_payload = _apply_edits(
+                json.loads(document_bytes), expected["inverse_edits"]
+            )
+            reversed_bytes = _json_bytes_like(
+                reversed_payload, base["payload"], base["document_bytes"]
+            )
+            if reversed_bytes != base["document_bytes"]:
+                raise IntegrityError("inverse refinement replay differs")
             revision_id = _revision_identity(
                 base["subject_id"],
                 _hash(base["document_bytes"]),
@@ -1379,7 +1404,7 @@ def _validate_refinement_semantics(
 
 
 def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, Any]:
-    active_locked_runtime()
+    active_runtime = active_locked_runtime()
     files, directories, issues = _inventory(root)
     expected = {"diagnosis-manifest.json", "findings.json", "report.md"}
     for path in sorted(expected - files):
@@ -1397,6 +1422,8 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
         _validate("diagnosis-manifest-v0.3.schema.json", manifest)
         _validate("finding-set-v0.3.schema.json", findings)
         validate_finding_set(findings)
+        if manifest["runtime"] != active_runtime:
+            raise IntegrityError("diagnosis runtime provenance differs")
         expected_diagnosis_id = _diagnosis_identity(
             findings["subject"], findings["ruleset"]
         )
@@ -1499,7 +1526,7 @@ def verify_refinement(
     diagnosis_root: Path | None = None,
     base_root: Path | None = None,
 ) -> dict[str, Any]:
-    active_locked_runtime()
+    active_runtime = active_locked_runtime()
     files, directories, issues = _inventory(root)
     manifest = decision = transformation = history = None
     try:
@@ -1507,6 +1534,8 @@ def verify_refinement(
         _, decision = _load_json_regular(root / "decision.json", "decision")
         _validate("refinement-manifest-v0.3.schema.json", manifest)
         _validate("refinement-draft-v0.3.schema.json", decision)
+        if manifest["runtime"] != active_runtime:
+            raise IntegrityError("refinement runtime provenance differs")
         if manifest["status"] == "APPLIED":
             _, transformation = _load_json_regular(
                 root / "transformation.json", "transformation"

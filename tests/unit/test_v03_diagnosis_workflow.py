@@ -33,7 +33,7 @@ SOURCE = Path("fixtures/golden/policy-memo.md")
 V02_RUNTIME = {
     "python": platform.python_version(),
     "implementation": "CPython",
-    "lockfile_sha256": "a" * 64,
+    "lockfile_sha256": "c708fe8c2ce3a516a8a0e219b5b81bc0ee7b787e62c70c6b470a40ebc8dc55d0",
     "package_version": "0.2.0",
     "dependencies": {
         "docling": "2.113.0",
@@ -229,6 +229,31 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 json.loads(stdout)["schema_version"],
                 "tcw.diagnosis-verification-result/v0.2",
             )
+            for field, replacement in (
+                ("lockfile_sha256", "f" * 64),
+                ("package_version", "0.1.0"),
+                (
+                    "dependencies",
+                    {
+                        **V02_RUNTIME["dependencies"],
+                        "docling-core": "0.0.0",
+                    },
+                ),
+            ):
+                with self.subTest(v02_runtime=field):
+                    copied = root / field / legacy.name
+                    copied.parent.mkdir()
+                    shutil.copytree(legacy, copied)
+                    manifest_path = copied / "diagnosis-manifest.json"
+                    changed_manifest = json.loads(
+                        manifest_path.read_text("utf-8")
+                    )
+                    changed_manifest["runtime"][field] = replacement
+                    manifest_path.write_bytes(canonical_json(changed_manifest))
+                    self.assertNotEqual(
+                        verify_v02(copied)["artifact_integrity"]["status"],
+                        "VERIFIED",
+                    )
 
     def test_missing_or_inconsistent_canonical_document_never_publishes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -630,6 +655,42 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(stdout, "")
             self.assertIn("installed extractor versions", stderr)
             self.assertFalse(any(output.rglob("diagnosis-manifest.json")))
+
+    def test_v03_diagnosis_runtime_provenance_is_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(
+                root / "observations", whitespace_docling
+            )
+            diagnosis = self.publish(observation, root / "diagnoses")
+            active = json.loads(
+                (diagnosis / "diagnosis-manifest.json").read_text("utf-8")
+            )["runtime"]
+            for field, replacement in (
+                ("lockfile_sha256", "f" * 64),
+                ("package_version", "0.3.1"),
+                (
+                    "dependencies",
+                    {
+                        **active["dependencies"],
+                        "docling-core": "0.0.0",
+                    },
+                ),
+            ):
+                with self.subTest(field=field):
+                    copied = self.copy_diagnosis(
+                        diagnosis, root / field
+                    )
+                    manifest_path = copied / "diagnosis-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    manifest["runtime"][field] = replacement
+                    manifest_path.write_bytes(canonical_json(manifest))
+                    self.assertEqual(
+                        verify_diagnosis(
+                            copied, observation
+                        )["artifact_integrity"]["status"],
+                        "BROKEN",
+                    )
 
     def test_cli_errors_are_sanitized_and_use_exact_streams(self) -> None:
         for error, expected in (

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import shutil
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import redirect_stderr, redirect_stdout
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest import mock
 
@@ -20,7 +24,7 @@ from docling_core.types.doc import (
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import REQUIRED_MODEL_FILES, canonical_json
-from tiny_corpus_workbench.domain import InputError
+from tiny_corpus_workbench.domain import InputError, IntegrityError
 from tiny_corpus_workbench.v03 import (
     _apply_edits,
     _normalize_whitespace,
@@ -84,6 +88,12 @@ def docling_with_repeated_margins(source: Path, destination: Path, model_root: P
 
 
 class ControlledRevisionTests(unittest.TestCase):
+    def invoke(self, *arguments: str) -> tuple[int, str, str]:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = cli.main(list(arguments))
+        return code, stdout.getvalue(), stderr.getvalue()
+
     def observation(
         self,
         root: Path,
@@ -384,6 +394,49 @@ class ControlledRevisionTests(unittest.TestCase):
         self.assertEqual(changed["furniture"]["children"], [{"$ref": "#/texts/0"}])
         self.assertEqual(payload["texts"][0]["content_layer"], "body")
 
+    def test_repeated_boilerplate_inverse_restores_lexical_refs_by_position(
+        self,
+    ) -> None:
+        document = DoclingDocument(name="many-margin-items")
+        for index in range(12):
+            document.add_text(DocItemLabel.TEXT, f"Margin {index}")
+        payload = document.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        references = ["#/texts/10", "#/texts/11", "#/texts/2"]
+        edits = []
+        for furniture_index, reference in enumerate(references):
+            body_index = int(reference.rsplit("/", 1)[1])
+            edits.append(
+                {
+                    "target": {
+                        "ref": reference,
+                        "field": "content_layer",
+                    },
+                    "before": {
+                        "content_layer": "body",
+                        "body_index": body_index,
+                        "parent": {"$ref": "#/body"},
+                    },
+                    "after": {
+                        "content_layer": "furniture",
+                        "furniture_index": furniture_index,
+                        "parent": {"$ref": "#/furniture"},
+                    },
+                }
+            )
+        changed = _apply_edits(payload, edits)
+        inverse = [
+            {
+                "target": edit["target"],
+                "before": edit["after"],
+                "after": edit["before"],
+            }
+            for edit in edits
+        ]
+        restored = _apply_edits(changed, inverse)
+        self.assertEqual(canonical_json(restored), canonical_json(payload))
+
     def test_all_refiners_replay_forward_and_inverse_edits(self) -> None:
         cases = (
             ("TCW-D009", docling_with_refinements, SOURCE),
@@ -636,6 +689,150 @@ class ControlledRevisionTests(unittest.TestCase):
                     self.assertEqual(
                         result["base_state"]["status"], "CHANGED"
                     )
+
+    def test_refinement_runtime_provenance_is_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
+        ):
+            root = Path(directory)
+            observation, diagnosis, revision = self.approve_rule(
+                root / "base", "TCW-D009"
+            )
+            for field, replacement in (
+                ("lockfile_sha256", "f" * 64),
+                ("package_version", "0.3.1"),
+                (
+                    "dependencies",
+                    {
+                        **RUNTIME["dependencies"],
+                        "docling-core": "0.0.0",
+                    },
+                ),
+            ):
+                with self.subTest(field=field):
+                    copied = self.copy_record(revision, root / field)
+                    manifest_path = copied / "refinement-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    manifest["runtime"][field] = replacement
+                    manifest_path.write_bytes(canonical_json(manifest))
+                    self.assertEqual(
+                        verify_refinement(
+                            copied, diagnosis, observation
+                        )["artifact_integrity"]["status"],
+                        "BROKEN",
+                    )
+
+    def test_refinement_destination_collision_and_concurrency_are_atomic(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
+        ):
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+            finding = next(
+                item for item in findings["findings"] if item["rule_id"] == "TCW-D009"
+            )
+            draft = root / "approved.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding["finding_id"], observation, draft
+            )
+            decision = json.loads(draft.read_text("utf-8"))
+            decision["decision"] = {
+                "state": "APPROVED",
+                "decided_by": "test-owner",
+                "note": None,
+            }
+            draft.write_bytes(canonical_json(decision))
+            fixed_datetime = mock.Mock()
+            fixed_datetime.now.return_value = datetime(
+                2026, 7, 24, 12, 0, tzinfo=UTC
+            )
+            fixed_uuid = mock.Mock(hex="a" * 32)
+
+            output = root / "collision"
+            with mock.patch(
+                "tiny_corpus_workbench.v03.datetime", fixed_datetime
+            ), mock.patch(
+                "tiny_corpus_workbench.v03.uuid.uuid4",
+                return_value=fixed_uuid,
+            ):
+                winner = cli._diagnosis_callable(
+                    "v03", "resolve_refinement"
+                )(draft, diagnosis, observation, output)
+                before = {
+                    path.relative_to(winner).as_posix(): path.read_bytes()
+                    for path in winner.rglob("*")
+                    if path.is_file()
+                }
+                code, stdout, _ = self.invoke(
+                    "resolve-refinement",
+                    str(draft),
+                    "--diagnosis",
+                    str(diagnosis),
+                    "--base",
+                    str(observation),
+                    "--output-root",
+                    str(output),
+                )
+            self.assertEqual(code, 5)
+            self.assertEqual(stdout, "")
+            self.assertEqual(
+                before,
+                {
+                    path.relative_to(winner).as_posix(): path.read_bytes()
+                    for path in winner.rglob("*")
+                    if path.is_file()
+                },
+            )
+
+            concurrent_output = root / "concurrent"
+
+            def resolve_once() -> tuple[int, Path | None]:
+                try:
+                    published = cli._diagnosis_callable(
+                        "v03", "resolve_refinement"
+                    )(
+                        draft,
+                        diagnosis,
+                        observation,
+                        concurrent_output,
+                    )
+                    return 0, published
+                except IntegrityError:
+                    return 5, None
+
+            with mock.patch(
+                "tiny_corpus_workbench.v03.datetime", fixed_datetime
+            ), mock.patch(
+                "tiny_corpus_workbench.v03.uuid.uuid4",
+                return_value=fixed_uuid,
+            ):
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    outcomes = list(
+                        executor.map(lambda _: resolve_once(), range(2))
+                    )
+            self.assertEqual(sorted(code for code, _ in outcomes), [0, 5])
+            self.assertEqual(
+                len(
+                    [
+                        published
+                        for code, published in outcomes
+                        if code == 0 and isinstance(published, Path)
+                    ]
+                ),
+                1,
+            )
+            self.assertFalse(
+                any(
+                    path.name.startswith(".staging-")
+                    for path in concurrent_output.rglob("*")
+                )
+            )
 
     def test_approve_verify_rediagnose_chain_and_reject(self) -> None:
         with tempfile.TemporaryDirectory() as directory, mock.patch(

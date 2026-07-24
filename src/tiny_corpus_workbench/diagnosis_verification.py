@@ -17,6 +17,7 @@ from tiny_corpus_workbench.diagnosis import (
     RULESET_PARAMETER_HASH,
     SCHEMA_ROOT,
     SUMMARY_BY_RULE,
+    V02_LOCKFILE_SHA256,
     SEVERITY_BY_RULE,
     _summary,
     compute_diagnosis_id,
@@ -258,9 +259,11 @@ def verify_diagnosis(
             issues.append(_issue("REFERENCE_MISMATCH", None, "artifact roles differ"))
         try:
             runtime_ok = (
-                manifest["runtime"]["python"] == active_runtime["python"]
-                and manifest["runtime"]["implementation"]
-                == active_runtime["implementation"]
+                manifest["runtime"]["python"].startswith("3.12")
+                and manifest["runtime"]["implementation"] == "CPython"
+                and manifest["runtime"]["lockfile_sha256"]
+                == V02_LOCKFILE_SHA256
+                and manifest["runtime"]["package_version"] == "0.2.0"
                 and manifest["runtime"]["dependencies"]
                 == active_runtime["dependencies"]
             )
