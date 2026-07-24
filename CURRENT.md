@@ -40,9 +40,8 @@ Future work may use whichever sound engineering practices fit the task.
   site, compilation, checkout portability, and diff hygiene also pass.
 - The documented whitespace workflow passes `observe → diagnose → draft →
   resolve → verify` with derivation and reversibility both `MATCH`.
-- The latest independent review found only the documentation inaccuracies
-  corrected here. Final independent review remains pending until this
-  correction is verified.
+- Independent milestone review returned `PASS` on 2026-07-24 after all
+  blocking implementation and documentation findings were addressed.
 - Hosted pull-request checks and owner publication approval remain required
   before release.
 - The project website remains a separate static publication surface at
@@ -97,9 +96,11 @@ landing page, the user guide, and the learning hub and lesson. These public and
 learning changes are part of milestone acceptance, not optional release
 polish.
 
-The implementation follows `docs/plans/v0.3-controlled-revisions.md`. The next
-step is independent milestone review. Release claims remain withheld until
-review, hosted checks, publication approval, and post-release verification.
+The implementation follows `docs/plans/v0.3-controlled-revisions.md`.
+Independent milestone review returned `PASS`. The next step requires owner
+approval to push the milestone branch and open a draft pull request. Release
+claims remain withheld until hosted checks, publication approval, and
+post-release verification.
 
 ## Latest completed milestone
 
