@@ -1187,7 +1187,7 @@ def diagnose(root: Path, output_root: Path) -> Path:
                 "python": runtime["python"],
                 "implementation": runtime["implementation"],
                 "lockfile_sha256": runtime["lockfile_sha256"],
-                "package_version": runtime["package_version"],
+                "package_version": "0.2.0",
                 "dependencies": runtime["dependencies"],
             },
             "ruleset": {
