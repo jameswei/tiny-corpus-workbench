@@ -27,8 +27,21 @@ Future work may use whichever sound engineering practices fit the task.
 - Milestone v0.3, Controlled Revisions, is active by owner approval.
 - Its accepted implementation contract is
   `docs/plans/v0.3-controlled-revisions.md`.
-- No v0.3 product implementation has started. The accepted handoff routes the
-  milestone to a later `plan-build-review` workflow.
+- The v0.3 implementation is complete locally on
+  `milestone/v0.3-controlled-revisions`.
+- The branch contains v0.3 diagnosis subjects, D009 and D010, explicit
+  refinement decisions, three fixed refiners, reversible prepared revisions,
+  chained history, schemas, fixtures, tests, and required public and learning
+  updates.
+- v0.3 is not released. The README released-milestone table intentionally
+  stops at v0.2.
+- Local acceptance passes 140 unit tests and 145 complete tests, including the
+  real offline extractor matrix. Fixture generation, registries, the static
+  site, compilation, checkout portability, and diff hygiene also pass.
+- The documented whitespace workflow passes `observe → diagnose → draft →
+  resolve → verify` with derivation and reversibility both `MATCH`.
+- Independent milestone review, hosted pull-request checks, and owner
+  publication approval remain required before release.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -81,11 +94,9 @@ landing page, the user guide, and the learning hub and lesson. These public and
 learning changes are part of milestone acceptance, not optional release
 polish.
 
-The next implementation workflow should create
-`milestone/v0.3-controlled-revisions` from the current clean `main`, follow
-`docs/plans/v0.3-controlled-revisions.md`, and withhold reviewer `PASS` until
-the complete code, verification, documentation, learning, website, and release
-contracts pass.
+The implementation follows `docs/plans/v0.3-controlled-revisions.md`. The next
+step is independent milestone review. Release claims remain withheld until
+review, hosted checks, publication approval, and post-release verification.
 
 ## Latest completed milestone
 

@@ -1,8 +1,9 @@
 # Evidence-Based Diagnosis
 
-Milestone v0.2 adds deterministic diagnosis over one verified extraction
-observation. Diagnosis reads only the canonical `DoclingDocument`. It does not
-use the MarkItDown comparison to produce findings.
+Milestone v0.2 introduced deterministic diagnosis over one verified extraction
+observation. Milestone v0.3 also accepts one verified applied revision and adds
+two refinable rules. Diagnosis reads only the canonical `DoclingDocument`. It
+does not use the MarkItDown comparison to produce findings.
 
 Diagnosis is local, offline, and read-only. It does not need model files. It
 never changes the source, observation, or extraction artifacts.
@@ -32,19 +33,20 @@ Compare it with its observation and rerun all rules:
 
 ```bash
 uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY \
-  --observation OBSERVATION_DIRECTORY
+  --subject DOCUMENT_DIRECTORY
 ```
 
-`diagnose` accepts an intact v0.1 observation. The Docling result must be
-`SUCCESS` or `PARTIAL_SUCCESS`, and canonical JSON must be available. The
-command runs all eight rules. v0.2 has no rule or threshold options.
+`diagnose` accepts an intact v0.1 observation or an intact applied v0.3
+revision. An observation's Docling result must be `SUCCESS` or
+`PARTIAL_SUCCESS`. The command runs all ten rules. It has no rule or threshold
+options.
 
 ## Published artifacts
 
 The output path is:
 
 ```text
-<output-root>/<source-key>/<observation-run-id>/<diagnosis-run-id>/
+<output-root>/<source-key>/<subject-id>/<diagnosis-run-id>/
   diagnosis-manifest.json
   findings.json
   report.md
@@ -101,6 +103,8 @@ Unicode whitespace, and removed outer whitespace. It preserves case.
 | `TCW-D006 ORPHAN_CAPTION` | `WARNING` | A caption has no valid incoming table or picture link, or a declared caption link is invalid. |
 | `TCW-D007 REPEATED_PAGE_MARGIN_TEXT` | `WARNING` | PDF body text of 3–200 characters repeats in the same outer 10% band on at least three pages. |
 | `TCW-D008 MISSING_PDF_PROVENANCE` | `WARNING` | A PDF text, table, or picture item has no provenance entry. |
+| `TCW-D009 NORMALIZABLE_WHITESPACE` | `INFO` | Eligible body text or a body table cell has normalizable line endings or horizontal whitespace. |
+| `TCW-D010 POSSIBLE_LINE_END_HYPHENATION` | `WARNING` | Eligible body text or a table cell has one deterministic lowercase line-end hyphenation candidate. |
 
 D007 converts boxes to a top-left origin and groups top and bottom occurrences
 separately. Furniture content is excluded. D006 does not report a table or
@@ -121,8 +125,8 @@ The manifest status is:
 their defined mechanical conditions.
 
 Severity communicates the condition type. It does not authorize a change.
-Diagnosis neither modifies content nor approves a repair. Controlled revisions
-begin in a later milestone.
+Diagnosis neither modifies content nor approves a repair. See the
+[Controlled Revisions guide](controlled-revisions.md) for explicit decisions.
 
 ## Verification
 

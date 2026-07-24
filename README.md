@@ -43,9 +43,9 @@ diagnosis + explicit refinement
 prepared document revision
 ```
 
-The current release covers source capture, extraction observation,
-verification, and evidence-based diagnosis. Controlled refinement and prepared
-revisions remain future work.
+The current milestone implementation covers source capture, extraction
+observation, evidence-based diagnosis, explicit refinement decisions, and
+immutable prepared revisions. The v0.3 release has not been published.
 
 ## What you can do today
 
@@ -59,10 +59,22 @@ revisions remain future work.
   deterministic rules against the canonical `DoclingDocument` JSON.
 - **Verify a diagnosis.** `tcw verify-diagnosis` checks diagnosis artifacts and
   can compare them with the original observation and a fresh rule evaluation.
+- **Draft one refinement.** `tcw draft-refinement` binds one supported finding
+  to its fixed refiner and writes a pending decision file.
+- **Resolve the decision.** `tcw resolve-refinement` records a rejection or
+  publishes one approved successor revision.
+- **Verify the revision.** `tcw verify-refinement` checks artifacts, lineage,
+  forward derivation, and exact reversal.
 
 Diagnosis publishes a separate immutable record. It does not repair a document
-or authorize a change. `NO_FINDINGS` means that none of the eight rules
+or authorize a change. `NO_FINDINGS` means that none of the ten rules
 matched; it is not proof that the document is correct.
+
+Each draft targets one finding. Edit only `decision.state`,
+`decision.decided_by`, and the optional `decision.note`. An `APPROVED` decision
+creates one prepared revision. A `REJECTED` decision records the decision and
+creates no prepared document. Diagnose each approved revision before you draft
+its successor.
 
 Verification detects changes under the project's trusted-local model. It does
 not establish authorship or authenticity.
@@ -107,7 +119,15 @@ uv run --frozen tcw observe fixtures/golden/policy-memo.pdf
 uv run --frozen tcw verify OBSERVATION_DIRECTORY
 uv run --frozen tcw diagnose OBSERVATION_DIRECTORY
 uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY \
-  --observation OBSERVATION_DIRECTORY
+  --subject OBSERVATION_DIRECTORY
+uv run --frozen tcw draft-refinement DIAGNOSIS_DIRECTORY \
+  --finding FINDING_ID --base OBSERVATION_DIRECTORY \
+  --output decision.json
+# Edit only decision.state, decision.decided_by, and decision.note.
+uv run --frozen tcw resolve-refinement decision.json \
+  --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
+uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY \
+  --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
 ```
 
 Each command prints a compact JSON result. Replace `OBSERVATION_DIRECTORY` with
@@ -121,7 +141,15 @@ and LLM clients are disabled. If the required PDF models are missing, the run
 records a failure instead of downloading them.
 
 Diagnosis needs no models or network access. Published observations and
-diagnoses are not overwritten by the CLI.
+diagnoses are not overwritten by the CLI. Refinement also runs offline. It
+changes prepared `text`, never `orig`, and preserves provenance and stable
+document references. Each applied transformation stores its before-and-after
+hashes and reversible edit data. Local hashes provide tamper evidence under
+the trusted-local model; they do not prove authorship or authenticity.
+
+See the [Controlled Revisions guide](docs/controlled-revisions.md) for the
+supported findings, artifact layout, chaining rules, verification states, and
+integrity limits.
 
 ## Learning
 
