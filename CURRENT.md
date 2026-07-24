@@ -35,13 +35,16 @@ Future work may use whichever sound engineering practices fit the task.
   updates.
 - v0.3 is not released. The README released-milestone table intentionally
   stops at v0.2.
-- Local acceptance passes 149 unit tests and 154 complete tests, including the
+- Local acceptance passes 155 unit tests and 161 complete tests, including the
   real offline extractor matrix. Fixture generation, registries, the static
   site, compilation, checkout portability, and diff hygiene also pass.
 - The documented whitespace workflow passes `observe → diagnose → draft →
   resolve → verify` with derivation and reversibility both `MATCH`.
-- Independent milestone review, hosted pull-request checks, and owner
-  publication approval remain required before release.
+- The latest independent review found only the documentation inaccuracies
+  corrected here. Final independent review remains pending until this
+  correction is verified.
+- Hosted pull-request checks and owner publication approval remain required
+  before release.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 

@@ -55,7 +55,7 @@ immutable prepared revisions. The v0.3 release has not been published.
 - **Verify an observation.** `tcw verify` checks the published structure,
   artifact hashes, and recorded document relationships without changing the
   record.
-- **Diagnose the canonical document.** `tcw diagnose` evaluates eight fixed,
+- **Diagnose the canonical document.** `tcw diagnose` evaluates ten fixed,
   deterministic rules against the canonical `DoclingDocument` JSON.
 - **Verify a diagnosis.** `tcw verify-diagnosis` checks diagnosis artifacts and
   can compare them with the original observation and a fresh rule evaluation.
