@@ -85,9 +85,10 @@
         "model_inventory": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["required", "inventory_hash"],
+          "required": ["required", "path", "inventory_hash"],
           "properties": {
             "required": {"type": "boolean"},
+            "path": {"type": "string", "minLength": 1},
             "inventory_hash": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]}
           }
         }

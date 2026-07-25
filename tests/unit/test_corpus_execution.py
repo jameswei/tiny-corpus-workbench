@@ -14,7 +14,10 @@ from tiny_corpus_workbench.corpus import (
     _tree_inventory,
     load_corpus_spec,
 )
-from tiny_corpus_workbench.corpus_execution import execute_corpus
+from tiny_corpus_workbench.corpus_execution import (
+    execute_corpus,
+    recheck_corpus_inputs,
+)
 from tiny_corpus_workbench.domain import (
     ExitCode,
     IntegrityError,
@@ -743,6 +746,60 @@ class CorpusExecutionTests(unittest.TestCase):
                     diagnose_member=lambda *_: outside,
                     runtime_loader=_runtime,
                     model_inventory_loader=_models,
+                )
+
+    def test_final_input_recheck_detects_source_and_model_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            admitted = self._admit(root, include_pdf=True)
+            staging = root / "stage"
+            staging.mkdir()
+            evidence = FakeEvidence(
+                {
+                    "a-member": "complete",
+                    "pdf-member": "complete",
+                    "z-member": "complete",
+                }
+            )
+            result = self._execute(admitted, staging, evidence)
+            recheck_corpus_inputs(
+                result,
+                model_inventory_loader=_models,
+            )
+            admitted.members[0]["source_path"].write_text("# Changed\n", "utf-8")
+            with self.assertRaisesRegex(
+                IntegrityError, "source changed during corpus execution"
+            ):
+                recheck_corpus_inputs(
+                    result,
+                    model_inventory_loader=_models,
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            admitted = self._admit(root, include_pdf=True)
+            staging = root / "stage"
+            staging.mkdir()
+            evidence = FakeEvidence(
+                {
+                    "a-member": "complete",
+                    "pdf-member": "complete",
+                    "z-member": "complete",
+                }
+            )
+            result = self._execute(admitted, staging, evidence)
+
+            def changed_models(root: Path, *, required: bool) -> dict:
+                value = _models(root, required=required)
+                value["inventory_hash"] = HASH_C
+                return value
+
+            with self.assertRaisesRegex(
+                IntegrityError, "model inventory changed"
+            ):
+                recheck_corpus_inputs(
+                    result,
+                    model_inventory_loader=changed_models,
                 )
 
 

@@ -139,7 +139,11 @@ def _valid_manifest() -> dict:
                     "text_hints": "extension-media-type-utf8",
                 },
             },
-            "model_inventory": {"required": False, "inventory_hash": None},
+            "model_inventory": {
+                "required": False,
+                "path": "/tmp/models",
+                "inventory_hash": None,
+            },
         },
         "summary": {"member_count": 1, "complete": 1, "partial": 0, "failed": 0},
         "members": [

@@ -55,6 +55,89 @@ class CorpusExecutionResult:
     input_capture: dict[str, Any]
 
 
+def recheck_corpus_inputs(
+    result: CorpusExecutionResult,
+    *,
+    model_inventory_loader: ModelInventoryLoader = inventory_models,
+) -> None:
+    """Require every captured external input to match immediately before publish."""
+
+    capture = result.input_capture
+    specification = capture["specification"]
+    try:
+        path = specification["path"]
+        metadata = path.stat()
+        signature = (
+            metadata.st_dev,
+            metadata.st_ino,
+            metadata.st_size,
+            metadata.st_mtime_ns,
+            metadata.st_ctime_ns,
+        )
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or signature != specification["signature"]
+            or sha256_file(path) != specification["sha256"]
+        ):
+            raise OSError
+    except OSError as error:
+        raise IntegrityError(
+            "corpus specification changed during corpus execution"
+        ) from error
+
+    for source in capture["sources"]:
+        try:
+            path = source["path"]
+            metadata = path.stat()
+            signature = (
+                metadata.st_dev,
+                metadata.st_ino,
+                metadata.st_size,
+                metadata.st_mtime_ns,
+                metadata.st_ctime_ns,
+            )
+            if (
+                path.is_symlink()
+                or not path.is_file()
+                or signature != source["signature"]
+                or metadata.st_size != source["size"]
+                or sha256_file(path) != source["sha256"]
+            ):
+                raise OSError
+        except OSError as error:
+            raise IntegrityError(
+                "member source changed during corpus execution"
+            ) from error
+
+    for revision in capture["revision_inventories"]:
+        try:
+            current = {
+                name: _tree_inventory(root, f"revision {name}")
+                for name, root in revision["roots"].items()
+            }
+        except Exception as error:
+            raise IntegrityError(
+                "revision bundle changed during corpus execution"
+            ) from error
+        if current != revision["inventories"]:
+            raise IntegrityError(
+                "revision bundle changed during corpus execution"
+            )
+
+    model_identity = capture["model_identity"]
+    model_root = capture["model_root"]
+    _, current_model_identity = _model_capture(
+        model_root,
+        required=model_identity["required"],
+        loader=model_inventory_loader,
+    )
+    if current_model_identity != model_identity:
+        raise IntegrityError(
+            "Docling model inventory changed during corpus execution"
+        )
+
+
 def _load_defaults() -> tuple[
     Observe,
     Diagnose,
@@ -337,6 +420,7 @@ def _model_capture(
         }
     manifest_value = {
         "required": required,
+        "path": str(Path(os.path.abspath(os.fspath(model_root)))),
         "inventory_hash": inventory["inventory_hash"],
     }
     identity = {

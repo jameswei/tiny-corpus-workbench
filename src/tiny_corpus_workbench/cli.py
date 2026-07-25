@@ -84,6 +84,21 @@ def _diagnosis_callable(module_name: str, name: str) -> Any:
     return function
 
 
+def _corpus_callable(module_name: str, name: str) -> Any:
+    try:
+        module = importlib.import_module(f"tiny_corpus_workbench.{module_name}")
+        function = getattr(module, name)
+    except Exception as error:
+        raise RuntimeContractError(
+            "bundled corpus/schema runtime is unavailable or incompatible"
+        ) from error
+    if not callable(function):
+        raise RuntimeContractError(
+            "bundled corpus/schema runtime is unavailable or incompatible"
+        )
+    return function
+
+
 def _validate_staged_schemas(root: Path) -> None:
     _verification_callable("validate_staged_schemas")(root)
 
@@ -212,6 +227,30 @@ def parser() -> argparse.ArgumentParser:
     )
     verify_refinement.add_argument("--diagnosis", type=Path)
     verify_refinement.add_argument("--base", type=Path)
+    inspect_corpus = commands.add_parser(
+        "inspect-corpus",
+        help="publish one static inspection report for an explicit local corpus",
+    )
+    inspect_corpus.add_argument(
+        "corpus_spec", metavar="CORPUS_SPEC", type=Path
+    )
+    inspect_corpus.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("build/corpus-inspection"),
+    )
+    inspect_corpus.add_argument(
+        "--docling-artifacts",
+        type=Path,
+        default=Path(".cache/docling/models"),
+    )
+    verify_corpus = commands.add_parser(
+        "verify-corpus", help="read and verify one corpus inspection"
+    )
+    verify_corpus.add_argument(
+        "corpus_directory", metavar="CORPUS_DIRECTORY", type=Path
+    )
+    verify_corpus.add_argument("--spec", metavar="CORPUS_SPEC", type=Path)
     return root
 
 
@@ -536,6 +575,71 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "inspect-corpus":
+        try:
+            command = _corpus_callable(
+                "corpus_publication", "inspect_corpus"
+            )
+            published = command(
+                args.corpus_spec,
+                args.output_root,
+                args.docling_artifacts,
+            )
+            verify = _corpus_callable(
+                "corpus_verification", "verify_corpus"
+            )
+            verification = verify(published.directory)
+            if verification["artifact_integrity"]["status"] != "VERIFIED":
+                raise IntegrityError(
+                    "published corpus inspection failed verification"
+                )
+            line = {
+                "corpus_id": published.corpus_id,
+                "manifest": str(published.manifest_path.resolve()),
+                "member_count": published.member_count,
+                "run_id": published.run_id,
+                "snapshot_id": published.snapshot_id,
+                "status": published.status,
+            }
+        except WorkbenchError as error:
+            print(sanitize_message(error), file=sys.stderr)
+            return int(error.exit_code)
+        except Exception as error:
+            print(
+                f"internal corpus inspection failure: {sanitize_message(error)}",
+                file=sys.stderr,
+            )
+            return int(ExitCode.INTERNAL)
+        print(json.dumps(line, sort_keys=True, separators=(",", ":")))
+        return published.exit_code
+    if args.command == "verify-corpus":
+        try:
+            command = _corpus_callable(
+                "corpus_verification", "verify_corpus"
+            )
+            verification = command(args.corpus_directory, args.spec)
+        except WorkbenchError as error:
+            print(sanitize_message(error), file=sys.stderr)
+            return int(error.exit_code)
+        except Exception as error:
+            print(
+                f"internal corpus verifier failure: {sanitize_message(error)}",
+                file=sys.stderr,
+            )
+            return int(ExitCode.INTERNAL)
+        print(
+            json.dumps(
+                verification,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+        return (
+            int(ExitCode.SUCCESS)
+            if verification["artifact_integrity"]["status"] == "VERIFIED"
+            else int(ExitCode.INTEGRITY)
+        )
     if args.command == "verify":
         try:
             verify_command = _verification_callable("verify_command")
