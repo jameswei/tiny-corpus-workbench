@@ -18,6 +18,7 @@ from tiny_corpus_workbench.artifacts import canonical_json
 from tiny_corpus_workbench.corpus_publication import inspect_corpus
 from tiny_corpus_workbench.corpus_verification import verify_corpus
 from tiny_corpus_workbench.domain import IntegrityError
+from tiny_corpus_workbench.source import sha256_file
 
 
 SECRET = "PRIVATE SOURCE SENTENCE MUST NOT APPEAR"
@@ -241,6 +242,59 @@ class CorpusWorkflowTests(unittest.TestCase):
                         verify_corpus(copied)["artifact_integrity"]["status"],
                         "VERIFIED",
                     )
+
+    def test_encoded_control_report_link_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            _, published = self.publish(root)
+            report_path = published.directory / "report/index.html"
+            report = report_path.read_text("utf-8").replace(
+                'href="styles.css"',
+                'href="%0astyles.css"',
+                1,
+            )
+            report_path.write_text(report, "utf-8")
+            manifest_path = published.directory / "corpus-manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            descriptor = next(
+                item
+                for item in manifest["artifacts"]
+                if item["path"] == "report/index.html"
+            )
+            descriptor["size"] = report_path.stat().st_size
+            descriptor["sha256"] = sha256_file(report_path)
+            manifest_path.write_bytes(canonical_json(manifest))
+            verification = verify_corpus(published.directory)
+            self.assertEqual(
+                verification["artifact_integrity"]["status"],
+                "INTEGRITY_MISMATCH",
+            )
+            self.assertTrue(
+                any(
+                    issue["code"] == "UNSAFE_REFERENCE"
+                    and "encoded control character" in issue["message"]
+                    for issue in verification["artifact_integrity"]["issues"]
+                )
+            )
+
+    def test_manifest_date_time_format_is_enforced(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            _, published = self.publish(root)
+            manifest_path = published.directory / "corpus-manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["created_at"] = "not-a-date-time"
+            manifest_path.write_bytes(canonical_json(manifest))
+            verification = verify_corpus(published.directory)
+            self.assertEqual(
+                verification["artifact_integrity"]["status"], "BROKEN"
+            )
+            self.assertTrue(
+                any(
+                    issue["code"] == "MANIFEST_INVALID"
+                    for issue in verification["artifact_integrity"]["issues"]
+                )
+            )
 
     def test_live_input_drift_is_advisory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

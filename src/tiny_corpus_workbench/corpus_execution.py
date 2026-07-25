@@ -296,6 +296,53 @@ def _safe_regular_file(root: Path, relative: str) -> bool:
         return False
 
 
+def _extractor_artifacts_available(
+    root: Path,
+    manifest: dict[str, Any],
+    name: str,
+) -> bool:
+    expected = {
+        "docling": {"docling/document.json", "docling/document.md"},
+        "markitdown": {"markitdown/document.md"},
+    }[name]
+    extractor = next(
+        (
+            item
+            for item in manifest.get("extractors", [])
+            if isinstance(item, dict) and item.get("name") == name
+        ),
+        None,
+    )
+    if extractor is None or not isinstance(extractor.get("artifacts"), list):
+        return False
+    descriptors = extractor["artifacts"]
+    if (
+        len(descriptors) != len(expected)
+        or {
+            item.get("path")
+            for item in descriptors
+            if isinstance(item, dict)
+        }
+        != expected
+    ):
+        return False
+    for descriptor in descriptors:
+        relative = descriptor["path"]
+        path = root / relative
+        try:
+            if (
+                not _safe_regular_file(root, relative)
+                or type(descriptor.get("size")) is not int
+                or not isinstance(descriptor.get("sha256"), str)
+                or path.stat().st_size != descriptor["size"]
+                or sha256_file(path) != descriptor["sha256"]
+            ):
+                return False
+        except OSError:
+            return False
+    return True
+
+
 def _source_capture(member: dict[str, Any]) -> dict[str, Any]:
     path = member["source_path"]
     try:
@@ -862,11 +909,20 @@ def execute_corpus(
             docling_claimed, docling_error = _extractor_state(
                 observation, "docling"
             )
-            markitdown_available, markitdown_error = _extractor_state(
+            markitdown_claimed, markitdown_error = _extractor_state(
                 observation, "markitdown"
             )
-            docling_available = docling_claimed and _safe_regular_file(
-                observation_root, "docling/document.json"
+            docling_available = (
+                docling_claimed
+                and _extractor_artifacts_available(
+                    observation_root, observation, "docling"
+                )
+            )
+            markitdown_available = (
+                markitdown_claimed
+                and _extractor_artifacts_available(
+                    observation_root, observation, "markitdown"
+                )
             )
             observation_record = {
                 "status": observation.get("status", "FAILED"),

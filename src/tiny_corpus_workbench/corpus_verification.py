@@ -25,6 +25,7 @@ from tiny_corpus_workbench.corpus_report import render_report, render_stylesheet
 from tiny_corpus_workbench.domain import InputError, RuntimeContractError
 from tiny_corpus_workbench.runtime import active_locked_runtime
 from tiny_corpus_workbench.source import sha256_file
+from tiny_corpus_workbench.verification import FORMAT_CHECKER
 
 
 def _validator(name: str) -> Draft202012Validator:
@@ -40,7 +41,11 @@ def _validator(name: str) -> Draft202012Validator:
                 schema["$id"], Resource.from_contents(schema)
             )
         Draft202012Validator.check_schema(schemas[name])
-        return Draft202012Validator(schemas[name], registry=registry)
+        return Draft202012Validator(
+            schemas[name],
+            registry=registry,
+            format_checker=FORMAT_CHECKER,
+        )
     except Exception as error:
         raise RuntimeContractError(
             "bundled corpus verification schema is unavailable"
@@ -275,7 +280,7 @@ def _check_report_links(
         for value in revision.get("bundle_paths", {}).values():
             if isinstance(value, str):
                 external_roots.append(
-                    (report_directory / unquote(value)).resolve(strict=False)
+                    (report_directory / value).resolve(strict=False)
                 )
     for link in parser.links:
         if any(ord(character) < 0x20 for character in link):
@@ -288,6 +293,20 @@ def _check_report_links(
             )
             continue
         split = urlsplit(link)
+        decoded_path = unquote(split.path)
+        decoded_fragment = unquote(split.fragment)
+        if any(
+            ord(character) < 0x20
+            for character in decoded_path + decoded_fragment
+        ):
+            issues.append(
+                _issue(
+                    "UNSAFE_REFERENCE",
+                    "report/index.html",
+                    "report link contains an encoded control character",
+                )
+            )
+            continue
         if split.scheme or split.netloc or split.query or split.path.startswith("/"):
             issues.append(
                 _issue(
@@ -307,7 +326,7 @@ def _check_report_links(
                     )
                 )
             continue
-        target = (report_directory / unquote(split.path)).resolve(strict=False)
+        target = (report_directory / decoded_path).resolve(strict=False)
         inside_corpus = target == root or target.is_relative_to(root)
         inside_external = any(
             target == external or target.is_relative_to(external)
@@ -683,7 +702,7 @@ def _advisories(
     for revision in manifest["revisions"]:
         states = {
             name: _state_for_tree(
-                (report_directory / unquote(revision["bundle_paths"][name])).resolve(
+                (report_directory / revision["bundle_paths"][name]).resolve(
                     strict=False
                 ),
                 revision["inventory_fingerprints"][name],

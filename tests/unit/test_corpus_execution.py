@@ -23,6 +23,7 @@ from tiny_corpus_workbench.domain import (
     IntegrityError,
     RuntimeContractError,
 )
+from tiny_corpus_workbench.source import sha256_file
 
 
 HASH_A = "a" * 64
@@ -63,6 +64,14 @@ def _metrics(value: int) -> dict[str, object]:
         "normalized_sha256": HASH_B,
         "anchors": {},
         **{name: value for name in NUMERIC_METRICS},
+    }
+
+
+def _artifact(path: Path, root: Path) -> dict[str, object]:
+    return {
+        "path": path.relative_to(root).as_posix(),
+        "size": path.stat().st_size,
+        "sha256": sha256_file(path),
     }
 
 
@@ -116,6 +125,7 @@ class FakeEvidence:
             "missing-canonical-both-partial",
             "missing-canonical-docling-success",
             "missing-canonical-docling-partial",
+            "missing-docling-markdown",
         }
         docling = docling_claimed and not missing_canonical
         markitdown = outcome in {
@@ -124,6 +134,7 @@ class FakeEvidence:
             "model-missing",
             "missing-canonical-both-success",
             "missing-canonical-both-partial",
+            "missing-docling-markdown",
         }
         extractors = []
         for name, available in (
@@ -166,10 +177,26 @@ class FakeEvidence:
             (published / "docling/document.json").write_text(
                 json.dumps({"text": self.secret}), "utf-8"
             )
+            if outcome != "missing-docling-markdown":
+                (published / "docling/document.md").write_text(
+                    self.secret, "utf-8"
+                )
         if markitdown:
             (published / "markitdown").mkdir()
             (published / "markitdown/document.md").write_text(
                 self.secret, "utf-8"
+            )
+        for extractor in extractors:
+            name = extractor["name"]
+            extractor_root = published / name
+            extractor["artifacts"] = (
+                [
+                    _artifact(path, published)
+                    for path in sorted(extractor_root.iterdir())
+                    if path.is_file()
+                ]
+                if extractor_root.is_dir()
+                else []
             )
         views = {
             "docling": _metrics(7) if docling_claimed else None,
@@ -456,8 +483,15 @@ class CorpusExecutionTests(unittest.TestCase):
                 ["COMPLETE", "PARTIAL", "COMPLETE"],
             )
 
-    def test_docling_availability_requires_safe_canonical_json(self) -> None:
+    def test_docling_availability_requires_safe_expected_artifacts(self) -> None:
         cases = (
+            (
+                "missing-docling-markdown",
+                "PARTIAL",
+                "PARTIAL",
+                "COMPLETE",
+                1,
+            ),
             (
                 "missing-canonical-both-success",
                 "PARTIAL",
