@@ -25,6 +25,7 @@ from docling_core.types.doc import (
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import REQUIRED_MODEL_FILES, canonical_json
 from tiny_corpus_workbench.domain import InputError, IntegrityError
+from tiny_corpus_workbench.runtime import V03_LOCKFILE_SHA256
 from tiny_corpus_workbench.v03 import (
     _apply_edits,
     _normalize_whitespace,
@@ -40,7 +41,7 @@ PDF_SOURCE = Path("fixtures/diagnosis/v0.2/repeated-margin.pdf")
 RUNTIME = {
     "python": "3.12.11",
     "implementation": "CPython",
-    "lockfile_sha256": "1" * 64,
+    "lockfile_sha256": V03_LOCKFILE_SHA256,
     "package_version": "0.3.0",
     "dependencies": {
         "docling": "2.113.0",

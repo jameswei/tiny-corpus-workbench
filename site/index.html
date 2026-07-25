@@ -75,14 +75,14 @@
           <span>Patterns across mixed formats</span>
         </li>
       </ol>
-      <p class="workflow-note">The runnable local path covers source capture, extraction observation, evidence-based diagnosis, explicit decisions, reversible transformations, prepared revisions, and read-only verification. Corpus comparison and visual exploration remain future work.</p>
+      <p class="workflow-note">The runnable local path covers source capture, extraction observation, evidence-based diagnosis, explicit decisions, reversible transformations, prepared revisions, corpus inspection, and read-only verification. The local visual workbench remains future work.</p>
     </section>
 
     <section id="capabilities" class="section" aria-labelledby="capabilities-title">
       <div class="section-heading">
         <p class="kicker">One inspectable history</p>
         <h2 id="capabilities-title">Build every capability on evidence.</h2>
-        <p>Extraction, diagnosis, and controlled revisions establish one inspectable trail. Corpus comparison extends the same product direction.</p>
+        <p>Extraction, diagnosis, controlled revisions, and static corpus comparison establish one inspectable trail. The future visual workbench can build on the same evidence.</p>
       </div>
       <div class="grid capability-grid">
         <article class="card">
@@ -101,9 +101,9 @@
           <p>Resolve one finding at a time, create immutable prepared revisions, and preserve reversible transformation history.</p>
         </article>
         <article class="card">
-          <p class="card-number">04 · Product direction</p>
+          <p class="card-number">04 · Available</p>
           <h3>Compare</h3>
-          <p>Inspect patterns across a mixed-format corpus and connect them through a loopback-only visual workbench.</p>
+          <p>Inspect a mixed-format corpus through a static offline report with evidence links, grouped findings, extractor deltas, and revision histories.</p>
         </article>
       </div>
     </section>
@@ -133,12 +133,13 @@
       <div class="section-heading">
         <p class="kicker">Local by design</p>
         <h2 id="start-title">Run the implemented path locally.</h2>
-        <p>The CLI publishes observations, diagnoses, explicit decisions, prepared revisions, and independent verification results. One approval creates one successor revision.</p>
+        <p>The CLI publishes observations, diagnoses, explicit decisions, prepared revisions, corpus reports, and independent verification results. One approval creates one successor revision.</p>
       </div>
       <div class="surface-list">
         <p><strong>CLI · Available</strong><span>Observation, diagnosis, decisions, and controlled revisions</span></p>
         <p><strong>Diagnosis report · Available</strong><span>Deterministic portable evidence</span></p>
         <p><strong>Prepared revision · Available</strong><span>Reversible, attributable transformation history</span></p>
+        <p><strong>Static corpus report · Available</strong><span>Offline navigation across explicit local members</span></p>
         <p><strong>Visual workbench · Product direction</strong><span>Local exploration on the same evidence trail</span></p>
       </div>
       <pre class="command-block"><code>uv sync --frozen --python 3.12
@@ -148,9 +149,12 @@ uv run --frozen tcw diagnose OBSERVATION_DIRECTORY
 uv run --frozen tcw draft-refinement DIAGNOSIS_DIRECTORY --finding FINDING_ID --base OBSERVATION_DIRECTORY --output decision.json
 # Edit only the decision fields, then:
 uv run --frozen tcw resolve-refinement decision.json --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
-uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY</code></pre>
+uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
+uv run --frozen tcw inspect-corpus fixtures/corpus/v0.4/golden-matrix.json
+uv run --frozen tcw verify-corpus CORPUS_DIRECTORY --spec fixtures/corpus/v0.4/golden-matrix.json</code></pre>
       <div class="resource-links">
         <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/learning/README.md">Explore all learning materials</a>
+        <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/docs/corpus-inspection-comparison.md">Read the corpus guide</a>
       </div>
     </section>
 

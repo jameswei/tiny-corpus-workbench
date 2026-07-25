@@ -79,6 +79,9 @@ jobs:
       - name: Verify fixture registry
         run: uv run --frozen --group fixtures python tools/verify_fixtures.py
 
+      - name: Verify corpus specifications
+        run: uv run --frozen python tools/verify_corpus_specs.py
+
       - name: Verify checkout portability
         run: uv run --frozen --group fixtures python tools/verify_checkout_portability.py
 
@@ -120,7 +123,7 @@ jobs:
           uv run --frozen docling-tools models download layout tableformer
           --output-dir .cache/docling/models
 
-      - name: Run full extraction suite
+      - name: Run full extraction and corpus suite
         env:
           TCW_DOCLING_ARTIFACTS: .cache/docling/models
         run: uv run --frozen --group test python -m unittest discover -s tests -v

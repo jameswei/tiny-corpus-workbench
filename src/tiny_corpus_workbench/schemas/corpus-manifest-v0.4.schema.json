@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/corpus-manifest-v0.4.schema.json",
+  "title": "tiny-corpus-workbench corpus manifest v0.4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "milestone", "corpus_id", "snapshot_id", "run_id", "created_at", "status", "input_specification", "runtime", "summary", "members", "revisions", "artifacts"],
+  "properties": {
+    "schema_version": {"const": "tcw.corpus-manifest/v0.4"},
+    "milestone": {"const": "v0.4"},
+    "corpus_id": {"$ref": "corpus-spec-v0.4.schema.json#/$defs/id"},
+    "snapshot_id": {"$ref": "#/$defs/hash"},
+    "run_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["COMPLETE", "PARTIAL", "FAILED"]},
+    "input_specification": {"$ref": "#/$defs/inputSpecification"},
+    "runtime": {"$ref": "#/$defs/runtime"},
+    "summary": {"$ref": "#/$defs/counts"},
+    "members": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/member"}},
+    "revisions": {"type": "array", "items": {"$ref": "#/$defs/revision"}},
+    "artifacts": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {"$ref": "#/$defs/artifact"}
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "relativeDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "name", "media_type", "size", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "media_type": {"enum": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/markdown", "text/plain"]},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "revisionSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "media_type", "size", "sha256"],
+      "properties": {
+        "key": {"type": "string", "minLength": 1},
+        "media_type": {"enum": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/markdown", "text/plain"]},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "inputSpecification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size", "sha256", "normalized_sha256"],
+      "properties": {
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "normalized_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "implementation", "package_version", "lockfile_sha256", "dependencies", "ruleset_id", "configurations", "model_inventory"],
+      "properties": {
+        "python": {"type": "string", "pattern": "^3\\.12"},
+        "implementation": {"const": "CPython"},
+        "package_version": {"const": "0.4.0"},
+        "lockfile_sha256": {"$ref": "#/$defs/hash"},
+        "dependencies": {"$ref": "diagnosis-manifest-v0.3.schema.json#/$defs/runtime/properties/dependencies"},
+        "ruleset_id": {"$ref": "#/$defs/hash"},
+        "configurations": {"$ref": "preparation-manifest-v0.1.schema.json#/$defs/configurations"},
+        "model_inventory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "path", "state", "inventory_hash", "files"],
+          "properties": {
+            "required": {"type": "boolean"},
+            "path": {"type": "string", "minLength": 1},
+            "state": {"enum": ["AVAILABLE", "MISSING", "INVALID", "NOT_REQUIRED"]},
+            "inventory_hash": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+            "files": {
+              "type": "array",
+              "items": {"$ref": "preparation-manifest-v0.1.schema.json#/$defs/modelFile"}
+            }
+          }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["member_count", "complete", "partial", "failed"],
+      "properties": {
+        "member_count": {"type": "integer", "minimum": 1},
+        "complete": {"type": "integer", "minimum": 0},
+        "partial": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0}
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "observation_id", "run_id", "manifest"],
+      "properties": {
+        "status": {"enum": ["SUCCESS", "PARTIAL_SUCCESS", "FAILED", "NOT_RUN"]},
+        "observation_id": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+        "run_id": {"type": ["string", "null"], "minLength": 1},
+        "manifest": {"oneOf": [{"$ref": "#/$defs/relativeDescriptor"}, {"type": "null"}]}
+      }
+    },
+    "diagnosis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "diagnosis_id", "run_id", "manifest"],
+      "properties": {
+        "status": {"enum": ["FINDINGS", "NO_FINDINGS", "FAILED", "NOT_RUN"]},
+        "diagnosis_id": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+        "run_id": {"type": ["string", "null"], "minLength": 1},
+        "manifest": {"oneOf": [{"$ref": "#/$defs/relativeDescriptor"}, {"type": "null"}]}
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["member_id", "family", "format", "status", "source", "observation", "diagnosis", "error"],
+      "properties": {
+        "member_id": {"$ref": "corpus-spec-v0.4.schema.json#/$defs/id"},
+        "family": {"$ref": "corpus-spec-v0.4.schema.json#/$defs/id"},
+        "format": {"enum": ["pdf", "docx", "md", "txt"]},
+        "status": {"enum": ["COMPLETE", "PARTIAL", "FAILED"]},
+        "source": {"$ref": "#/$defs/source"},
+        "observation": {"$ref": "#/$defs/observation"},
+        "diagnosis": {"$ref": "#/$defs/diagnosis"},
+        "error": {"oneOf": [{"$ref": "#/$defs/error"}, {"type": "null"}]}
+      }
+    },
+    "parent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "subject_id", "canonical_document_sha256"],
+      "properties": {
+        "kind": {"enum": ["OBSERVATION", "REVISION"]},
+        "subject_id": {"$ref": "#/$defs/hash"},
+        "canonical_document_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "bundlePaths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["refinement", "diagnosis", "base"],
+      "properties": {
+        "refinement": {"type": "string", "minLength": 1},
+        "diagnosis": {"type": "string", "minLength": 1},
+        "base": {"type": "string", "minLength": 1}
+      }
+    },
+    "inventoryFingerprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["refinement", "diagnosis", "base"],
+      "properties": {
+        "refinement": {"$ref": "#/$defs/hash"},
+        "diagnosis": {"$ref": "#/$defs/hash"},
+        "base": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["member_id", "revision_id", "refinement_run_id", "diagnosis_id", "parent", "source", "chain_length", "finding_id", "finding_rule", "refiner", "affected_reference_count", "prepared_document_sha256", "bundle_paths", "inventory_fingerprints"],
+      "properties": {
+        "member_id": {"$ref": "corpus-spec-v0.4.schema.json#/$defs/id"},
+        "revision_id": {"$ref": "#/$defs/hash"},
+        "refinement_run_id": {"type": "string", "minLength": 1},
+        "diagnosis_id": {"$ref": "#/$defs/hash"},
+        "parent": {"$ref": "#/$defs/parent"},
+        "source": {"$ref": "#/$defs/revisionSource"},
+        "chain_length": {"type": "integer", "minimum": 1},
+        "finding_id": {"$ref": "#/$defs/hash"},
+        "finding_rule": {"type": "string", "pattern": "^TCW-D0(0[1-9]|10)$"},
+        "refiner": {"$ref": "refinement-draft-v0.3.schema.json#/$defs/refiner"},
+        "affected_reference_count": {"type": "integer", "minimum": 1},
+        "prepared_document_sha256": {"$ref": "#/$defs/hash"},
+        "bundle_paths": {"$ref": "#/$defs/bundlePaths"},
+        "inventory_fingerprints": {"$ref": "#/$defs/inventoryFingerprints"}
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+        "message": {"type": "string", "minLength": 1, "maxLength": 500}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "media_type", "size", "sha256", "application_immutable"],
+      "properties": {
+        "path": {"enum": ["corpus-spec.json", "summary.json", "report/index.html", "report/styles.css"]},
+        "role": {"enum": ["normalized-corpus-specification", "corpus-summary", "corpus-report", "corpus-stylesheet"]},
+        "media_type": {"enum": ["application/json", "text/html", "text/css"]},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "application_immutable": {"const": true}
+      }
+    }
+  }
+}

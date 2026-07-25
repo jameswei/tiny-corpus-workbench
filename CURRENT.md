@@ -54,7 +54,56 @@ Future work may use whichever sound engineering practices fit the task.
   [Pages deployment](https://github.com/jameswei/tiny-corpus-workbench/actions/runs/30099689758)
   passed on the same commit, and the live v0.3 site was verified on
   2026-07-25.
-- No later milestone is active. The roadmap does not activate one.
+- Milestone v0.4, Corpus Inspection and Comparison, is active by explicit
+  owner approval. Its accepted implementation contract is
+  `docs/plans/v0.4-corpus-inspection-comparison.md`.
+- Work continues on `milestone/v0.4-corpus-inspection-comparison`, which
+  started from clean `main` at `4e7e6a0`.
+- The implementation, schemas, fixtures, tests, user guide, learning lesson,
+  CI changes, and website update are complete locally. This does not claim
+  that v0.4 is reviewed, merged, or released.
+- Local acceptance passes 203 unit tests and 214 complete tests, including the
+  real offline extractor and corpus matrices. Fixture generation, registries,
+  the static site, compilation, clean-checkout portability, and diff hygiene
+  also pass.
+- The golden corpus completes all 12 members with both extractor views and
+  diagnoses. It reports exactly nine D009 findings in the three TXT members
+  and no other finding.
+- The quality corpus completes all five members and covers exactly D002, D003,
+  D004, D005, D007, D009, and D010. Explicit D009 revision comparison,
+  two-step revision history, and missing-model partial publication also pass.
+- Self-contained corpus verification returns `VERIFIED`. With the original
+  golden specification, all source, model, and specification advisory states
+  return `MATCH`.
+- Copilot review identified three integrity gaps: claimed extractor
+  availability did not require every expected artifact descriptor to match,
+  percent-encoded link control characters were not rejected after decoding,
+  and corpus verification omitted the shared format checker. Follow-up review
+  found the same checker omission in the execution and publication validator
+  factories. All corpus runtime validators now use the shared checker. The
+  five findings have focused regression coverage and pass locally; hosted
+  confirmation is pending.
+- A final owner-requested contract audit found additional corpus composition
+  gaps before merge. The verifier did not compare the recorded runtime,
+  snapshot, nested manifest descriptors, or nested observation and diagnosis
+  identities. A duplicate family-format cell could also hide one member, and
+  a symbolic-link model directory could become a partial result. The
+  implementation now recomputes those identities, records and validates the
+  exact model inventory, lists every matrix member, rejects unsafe paths with
+  exit `5`, and completes self-verification before the atomic publish rename.
+  Focused tamper, concurrent-publication, no-invalid-publication, link-safety,
+  and input-drift tests pass.
+- Independent final review found that the HTML extractor table showed both raw
+  views but omitted the exact deltas already present in `summary.json`. The
+  report now shows every numeric Docling-minus-MarkItDown delta and the exact
+  normalized-equality state. Focused report coverage and the complete local
+  suite pass. Refreshed reviewer and hosted confirmation are pending.
+- The compatibility spike was rerun from exported `v0.1.0`, `v0.2.0`, and
+  `v0.3.0` source trees under their locked environments. All 12 v0.1 golden
+  observations, three representative v0.2 diagnoses, and representative v0.3
+  diagnosis, applied, rejected, and chained revision records verify under
+  v0.4. Rerunning diagnosis over the old applied revision and creating a new
+  v0.4 successor also pass with the active v0.4 package and lock identity.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -87,6 +136,29 @@ downstream concerns and remain outside the initial project.
 Original sources and raw extraction artifacts remain immutable. Diagnosis does
 not authorize mutation, and interpretive refinements require explicit human
 confirmation.
+
+## Active milestone
+
+Milestone v0.4 adds one local, offline command that processes an explicit small
+corpus through the released observation and diagnosis contracts. It aggregates
+source-text-free evidence and publishes a static navigable report. Explicitly
+listed existing applied revisions can be compared as read-only inputs.
+
+The milestone does not draft, approve, reject, or apply refinements. It adds no
+directory discovery, network input, service, database, interactive user
+interface, public Python API, RAG processing, or production orchestration.
+
+The mandatory compatibility spike passes without changing third-party
+dependency pins or v0.3 artifact meaning. Representative v0.3 diagnosis,
+applied revision, rejected decision, and chained revision records created
+under the released runtime verify under v0.4. A new v0.4 successor revision
+also verifies, and v0.1 observations and v0.2 diagnoses remain verifiable.
+
+Implementation is ready for refreshed hosted checks and independent review.
+Milestone completion still requires reviewer `PASS`, resolved actionable
+automated feedback, merge, publication of `v0.4.0`, release-target CI and
+Pages verification, and the docs-only release closeout. The owner has already
+approved delivery after these gates pass. No later milestone is active.
 
 ## Latest completed milestone
 
@@ -121,8 +193,8 @@ coverage. Pull request
 milestone. The release-target CI and website deployment passed, and `v0.3.0`
 was published on 2026-07-25.
 
-No later milestone is active. A focused owner-approved plan is required before
-another milestone can begin.
+Milestone v0.4 is now active under its separate owner-approved contract. v0.3
+remains the latest completed and released milestone.
 
 ## Previous released milestone
 

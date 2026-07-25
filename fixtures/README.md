@@ -22,3 +22,21 @@ deterministic Markdown source for whitespace normalization and a deterministic
 DOCX source for line-end dehyphenation. Check their registry with
 `tools/generate_refinement_fixtures.py --check`. The repeated-margin refiner
 reuses `diagnosis/v0.2/repeated-margin.pdf`.
+
+The `corpus/v0.4/` directory contains two corpus specifications. It adds no raw
+document:
+
+- `golden-matrix.json` lists all 12 registered golden fixtures. It contains
+  three families and four formats per family. Its exact diagnosis outcome is
+  nine D009 findings in the three TXT members and no other findings.
+- `quality-corpus.json` lists the five existing diagnosis and refinement
+  sources. It covers exactly D002, D003, D004, D005, D007, D009, and D010.
+
+Check both specifications with:
+
+```bash
+uv run --frozen python tools/verify_corpus_specs.py
+```
+
+The checker validates membership, paths, family and format metadata, and
+expected rule coverage. It does not rewrite a fixture or specification.
