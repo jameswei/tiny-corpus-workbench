@@ -40,7 +40,8 @@ Future work may use whichever sound engineering practices fit the task.
   resolve → verify` with derivation and reversibility both `MATCH`.
 - Independent milestone review returned `PASS` on 2026-07-24 after all
   blocking implementation and documentation findings were addressed.
-- Two later Copilot review comments identified one paired table-coordinate
+- Two subsequent Copilot review comments identified a single paired
+  table-coordinate
   integrity gap. The schema and replay guard now reject incomplete
   coordinates, with regression coverage.
 - Pull request
@@ -109,12 +110,13 @@ polish.
 The released implementation includes explicit decisions, the three fixed
 refiners, immutable successor revisions or rejection records, chained history,
 closed schemas, deterministic fixtures, tests, a user guide, and a learning
-lesson. Local acceptance passes 157 unit tests and 163 complete tests, including
-the real offline extractor matrix.
+lesson. Local acceptance passes 157 unit tests and 163 complete tests,
+including the real offline extractor matrix.
 
-Independent milestone review returned `PASS` on 2026-07-24. Two later Copilot
-review comments identified one paired table-coordinate integrity gap, which was
-fixed with schema and replay validation plus regression coverage. Pull request
+Independent milestone review returned `PASS` on 2026-07-24. Two subsequent
+Copilot review comments identified a single paired table-coordinate integrity
+gap, which was fixed with schema and replay validation plus regression
+coverage. Pull request
 [#9](https://github.com/jameswei/tiny-corpus-workbench/pull/9) delivered the
 milestone. The release-target CI and website deployment passed, and `v0.3.0`
 was published on 2026-07-25.
