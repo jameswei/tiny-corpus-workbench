@@ -57,9 +57,24 @@ Future work may use whichever sound engineering practices fit the task.
 - Milestone v0.4, Corpus Inspection and Comparison, is active by explicit
   owner approval. Its accepted implementation contract is
   `docs/plans/v0.4-corpus-inspection-comparison.md`.
-- Work begins on `milestone/v0.4-corpus-inspection-comparison` from clean
-  `main` at `4e7e6a0`. This planning checkpoint does not claim that v0.4
-  implementation or release work is complete.
+- Work continues on `milestone/v0.4-corpus-inspection-comparison`, which
+  started from clean `main` at `4e7e6a0`.
+- The implementation, schemas, fixtures, tests, user guide, learning lesson,
+  CI changes, and website update are complete locally. This does not claim
+  that v0.4 is reviewed, merged, or released.
+- Local acceptance passes 193 unit tests and 204 complete tests, including the
+  real offline extractor and corpus matrices. Fixture generation, registries,
+  the static site, compilation, clean-checkout portability, and diff hygiene
+  also pass.
+- The golden corpus completes all 12 members with both extractor views and
+  diagnoses. It reports exactly nine D009 findings in the three TXT members
+  and no other finding.
+- The quality corpus completes all five members and covers exactly D002, D003,
+  D004, D005, D007, D009, and D010. Explicit D009 revision comparison,
+  two-step revision history, and missing-model partial publication also pass.
+- Self-contained corpus verification returns `VERIFIED`. With the original
+  golden specification, all source, model, and specification advisory states
+  return `MATCH`.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -104,9 +119,17 @@ The milestone does not draft, approve, reject, or apply refinements. It adds no
 directory discovery, network input, service, database, interactive user
 interface, public Python API, RAG processing, or production orchestration.
 
-Implementation is not yet complete. Release `v0.4.0`, closeout documentation,
-and any later milestone remain inactive until their required approval gates are
-satisfied.
+The mandatory compatibility spike passes without changing third-party
+dependency pins or v0.3 artifact meaning. Representative v0.3 diagnosis,
+applied revision, rejected decision, and chained revision records created
+under the released runtime verify under v0.4. A new v0.4 successor revision
+also verifies, and v0.1 observations and v0.2 diagnoses remain verifiable.
+
+Implementation is ready for hosted checks and independent review. Milestone
+completion still requires reviewer `PASS`, resolved actionable automated
+feedback, explicit owner approval, merge, publication of `v0.4.0`,
+release-target CI and Pages verification, and the docs-only release closeout.
+No later milestone is active.
 
 ## Latest completed milestone
 
