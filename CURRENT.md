@@ -54,7 +54,12 @@ Future work may use whichever sound engineering practices fit the task.
   [Pages deployment](https://github.com/jameswei/tiny-corpus-workbench/actions/runs/30099689758)
   passed on the same commit, and the live v0.3 site was verified on
   2026-07-25.
-- No later milestone is active. The roadmap does not activate one.
+- Milestone v0.4, Corpus Inspection and Comparison, is active by explicit
+  owner approval. Its accepted implementation contract is
+  `docs/plans/v0.4-corpus-inspection-comparison.md`.
+- Work begins on `milestone/v0.4-corpus-inspection-comparison` from clean
+  `main` at `4e7e6a0`. This planning checkpoint does not claim that v0.4
+  implementation or release work is complete.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -87,6 +92,21 @@ downstream concerns and remain outside the initial project.
 Original sources and raw extraction artifacts remain immutable. Diagnosis does
 not authorize mutation, and interpretive refinements require explicit human
 confirmation.
+
+## Active milestone
+
+Milestone v0.4 adds one local, offline command that processes an explicit small
+corpus through the released observation and diagnosis contracts. It aggregates
+source-text-free evidence and publishes a static navigable report. Explicitly
+listed existing applied revisions can be compared as read-only inputs.
+
+The milestone does not draft, approve, reject, or apply refinements. It adds no
+directory discovery, network input, service, database, interactive user
+interface, public Python API, RAG processing, or production orchestration.
+
+Implementation is not yet complete. Release `v0.4.0`, closeout documentation,
+and any later milestone remain inactive until their required approval gates are
+satisfied.
 
 ## Latest completed milestone
 
@@ -121,8 +141,8 @@ coverage. Pull request
 milestone. The release-target CI and website deployment passed, and `v0.3.0`
 was published on 2026-07-25.
 
-No later milestone is active. A focused owner-approved plan is required before
-another milestone can begin.
+Milestone v0.4 is now active under its separate owner-approved contract. v0.3
+remains the latest completed and released milestone.
 
 ## Previous released milestone
 
