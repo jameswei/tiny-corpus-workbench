@@ -123,6 +123,29 @@ raise SystemExit(cli.main(["diagnose", str(root)]))
             completed = self.run_fresh(script, str(Path(directory) / "observation"))
         self.assert_runtime_bootstrap_failure(completed)
 
+    def test_fresh_process_without_jsonschema_handles_corpus_bootstrap(self) -> None:
+        script = BLOCK_JSONSCHEMA + r"""
+from pathlib import Path
+
+root = Path(sys.argv[1])
+root.mkdir()
+raise SystemExit(cli.main(["verify-corpus", str(root)]))
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            completed = self.run_fresh(
+                script, str(Path(directory) / "corpus")
+            )
+        self.assert_runtime_bootstrap_failure(completed)
+
+        script = BLOCK_JSONSCHEMA + r"""
+raise SystemExit(cli.main(["inspect-corpus", sys.argv[1]]))
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            completed = self.run_fresh(
+                script, str(Path(directory) / "corpus.json")
+            )
+        self.assert_runtime_bootstrap_failure(completed)
+
     def test_incompatible_verification_module_is_runtime_exit(self) -> None:
         stdout, stderr = io.StringIO(), io.StringIO()
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(

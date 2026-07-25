@@ -46,7 +46,9 @@ prepared document revision
 
 The released workflow covers source capture, extraction observation,
 evidence-based diagnosis, explicit refinement decisions, and immutable
-prepared revisions.
+prepared revisions. The v0.4 implementation also inspects an explicit local
+corpus and publishes a static comparison report. v0.4 is not listed as a
+released milestone until publication is complete.
 
 ## What you can do today
 
@@ -66,6 +68,10 @@ prepared revisions.
   publishes one approved successor revision.
 - **Verify the revision.** `tcw verify-refinement` checks artifacts, lineage,
   forward derivation, and exact reversal.
+- **Inspect an explicit corpus.** `tcw inspect-corpus` processes a small local
+  corpus sequentially and publishes a static offline report.
+- **Verify a corpus report.** `tcw verify-corpus` checks the corpus record,
+  every nested observation and diagnosis, and exact report regeneration.
 
 Diagnosis publishes a separate immutable record. It does not repair a document
 or authorize a change. `NO_FINDINGS` means that none of the ten rules
@@ -129,6 +135,10 @@ uv run --frozen tcw resolve-refinement decision.json \
   --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
 uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY \
   --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
+uv run --frozen tcw inspect-corpus \
+  fixtures/corpus/v0.4/golden-matrix.json
+uv run --frozen tcw verify-corpus CORPUS_DIRECTORY \
+  --spec fixtures/corpus/v0.4/golden-matrix.json
 ```
 
 Each command prints a compact JSON result. Replace `OBSERVATION_DIRECTORY` with
@@ -148,9 +158,18 @@ document references. Each applied transformation stores its before-and-after
 hashes and reversible edit data. Local hashes provide tamper evidence under
 the trusted-local model; they do not prove authorship or authenticity.
 
+Corpus inspection accepts only explicit local paths from a closed JSON
+specification. It does not discover directories, follow URLs, use stdin, or
+apply refinements. The generated report contains no JavaScript or remote
+resources. It aggregates counts, extractor deltas, findings, and explicitly
+listed verified revision histories without embedding source passages.
+
 See the [Controlled Revisions guide](docs/controlled-revisions.md) for the
 supported findings, artifact layout, chaining rules, verification states, and
-integrity limits.
+integrity limits. See the
+[Corpus Inspection and Comparison guide](docs/corpus-inspection-comparison.md)
+for corpus specifications, report navigation, statuses, verification, and
+privacy limits.
 
 ## Learning
 

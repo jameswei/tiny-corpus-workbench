@@ -262,6 +262,27 @@ class CorpusWorkflowTests(unittest.TestCase):
             self.assertEqual(
                 report["specification_state"]["status"], "CHANGED"
             )
+            source = root / "source.md"
+            source.unlink()
+            report = verify_corpus(published.directory, spec)
+            self.assertEqual(
+                report["source_states"][0]["state"]["status"], "MISSING"
+            )
+            source.mkdir()
+            report = verify_corpus(published.directory, spec)
+            self.assertEqual(
+                report["source_states"][0]["state"]["status"], "ERROR"
+            )
+            spec.unlink()
+            report = verify_corpus(published.directory, spec)
+            self.assertEqual(
+                report["specification_state"]["status"], "MISSING"
+            )
+            spec.mkdir()
+            report = verify_corpus(published.directory, spec)
+            self.assertEqual(
+                report["specification_state"]["status"], "ERROR"
+            )
 
     def test_publication_conflict_is_exclusive_and_cleans_staging(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
