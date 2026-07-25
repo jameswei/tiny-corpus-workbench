@@ -12,6 +12,7 @@ for a concise overview of the workbench.
 | --- | --- |
 | [v0.1.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.1.0) | Extraction Observatory |
 | [v0.2.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.2.0) | Evidence-Based Diagnosis |
+| [v0.3.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.3.0) | Controlled Revisions |
 
 ## Why this project
 
@@ -43,9 +44,9 @@ diagnosis + explicit refinement
 prepared document revision
 ```
 
-The current milestone implementation covers source capture, extraction
-observation, evidence-based diagnosis, explicit refinement decisions, and
-immutable prepared revisions. The v0.3 release has not been published.
+The released workflow covers source capture, extraction observation,
+evidence-based diagnosis, explicit refinement decisions, and immutable
+prepared revisions.
 
 ## What you can do today
 
