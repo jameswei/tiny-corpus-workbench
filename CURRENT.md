@@ -62,7 +62,7 @@ Future work may use whichever sound engineering practices fit the task.
 - The implementation, schemas, fixtures, tests, user guide, learning lesson,
   CI changes, and website update are complete locally. This does not claim
   that v0.4 is reviewed, merged, or released.
-- Local acceptance passes 195 unit tests and 206 complete tests, including the
+- Local acceptance passes 196 unit tests and 207 complete tests, including the
   real offline extractor and corpus matrices. Fixture generation, registries,
   the static site, compilation, clean-checkout portability, and diff hygiene
   also pass.
@@ -78,9 +78,11 @@ Future work may use whichever sound engineering practices fit the task.
 - Copilot review identified three integrity gaps: claimed extractor
   availability did not require every expected artifact descriptor to match,
   percent-encoded link control characters were not rejected after decoding,
-  and corpus schema validation omitted the shared format checker. All three
-  have focused regression coverage and pass locally; hosted confirmation is
-  pending.
+  and corpus verification omitted the shared format checker. Follow-up review
+  found the same checker omission in the execution and publication validator
+  factories. All corpus runtime validators now use the shared checker. The
+  five findings have focused regression coverage and pass locally; hosted
+  confirmation is pending.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 

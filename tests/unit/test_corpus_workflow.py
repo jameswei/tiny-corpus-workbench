@@ -15,10 +15,17 @@ from docling_core.types.doc import DocItemLabel, DoclingDocument
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import canonical_json
+from tiny_corpus_workbench.corpus_execution import (
+    _schema_validator as execution_schema_validator,
+)
 from tiny_corpus_workbench.corpus_publication import inspect_corpus
+from tiny_corpus_workbench.corpus_publication import (
+    _schema_validator as publication_schema_validator,
+)
 from tiny_corpus_workbench.corpus_verification import verify_corpus
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.source import sha256_file
+from tiny_corpus_workbench.verification import FORMAT_CHECKER
 
 
 SECRET = "PRIVATE SOURCE SENTENCE MUST NOT APPEAR"
@@ -72,6 +79,20 @@ def _write_spec(root: Path) -> Path:
 
 
 class CorpusWorkflowTests(unittest.TestCase):
+    def test_all_corpus_runtime_validators_share_format_checker(self) -> None:
+        self.assertIs(
+            execution_schema_validator(
+                "corpus-summary-v0.4.schema.json"
+            ).format_checker,
+            FORMAT_CHECKER,
+        )
+        self.assertIs(
+            publication_schema_validator(
+                "corpus-manifest-v0.4.schema.json"
+            ).format_checker,
+            FORMAT_CHECKER,
+        )
+
     def publish(
         self,
         root: Path,

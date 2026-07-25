@@ -24,6 +24,7 @@ from tiny_corpus_workbench.corpus_execution import (
 from tiny_corpus_workbench.corpus_report import render_report, render_stylesheet
 from tiny_corpus_workbench.domain import InputError, IntegrityError
 from tiny_corpus_workbench.source import sha256_file
+from tiny_corpus_workbench.verification import FORMAT_CHECKER
 
 
 @dataclass(frozen=True)
@@ -54,7 +55,11 @@ def _schema_validator(name: str) -> Draft202012Validator:
                 schema["$id"], Resource.from_contents(schema)
             )
         Draft202012Validator.check_schema(schemas[name])
-        return Draft202012Validator(schemas[name], registry=registry)
+        return Draft202012Validator(
+            schemas[name],
+            registry=registry,
+            format_checker=FORMAT_CHECKER,
+        )
     except Exception as error:
         raise InputError("bundled corpus publication schema is unavailable") from error
 
