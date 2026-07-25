@@ -1,6 +1,6 @@
 # Handoff Snapshot
 
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 
 This is an informational handoff, not a required agent workflow or taskboard.
 Future work may use whichever sound engineering practices fit the task.
@@ -24,17 +24,15 @@ Future work may use whichever sound engineering practices fit the task.
   documentation, and learning material.
 - Final hosted `Fast validation`, `Full extraction`, and website deployment
   passed on the `v0.2.0` release target.
-- Milestone v0.3, Controlled Revisions, is active by owner approval.
+- Milestone v0.3, Controlled Revisions, is released as
+  [`v0.3.0`](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.3.0)
+  on `main`.
 - Its accepted implementation contract is
   `docs/plans/v0.3-controlled-revisions.md`.
-- The v0.3 implementation is complete locally on
-  `milestone/v0.3-controlled-revisions`.
-- The branch contains v0.3 diagnosis subjects, D009 and D010, explicit
+- The release contains v0.3 diagnosis subjects, D009 and D010, explicit
   refinement decisions, three fixed refiners, reversible prepared revisions,
   chained history, schemas, fixtures, tests, and required public and learning
-  updates.
-- v0.3 is not released. The README released-milestone table intentionally
-  stops at v0.2.
+  material.
 - Local acceptance passes 157 unit tests and 163 complete tests, including the
   real offline extractor matrix. Fixture generation, registries, the static
   site, compilation, checkout portability, and diff hygiene also pass.
@@ -42,11 +40,21 @@ Future work may use whichever sound engineering practices fit the task.
   resolve → verify` with derivation and reversibility both `MATCH`.
 - Independent milestone review returned `PASS` on 2026-07-24 after all
   blocking implementation and documentation findings were addressed.
-- A later Copilot review found one paired table-coordinate integrity gap. The
-  schema and replay guard now reject incomplete coordinates, with regression
-  coverage.
-- Hosted pull-request checks and owner publication approval remain required
-  before release.
+- Two subsequent Copilot review comments identified a single paired
+  table-coordinate
+  integrity gap. The schema and replay guard now reject incomplete
+  coordinates, with regression coverage.
+- Pull request
+  [#9](https://github.com/jameswei/tiny-corpus-workbench/pull/9) delivered the
+  milestone as commit `25be2dd`, which is the target of the annotated
+  `v0.3.0` tag.
+- Release-target
+  [CI](https://github.com/jameswei/tiny-corpus-workbench/actions/runs/30142921755)
+  passed `Fast validation` and `Full extraction`. The
+  [Pages deployment](https://github.com/jameswei/tiny-corpus-workbench/actions/runs/30099689758)
+  passed on the same commit, and the live v0.3 site was verified on
+  2026-07-25.
+- No later milestone is active. The roadmap does not activate one.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -80,7 +88,7 @@ Original sources and raw extraction artifacts remain immutable. Diagnosis does
 not authorize mutation, and interpretive refinements require explicit human
 confirmation.
 
-## Active milestone
+## Latest completed milestone
 
 Milestone v0.3 adds explicit refinement decisions and immutable prepared
 revisions. It introduces fixed refiners for whitespace normalization, repeated
@@ -99,13 +107,24 @@ landing page, the user guide, and the learning hub and lesson. These public and
 learning changes are part of milestone acceptance, not optional release
 polish.
 
-The implementation follows `docs/plans/v0.3-controlled-revisions.md`.
-Independent milestone review returned `PASS`. The next step requires owner
-approval to push the milestone branch and open a draft pull request. Release
-claims remain withheld until hosted checks, publication approval, and
-post-release verification.
+The released implementation includes explicit decisions, the three fixed
+refiners, immutable successor revisions or rejection records, chained history,
+closed schemas, deterministic fixtures, tests, a user guide, and a learning
+lesson. Local acceptance passes 157 unit tests and 163 complete tests,
+including the real offline extractor matrix.
 
-## Latest completed milestone
+Independent milestone review returned `PASS` on 2026-07-24. Two subsequent
+Copilot review comments identified a single paired table-coordinate integrity
+gap, which was fixed with schema and replay validation plus regression
+coverage. Pull request
+[#9](https://github.com/jameswei/tiny-corpus-workbench/pull/9) delivered the
+milestone. The release-target CI and website deployment passed, and `v0.3.0`
+was published on 2026-07-25.
+
+No later milestone is active. A focused owner-approved plan is required before
+another milestone can begin.
+
+## Previous released milestone
 
 Milestone v0.2 adds deterministic, read-only diagnosis over the canonical
 `DoclingDocument` from an intact v0.1 observation. It publishes a separate
