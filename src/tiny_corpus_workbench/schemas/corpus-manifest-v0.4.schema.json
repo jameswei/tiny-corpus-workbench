@@ -85,11 +85,16 @@
         "model_inventory": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["required", "path", "inventory_hash"],
+          "required": ["required", "path", "state", "inventory_hash", "files"],
           "properties": {
             "required": {"type": "boolean"},
             "path": {"type": "string", "minLength": 1},
-            "inventory_hash": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]}
+            "state": {"enum": ["AVAILABLE", "MISSING", "INVALID", "NOT_REQUIRED"]},
+            "inventory_hash": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+            "files": {
+              "type": "array",
+              "items": {"$ref": "preparation-manifest-v0.1.schema.json#/$defs/modelFile"}
+            }
           }
         }
       }

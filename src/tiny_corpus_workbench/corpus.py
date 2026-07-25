@@ -108,8 +108,8 @@ def _reject_symlink_components(path: Path, label: str) -> Path:
                 continue
             current /= component
             if stat.S_ISLNK(current.lstat().st_mode):
-                raise InputError(f"{label} must not use symlinks")
-    except InputError:
+                raise IntegrityError(f"{label} must not use symlinks")
+    except IntegrityError:
         raise
     except OSError as error:
         raise InputError(f"{label} is unavailable") from error
@@ -122,6 +122,8 @@ def _regular_file(path: Path, label: str) -> Path:
         mode = absolute.lstat().st_mode
     except OSError as error:
         raise InputError(f"{label} is unavailable") from error
+    if stat.S_ISLNK(mode):
+        raise IntegrityError(f"{label} must not be a symbolic link")
     if not stat.S_ISREG(mode):
         raise InputError(f"{label} must be one regular local file")
     return absolute
@@ -133,6 +135,8 @@ def _directory(path: Path, label: str) -> Path:
         mode = absolute.lstat().st_mode
     except OSError as error:
         raise InputError(f"{label} is unavailable") from error
+    if stat.S_ISLNK(mode):
+        raise IntegrityError(f"{label} must not be a symbolic link")
     if not stat.S_ISDIR(mode):
         raise InputError(f"{label} must be one local directory")
     return absolute
@@ -164,12 +168,12 @@ def _tree_inventory(root: Path, label: str) -> dict[str, Any]:
             mode = path.lstat().st_mode
             relative = path.relative_to(root).as_posix()
             if stat.S_ISLNK(mode):
-                raise InputError(f"{label} must not contain symlinks")
+                raise IntegrityError(f"{label} must not contain symlinks")
             if stat.S_ISDIR(mode):
                 entries.append({"path": relative, "kind": "directory"})
                 continue
             if not stat.S_ISREG(mode):
-                raise InputError(f"{label} contains an unsafe filesystem node")
+                raise IntegrityError(f"{label} contains an unsafe filesystem node")
             raw = path.read_bytes()
             entries.append(
                 {
@@ -180,7 +184,7 @@ def _tree_inventory(root: Path, label: str) -> dict[str, Any]:
                 }
             )
             file_count += 1
-    except InputError:
+    except (InputError, IntegrityError):
         raise
     except OSError as error:
         raise InputError(f"{label} is unreadable") from error
@@ -220,7 +224,7 @@ def _recheck_revision_inventory(
             )
             for name, root in roots.items()
         }
-    except InputError as error:
+    except (InputError, IntegrityError) as error:
         raise IntegrityError("revision bundle changed during admission") from error
     if current != before:
         raise IntegrityError("revision bundle changed during admission")
@@ -481,7 +485,7 @@ def load_corpus_spec(path: str | Path) -> AdmittedCorpusSpec:
             before_hash = _file_signature(current_path)
             current_hash = sha256_file(current_path)
             after_hash = _file_signature(current_path)
-        except (InputError, OSError) as error:
+        except (InputError, IntegrityError, OSError) as error:
             raise IntegrityError("member source changed during admission") from error
         if (
             before_hash != after_hash
@@ -494,7 +498,7 @@ def load_corpus_spec(path: str | Path) -> AdmittedCorpusSpec:
         spec_hash_before = _file_signature(current_spec)
         current_spec_hash = sha256_file(current_spec)
         spec_hash_after = _file_signature(current_spec)
-    except (InputError, OSError) as error:
+    except (InputError, IntegrityError, OSError) as error:
         raise IntegrityError("corpus specification changed during admission") from error
     if (
         spec_hash_before != spec_hash_after

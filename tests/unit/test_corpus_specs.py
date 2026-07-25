@@ -142,7 +142,9 @@ def _valid_manifest() -> dict:
             "model_inventory": {
                 "required": False,
                 "path": "/tmp/models",
+                "state": "NOT_REQUIRED",
                 "inventory_hash": None,
+                "files": [],
             },
         },
         "summary": {"member_count": 1, "complete": 1, "partial": 0, "failed": 0},
@@ -642,13 +644,13 @@ class CorpusAdmissionTests(unittest.TestCase):
             source.write_text("# Source\n", "utf-8")
             source_link = root / "source-link.md"
             source_link.symlink_to(source)
-            with self.assertRaises(InputError):
+            with self.assertRaises(IntegrityError):
                 load_corpus_spec(
                     _write_spec(root, [_member("source-link", "source-link.md")])
                 )
             linked_directory = root / "linked-directory"
             linked_directory.symlink_to(root, target_is_directory=True)
-            with self.assertRaises(InputError):
+            with self.assertRaises(IntegrityError):
                 load_corpus_spec(
                     _write_spec(
                         root,
@@ -659,7 +661,7 @@ class CorpusAdmissionTests(unittest.TestCase):
             spec = _write_spec(root, [_member("source", "source.md")])
             spec_link = root / "spec-link.json"
             spec_link.symlink_to(spec)
-            with self.assertRaises(InputError):
+            with self.assertRaises(IntegrityError):
                 load_corpus_spec(spec_link)
 
             for name in ("revision", "diagnosis", "base"):
@@ -671,7 +673,7 @@ class CorpusAdmissionTests(unittest.TestCase):
                 "diagnosis": "diagnosis",
                 "base": "base",
             }
-            with self.assertRaises(InputError):
+            with self.assertRaises(IntegrityError):
                 load_corpus_spec(
                     _write_spec(
                         root,
@@ -692,7 +694,7 @@ class CorpusAdmissionTests(unittest.TestCase):
                 root,
                 [_member("absolute-source", str(linked / "source.md"))],
             )
-            with self.assertRaisesRegex(InputError, "must not use symlinks"):
+            with self.assertRaisesRegex(IntegrityError, "must not use symlinks"):
                 load_corpus_spec(spec)
             lexical_escape = _write_spec(
                 root,
@@ -703,13 +705,13 @@ class CorpusAdmissionTests(unittest.TestCase):
                     )
                 ],
             )
-            with self.assertRaisesRegex(InputError, "must not use symlinks"):
+            with self.assertRaisesRegex(IntegrityError, "must not use symlinks"):
                 load_corpus_spec(lexical_escape)
 
             nested_spec = _write_spec(
                 real, [_member("parent-spec", "source.md")]
             )
-            with self.assertRaisesRegex(InputError, "must not use symlinks"):
+            with self.assertRaisesRegex(IntegrityError, "must not use symlinks"):
                 load_corpus_spec(linked / nested_spec.name)
 
             for name in ("revision", "diagnosis", "base"):
@@ -721,7 +723,7 @@ class CorpusAdmissionTests(unittest.TestCase):
                 for name in ("revision", "diagnosis", "base")
             }
             revision["refinement"] = revision.pop("revision")
-            with self.assertRaisesRegex(InputError, "must not use symlinks"):
+            with self.assertRaisesRegex(IntegrityError, "must not use symlinks"):
                 load_corpus_spec(
                     _write_spec(
                         root,

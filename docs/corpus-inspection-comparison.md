@@ -130,9 +130,10 @@ The output layout is:
 ```
 
 The publisher builds this tree in one private sibling staging directory. It
-rechecks the specification, sources, model inventory, and revision bundles
-immediately before one exclusive atomic rename. It never overwrites an
-earlier run.
+performs the full self-contained corpus verification in that directory. It
+then rechecks the specification, sources, model inventory, and revision
+bundles immediately before one exclusive atomic rename. An invalid staged run
+is never published. The publisher never overwrites an earlier run.
 
 ## Snapshot and aggregation
 
@@ -206,9 +207,13 @@ Corpus status is:
 
 - `COMPLETE`: every member has both views, a usable canonical document, a
   completed diagnosis, and fully verified listed revisions.
-- `PARTIAL`: some evidence is usable, but one member, extractor, diagnosis, or
-  revision is incomplete.
+- `PARTIAL`: some evidence is usable, but one member, extractor, or diagnosis
+  is incomplete.
 - `FAILED`: no member produced a usable extraction view.
+
+The command rejects an invalid or unverifiable listed revision before member
+processing. This condition is invalid specification input, not a partial
+corpus result.
 
 | Exit | Meaning |
 | --- | --- |
@@ -217,7 +222,7 @@ Corpus status is:
 | `2` | The command, specification, or corpus-directory argument is invalid. |
 | `3` | A partial report was published. |
 | `4` | A failed report was published with no usable member view. |
-| `5` | An input changed, integrity failed, or publication conflicted. |
+| `5` | An input changed, an unsafe path was found, integrity failed, or publication conflicted. |
 | `6` | The locked runtime or global dependency contract is incompatible. |
 
 Missing PDF models produce member-level failures. Non-PDF members continue.
@@ -228,7 +233,8 @@ The command never downloads a model.
 Default verification is self-contained. It checks:
 
 - closed schemas and canonical JSON
-- identities, hashes, statuses, counts, and inventory
+- runtime, snapshot, member, revision, and nested-record identities
+- hashes, descriptor sizes, statuses, counts, and the exact model inventory
 - every nested observation
 - every nested diagnosis and a fresh deterministic rule evaluation
 - exact regeneration of the summary, HTML, and CSS

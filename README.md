@@ -71,7 +71,8 @@ released milestone until publication is complete.
 - **Inspect an explicit corpus.** `tcw inspect-corpus` processes a small local
   corpus sequentially and publishes a static offline report.
 - **Verify a corpus report.** `tcw verify-corpus` checks the corpus record,
-  every nested observation and diagnosis, and exact report regeneration.
+  its runtime and snapshot identities, every nested observation and diagnosis,
+  and exact report regeneration.
 
 Diagnosis publishes a separate immutable record. It does not repair a document
 or authorize a change. `NO_FINDINGS` means that none of the ten rules

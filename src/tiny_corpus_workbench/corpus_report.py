@@ -173,9 +173,11 @@ def render_report(
 
     formats = ("pdf", "docx", "md", "txt")
     families = sorted({member["family"] for member in members})
-    member_lookup = {
-        (member["family"], member["format"]): member for member in members
-    }
+    member_lookup: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for member in members:
+        member_lookup.setdefault(
+            (member["family"], member["format"]), []
+        ).append(member)
     status_class = f"status-{summary['status'].lower()}"
     lines = [
         "<!doctype html>",
@@ -229,14 +231,24 @@ def render_report(
     for family in families:
         lines.append(f"<tr><th>{_text(family)}</th>")
         for format_name in formats:
-            member = member_lookup.get((family, format_name))
-            if member is None:
+            cell_members = member_lookup.get((family, format_name), [])
+            if not cell_members:
                 lines.append("<td>—</td>")
             else:
                 lines.append(
-                    f'<td><a href="#member-{_anchor(member["member_id"])}">'
-                    f'{_text(member["member_id"])}</a><br>'
-                    f'{_text(member["status"])}</td>'
+                    "<td>"
+                    + "<br>".join(
+                        (
+                            f'<a href="#member-{_anchor(member["member_id"])}">'
+                            f'{_text(member["member_id"])}</a> '
+                            f'({_text(member["status"])})'
+                        )
+                        for member in sorted(
+                            cell_members,
+                            key=lambda item: item["member_id"],
+                        )
+                    )
+                    + "</td>"
                 )
         lines.append("</tr>")
     lines.extend(

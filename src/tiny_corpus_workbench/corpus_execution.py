@@ -459,21 +459,54 @@ def _model_capture(
     required: bool,
     loader: ModelInventoryLoader,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    absolute_root = Path(os.path.abspath(os.fspath(model_root)))
+    current = Path(absolute_root.anchor)
     try:
-        inventory = loader(model_root, required=required)
+        for component in absolute_root.parts[1:]:
+            current /= component
+            if not current.exists() and not current.is_symlink():
+                break
+            mode = current.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                raise IntegrityError(
+                    "Docling model artifact path must not use symbolic links"
+                )
+            if not stat.S_ISDIR(mode):
+                raise IntegrityError(
+                    "Docling model artifact path contains an unsafe node"
+                )
+        if absolute_root.exists():
+            for path in absolute_root.rglob("*"):
+                mode = path.lstat().st_mode
+                if stat.S_ISLNK(mode) or not (
+                    stat.S_ISREG(mode) or stat.S_ISDIR(mode)
+                ):
+                    raise IntegrityError(
+                        "Docling model artifacts contain an unsafe node"
+                    )
+    except IntegrityError:
+        raise
+    except OSError as error:
+        raise IntegrityError(
+            "Docling model artifact path cannot be inspected safely"
+        ) from error
+    try:
+        inventory = loader(absolute_root, required=required)
         state = "AVAILABLE" if required else "NOT_REQUIRED"
     except RuntimeContractError:
-        state = "INVALID" if model_root.exists() else "MISSING"
+        state = "INVALID" if absolute_root.exists() else "MISSING"
         inventory = {
             "required": required,
-            "path": str(model_root.absolute()),
+            "path": str(absolute_root),
             "inventory_hash": None,
             "files": [],
         }
     manifest_value = {
         "required": required,
-        "path": str(Path(os.path.abspath(os.fspath(model_root)))),
+        "path": str(absolute_root),
+        "state": state,
         "inventory_hash": inventory["inventory_hash"],
+        "files": inventory.get("files", []),
     }
     identity = {
         "state": state,
@@ -486,6 +519,12 @@ def _model_capture(
 
 def _ruleset_id(ruleset: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_json(ruleset).rstrip(b"\n")).hexdigest()
+
+
+def _snapshot_id_from_identity(identity: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        canonical_json(identity).rstrip(b"\n")
+    ).hexdigest()
 
 
 def _snapshot_identity(
@@ -535,9 +574,7 @@ def _snapshot_identity(
         "model_inventory": model_identity,
         "revisions": sorted(revisions, key=lambda item: item["revision_id"]),
     }
-    snapshot_id = hashlib.sha256(
-        canonical_json(identity).rstrip(b"\n")
-    ).hexdigest()
+    snapshot_id = _snapshot_id_from_identity(identity)
     return snapshot_id, identity
 
 

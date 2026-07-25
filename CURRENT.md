@@ -62,7 +62,7 @@ Future work may use whichever sound engineering practices fit the task.
 - The implementation, schemas, fixtures, tests, user guide, learning lesson,
   CI changes, and website update are complete locally. This does not claim
   that v0.4 is reviewed, merged, or released.
-- Local acceptance passes 196 unit tests and 207 complete tests, including the
+- Local acceptance passes 202 unit tests and 213 complete tests, including the
   real offline extractor and corpus matrices. Fixture generation, registries,
   the static site, compilation, clean-checkout portability, and diff hygiene
   also pass.
@@ -83,6 +83,22 @@ Future work may use whichever sound engineering practices fit the task.
   factories. All corpus runtime validators now use the shared checker. The
   five findings have focused regression coverage and pass locally; hosted
   confirmation is pending.
+- A final owner-requested contract audit found additional corpus composition
+  gaps before merge. The verifier did not compare the recorded runtime,
+  snapshot, nested manifest descriptors, or nested observation and diagnosis
+  identities. A duplicate family-format cell could also hide one member, and
+  a symbolic-link model directory could become a partial result. The
+  implementation now recomputes those identities, records and validates the
+  exact model inventory, lists every matrix member, rejects unsafe paths with
+  exit `5`, and completes self-verification before the atomic publish rename.
+  Focused tamper, concurrent-publication, no-invalid-publication, link-safety,
+  and input-drift tests pass.
+- The compatibility spike was rerun from exported `v0.1.0`, `v0.2.0`, and
+  `v0.3.0` source trees under their locked environments. All 12 v0.1 golden
+  observations, three representative v0.2 diagnoses, and representative v0.3
+  diagnosis, applied, rejected, and chained revision records verify under
+  v0.4. Rerunning diagnosis over the old applied revision and creating a new
+  v0.4 successor also pass with the active v0.4 package and lock identity.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -133,11 +149,11 @@ applied revision, rejected decision, and chained revision records created
 under the released runtime verify under v0.4. A new v0.4 successor revision
 also verifies, and v0.1 observations and v0.2 diagnoses remain verifiable.
 
-Implementation is ready for hosted checks and independent review. Milestone
-completion still requires reviewer `PASS`, resolved actionable automated
-feedback, explicit owner approval, merge, publication of `v0.4.0`,
-release-target CI and Pages verification, and the docs-only release closeout.
-No later milestone is active.
+Implementation is ready for refreshed hosted checks and independent review.
+Milestone completion still requires reviewer `PASS`, resolved actionable
+automated feedback, merge, publication of `v0.4.0`, release-target CI and
+Pages verification, and the docs-only release closeout. The owner has already
+approved delivery after these gates pass. No later milestone is active.
 
 ## Latest completed milestone
 

@@ -77,7 +77,7 @@ def _prepare_output_root(path: Path) -> Path:
             if current.exists() or current.is_symlink():
                 mode = current.lstat().st_mode
                 if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
-                    raise InputError(
+                    raise IntegrityError(
                         "corpus output root contains an unsafe path component"
                     )
         absolute.mkdir(parents=True, exist_ok=True)
@@ -86,10 +86,10 @@ def _prepare_output_root(path: Path) -> Path:
             current /= component
             mode = current.lstat().st_mode
             if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
-                raise InputError(
+                raise IntegrityError(
                     "corpus output root contains an unsafe path component"
                 )
-    except InputError:
+    except (InputError, IntegrityError):
         raise
     except OSError as error:
         raise InputError("corpus output root is unavailable") from error
@@ -118,11 +118,13 @@ def _reject_output_overlap(
                 if candidate.is_dir():
                     input_directories.add(candidate)
     if any(_is_within(output_root, directory) for directory in input_directories):
-        raise InputError("corpus publication must not be inside an input directory")
+        raise IntegrityError(
+            "corpus publication must not be inside an input directory"
+        )
     if model_root.exists() and model_root.is_dir() and _is_within(
         output_root, model_root
     ):
-        raise InputError(
+        raise IntegrityError(
             "corpus publication must not be inside the model artifact directory"
         )
 
@@ -279,6 +281,14 @@ def _write_publication(
     _schema_validator("corpus-manifest-v0.4.schema.json").validate(manifest)
     (staging / "corpus-manifest.json").write_bytes(canonical_json(manifest))
     _safe_tree(staging)
+    recheck_corpus_inputs(result)
+    from tiny_corpus_workbench.corpus_verification import verify_corpus
+
+    verification = verify_corpus(staging, _expected_run_id=run_id)
+    if verification["artifact_integrity"]["status"] != "VERIFIED":
+        raise IntegrityError(
+            "staged corpus inspection failed self-contained verification"
+        )
     recheck_corpus_inputs(result)
     return result
 

@@ -836,6 +836,45 @@ class CorpusExecutionTests(unittest.TestCase):
                     model_inventory_loader=changed_models,
                 )
 
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            admitted = self._admit(root)
+            staging = root / "stage"
+            staging.mkdir()
+            evidence = FakeEvidence(
+                {"a-member": "complete", "z-member": "complete"}
+            )
+            result = self._execute(admitted, staging, evidence)
+            admitted.path.write_text("{}\n", "utf-8")
+            with self.assertRaisesRegex(
+                IntegrityError, "specification changed"
+            ):
+                recheck_corpus_inputs(
+                    result,
+                    model_inventory_loader=_models,
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            admitted = _admitted_with_revisions(self._admit(root))
+            staging = root / "stage"
+            staging.mkdir()
+            evidence = FakeEvidence(
+                {"a-member": "complete", "z-member": "complete"}
+            )
+            result = self._execute(admitted, staging, evidence)
+            (root / "refinement" / "changed.json").write_text(
+                "{}\n",
+                "utf-8",
+            )
+            with self.assertRaisesRegex(
+                IntegrityError, "revision bundle changed"
+            ):
+                recheck_corpus_inputs(
+                    result,
+                    model_inventory_loader=_models,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
