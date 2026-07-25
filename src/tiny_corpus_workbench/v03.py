@@ -40,7 +40,10 @@ from tiny_corpus_workbench.domain import (
     RuntimeContractError,
     sanitize_message,
 )
-from tiny_corpus_workbench.runtime import active_locked_runtime
+from tiny_corpus_workbench.runtime import (
+    active_locked_runtime,
+    is_v03_compatible_runtime,
+)
 from tiny_corpus_workbench.source import sha256_file
 from tiny_corpus_workbench.verification import FORMAT_CHECKER, verify_observation
 
@@ -1408,7 +1411,7 @@ def _validate_refinement_semantics(
 
 
 def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, Any]:
-    active_runtime = active_locked_runtime()
+    active_locked_runtime()
     files, directories, issues = _inventory(root)
     expected = {"diagnosis-manifest.json", "findings.json", "report.md"}
     for path in sorted(expected - files):
@@ -1426,7 +1429,7 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
         _validate("diagnosis-manifest-v0.3.schema.json", manifest)
         _validate("finding-set-v0.3.schema.json", findings)
         validate_finding_set(findings)
-        if manifest["runtime"] != active_runtime:
+        if not is_v03_compatible_runtime(manifest["runtime"]):
             raise IntegrityError("diagnosis runtime provenance differs")
         expected_diagnosis_id = _diagnosis_identity(
             findings["subject"], findings["ruleset"]
@@ -1530,7 +1533,7 @@ def verify_refinement(
     diagnosis_root: Path | None = None,
     base_root: Path | None = None,
 ) -> dict[str, Any]:
-    active_runtime = active_locked_runtime()
+    active_locked_runtime()
     files, directories, issues = _inventory(root)
     manifest = decision = transformation = history = None
     try:
@@ -1538,7 +1541,7 @@ def verify_refinement(
         _, decision = _load_json_regular(root / "decision.json", "decision")
         _validate("refinement-manifest-v0.3.schema.json", manifest)
         _validate("refinement-draft-v0.3.schema.json", decision)
-        if manifest["runtime"] != active_runtime:
+        if not is_v03_compatible_runtime(manifest["runtime"]):
             raise IntegrityError("refinement runtime provenance differs")
         if manifest["status"] == "APPLIED":
             _, transformation = _load_json_regular(
