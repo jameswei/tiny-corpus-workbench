@@ -156,9 +156,25 @@ def _comparison_cells(comparison: dict[str, Any]) -> str:
             f"<td>{int(view[name])}</td>" for name in NUMERIC_METRICS
         )
 
+    def delta_cells(value: dict[str, Any] | None) -> str:
+        if value is None:
+            return "".join(
+                "<td>—</td>" for _ in (*NUMERIC_METRICS, "normalized_equal")
+            )
+        numeric = "".join(
+            f'<td class="delta">{int(value[name])}</td>'
+            for name in NUMERIC_METRICS
+        )
+        normalized_equal = str(bool(value["normalized_equal"])).lower()
+        return (
+            numeric
+            + f'<td class="delta normalized-equal">{normalized_equal}</td>'
+        )
+
     return (
         cells(comparison["docling"])
         + cells(comparison["markitdown"])
+        + delta_cells(comparison["docling_minus_markitdown"])
     )
 
 
@@ -261,11 +277,17 @@ def render_report(
             "<tr><th rowspan=\"2\">Member</th><th rowspan=\"2\">Status</th>"
             f'<th colspan="{len(NUMERIC_METRICS)}">Docling</th>'
             f'<th colspan="{len(NUMERIC_METRICS)}">MarkItDown</th>'
+            f'<th colspan="{len(NUMERIC_METRICS) + 1}">'
+            "Docling minus MarkItDown</th>"
             '<th rowspan="2">Evidence</th></tr>',
             "<tr>"
             + "".join(
                 f"<th>{_text(name.replace('_', ' '))}</th>"
                 for name in NUMERIC_METRICS * 2
+            )
+            + "".join(
+                f"<th>{_text(name.replace('_', ' '))}</th>"
+                for name in (*NUMERIC_METRICS, "normalized_equal")
             )
             + "</tr></thead><tbody>",
         ]

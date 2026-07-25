@@ -17,6 +17,7 @@ from docling_core.types.doc import DocItemLabel, DoclingDocument
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import canonical_json
+from tiny_corpus_workbench.comparison import NUMERIC_METRICS
 from tiny_corpus_workbench.corpus_execution import (
     _schema_validator as execution_schema_validator,
 )
@@ -333,6 +334,41 @@ class CorpusWorkflowTests(unittest.TestCase):
             ).decode("utf-8")
             self.assertIn('href="#member-unit-member"', report)
             self.assertIn('href="#member-second-member"', report)
+
+    def test_extractor_table_renders_exact_deltas(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            _, published = self.publish(root)
+            manifest = json.loads(
+                (published.directory / "corpus-manifest.json").read_text(
+                    "utf-8"
+                )
+            )
+            summary = json.loads(
+                (published.directory / "summary.json").read_text("utf-8")
+            )
+            comparison = summary["comparisons"][0]
+            exact_deltas = {
+                metric: 1001 + index
+                for index, metric in enumerate(NUMERIC_METRICS)
+            }
+            comparison["docling_minus_markitdown"] = {
+                **exact_deltas,
+                "normalized_equal": True,
+            }
+            report = render_report(
+                title="Exact extractor deltas",
+                summary=summary,
+                members=manifest["members"],
+                revisions=manifest["revisions"],
+            ).decode("utf-8")
+            self.assertIn("Docling minus MarkItDown", report)
+            for value in exact_deltas.values():
+                self.assertIn(f'<td class="delta">{value}</td>', report)
+            self.assertIn(
+                '<td class="delta normalized-equal">true</td>',
+                report,
+            )
 
     def test_symlinked_model_directory_exits_five_without_publication(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

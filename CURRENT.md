@@ -62,7 +62,7 @@ Future work may use whichever sound engineering practices fit the task.
 - The implementation, schemas, fixtures, tests, user guide, learning lesson,
   CI changes, and website update are complete locally. This does not claim
   that v0.4 is reviewed, merged, or released.
-- Local acceptance passes 202 unit tests and 213 complete tests, including the
+- Local acceptance passes 203 unit tests and 214 complete tests, including the
   real offline extractor and corpus matrices. Fixture generation, registries,
   the static site, compilation, clean-checkout portability, and diff hygiene
   also pass.
@@ -93,6 +93,11 @@ Future work may use whichever sound engineering practices fit the task.
   exit `5`, and completes self-verification before the atomic publish rename.
   Focused tamper, concurrent-publication, no-invalid-publication, link-safety,
   and input-drift tests pass.
+- Independent final review found that the HTML extractor table showed both raw
+  views but omitted the exact deltas already present in `summary.json`. The
+  report now shows every numeric Docling-minus-MarkItDown delta and the exact
+  normalized-equality state. Focused report coverage and the complete local
+  suite pass. Refreshed reviewer and hosted confirmation are pending.
 - The compatibility spike was rerun from exported `v0.1.0`, `v0.2.0`, and
   `v0.3.0` source trees under their locked environments. All 12 v0.1 golden
   observations, three representative v0.2 diagnoses, and representative v0.3
