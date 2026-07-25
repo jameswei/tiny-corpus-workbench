@@ -1,0 +1,79 @@
+{
+  "corpus_id": "golden-matrix",
+  "members": [
+    {
+      "family": "meeting-minutes",
+      "format": "docx",
+      "member_id": "meeting-minutes-docx",
+      "source": "../../golden/meeting-minutes.docx"
+    },
+    {
+      "family": "meeting-minutes",
+      "format": "md",
+      "member_id": "meeting-minutes-md",
+      "source": "../../golden/meeting-minutes.md"
+    },
+    {
+      "family": "meeting-minutes",
+      "format": "pdf",
+      "member_id": "meeting-minutes-pdf",
+      "source": "../../golden/meeting-minutes.pdf"
+    },
+    {
+      "family": "meeting-minutes",
+      "format": "txt",
+      "member_id": "meeting-minutes-txt",
+      "source": "../../golden/meeting-minutes.txt"
+    },
+    {
+      "family": "policy-memo",
+      "format": "docx",
+      "member_id": "policy-memo-docx",
+      "source": "../../golden/policy-memo.docx"
+    },
+    {
+      "family": "policy-memo",
+      "format": "md",
+      "member_id": "policy-memo-md",
+      "source": "../../golden/policy-memo.md"
+    },
+    {
+      "family": "policy-memo",
+      "format": "pdf",
+      "member_id": "policy-memo-pdf",
+      "source": "../../golden/policy-memo.pdf"
+    },
+    {
+      "family": "policy-memo",
+      "format": "txt",
+      "member_id": "policy-memo-txt",
+      "source": "../../golden/policy-memo.txt"
+    },
+    {
+      "family": "release-notice",
+      "format": "docx",
+      "member_id": "release-notice-docx",
+      "source": "../../golden/release-notice.docx"
+    },
+    {
+      "family": "release-notice",
+      "format": "md",
+      "member_id": "release-notice-md",
+      "source": "../../golden/release-notice.md"
+    },
+    {
+      "family": "release-notice",
+      "format": "pdf",
+      "member_id": "release-notice-pdf",
+      "source": "../../golden/release-notice.pdf"
+    },
+    {
+      "family": "release-notice",
+      "format": "txt",
+      "member_id": "release-notice-txt",
+      "source": "../../golden/release-notice.txt"
+    }
+  ],
+  "schema_version": "tcw.corpus-spec/v0.4",
+  "title": "Golden three-family four-format matrix"
+}
