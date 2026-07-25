@@ -158,6 +158,12 @@ installed project and extractor versions must match the source contract.
 `uv.lock` must match the committed exact-lock byte identity before publication
 or rule rerun.
 
+Package v0.4 retains the v0.3 diagnosis schema and rule behavior. A v0.3
+diagnosis verifier accepts exactly the historical v0.3 package and lock pair or
+the active v0.4 package and lock pair. Both pairs require CPython 3.12 and the
+same exact third-party dependency versions. Mixed pairs and arbitrary package
+or lock values fail verification. Historical artifacts are not rewritten.
+
 `artifact_integrity` is one of:
 
 - `VERIFIED`

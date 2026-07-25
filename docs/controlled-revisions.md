@@ -106,6 +106,12 @@ file kinds, sizes, hashes, identities, status, and history shape. It also
 checks canonical transformation and history JSON, the transformation history
 tail, revision identities, and every parent link.
 
+Package v0.4 retains the v0.3 refinement schemas and behavior. The verifier
+accepts exactly the historical v0.3 package and lock pair or the active v0.4
+package and lock pair. Both pairs keep CPython 3.12 and the same exact
+third-party dependency versions. It rejects mixed pairs and does not rewrite a
+historical diagnosis, decision, transformation, history, or prepared document.
+
 Without optional inputs, diagnosis and base states are `NOT_CHECKED`. A
 rejected record uses `NOT_APPLICABLE` for derivation and reversibility.
 
