@@ -54,14 +54,15 @@ Future work may use whichever sound engineering practices fit the task.
   [Pages deployment](https://github.com/jameswei/tiny-corpus-workbench/actions/runs/30099689758)
   passed on the same commit, and the live v0.3 site was verified on
   2026-07-25.
-- Milestone v0.4, Corpus Inspection and Comparison, is active by explicit
-  owner approval. Its accepted implementation contract is
+- Milestone v0.4, Corpus Inspection and Comparison, is released as
+  [`v0.4.0`](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.4.0)
+  on `main`.
+- Its accepted implementation contract is
   `docs/plans/v0.4-corpus-inspection-comparison.md`.
-- Work continues on `milestone/v0.4-corpus-inspection-comparison`, which
-  started from clean `main` at `4e7e6a0`.
-- The implementation, schemas, fixtures, tests, user guide, learning lesson,
-  CI changes, and website update are complete locally. This does not claim
-  that v0.4 is reviewed, merged, or released.
+- The release contains `tcw inspect-corpus`, `tcw verify-corpus`, four closed
+  corpus schemas, deterministic aggregation, a static offline report, two
+  explicit example corpora, tests, user documentation, learning material, and
+  the updated project website.
 - Local acceptance passes 203 unit tests and 214 complete tests, including the
   real offline extractor and corpus matrices. Fixture generation, registries,
   the static site, compilation, clean-checkout portability, and diff hygiene
@@ -81,8 +82,8 @@ Future work may use whichever sound engineering practices fit the task.
   and corpus verification omitted the shared format checker. Follow-up review
   found the same checker omission in the execution and publication validator
   factories. All corpus runtime validators now use the shared checker. The
-  five findings have focused regression coverage and pass locally; hosted
-  confirmation is pending.
+  five findings have focused regression coverage. All five review threads are
+  resolved.
 - A final owner-requested contract audit found additional corpus composition
   gaps before merge. The verifier did not compare the recorded runtime,
   snapshot, nested manifest descriptors, or nested observation and diagnosis
@@ -97,13 +98,26 @@ Future work may use whichever sound engineering practices fit the task.
   views but omitted the exact deltas already present in `summary.json`. The
   report now shows every numeric Docling-minus-MarkItDown delta and the exact
   normalized-equality state. Focused report coverage and the complete local
-  suite pass. Refreshed reviewer and hosted confirmation are pending.
+  suite pass. Refreshed independent review returned `PASS` with no remaining
+  blocker.
 - The compatibility spike was rerun from exported `v0.1.0`, `v0.2.0`, and
   `v0.3.0` source trees under their locked environments. All 12 v0.1 golden
   observations, three representative v0.2 diagnoses, and representative v0.3
   diagnosis, applied, rejected, and chained revision records verify under
   v0.4. Rerunning diagnosis over the old applied revision and creating a new
   v0.4 successor also pass with the active v0.4 package and lock identity.
+- Pull request
+  [#11](https://github.com/jameswei/tiny-corpus-workbench/pull/11) delivered
+  the milestone as commit `ae7ce99`, which is the target of the annotated
+  `v0.4.0` tag.
+- Main
+  [CI](https://github.com/jameswei/tiny-corpus-workbench/actions/runs/30161871876),
+  release-target
+  [CI](https://github.com/jameswei/tiny-corpus-workbench/actions/runs/30161978252),
+  and the
+  [Pages deployment](https://github.com/jameswei/tiny-corpus-workbench/actions/runs/30161871869)
+  passed on that commit. The tagged documentation links and live v0.4 website
+  were verified on 2026-07-25.
 - The project website remains a separate static publication surface at
   `https://lifeplayer.space/tiny-corpus-workbench/`.
 
@@ -139,86 +153,59 @@ confirmation.
 
 ## Active milestone
 
-Milestone v0.4 adds one local, offline command that processes an explicit small
-corpus through the released observation and diagnosis contracts. It aggregates
-source-text-free evidence and publishes a static navigable report. Explicitly
-listed existing applied revisions can be compared as read-only inputs.
-
-The milestone does not draft, approve, reject, or apply refinements. It adds no
-directory discovery, network input, service, database, interactive user
-interface, public Python API, RAG processing, or production orchestration.
-
-The mandatory compatibility spike passes without changing third-party
-dependency pins or v0.3 artifact meaning. Representative v0.3 diagnosis,
-applied revision, rejected decision, and chained revision records created
-under the released runtime verify under v0.4. A new v0.4 successor revision
-also verifies, and v0.1 observations and v0.2 diagnoses remain verifiable.
-
-Implementation is ready for refreshed hosted checks and independent review.
-Milestone completion still requires reviewer `PASS`, resolved actionable
-automated feedback, merge, publication of `v0.4.0`, release-target CI and
-Pages verification, and the docs-only release closeout. The owner has already
-approved delivery after these gates pass. No later milestone is active.
+No milestone is active. Milestone v0.5 has not been planned or activated.
 
 ## Latest completed milestone
 
-Milestone v0.3 adds explicit refinement decisions and immutable prepared
-revisions. It introduces fixed refiners for whitespace normalization, repeated
-boilerplate removal, and deterministic dehyphenation. One approved finding
-produces one successor revision. A rejected finding produces an immutable
-decision record without changing the document.
+Milestone v0.4 adds explicit, local corpus inspection over the released
+observation and diagnosis contracts. It processes members sequentially,
+aggregates source-text-free evidence, and publishes deterministic JSON plus a
+navigable static HTML report. Explicitly listed applied revisions remain
+read-only comparison inputs.
 
-The accepted plan requires reversible transformation history, before-and-after
-hashes, forward and inverse verification, chained revision support, and
-backward verification of v0.2 diagnoses. It preserves `orig`, provenance,
-stable document references, sources, observations, diagnoses, and earlier
-revisions.
+The golden matrix covers three document families in PDF, DOCX, Markdown, and
+text. The separate quality corpus covers D002, D003, D004, D005, D007, D009,
+and D010. The report includes exact extractor deltas, findings, incomplete
+members, and verified revision histories without embedding arbitrary source or
+prepared-document text.
 
-The milestone also requires coordinated updates to `README.md`, the static
-landing page, the user guide, and the learning hub and lesson. These public and
-learning changes are part of milestone acceptance, not optional release
-polish.
+Corpus verification checks the complete top-level record, every nested
+observation and diagnosis, deterministic report regeneration, exact model
+inventory, safe links, and optional live-input advisory states. The mandatory
+compatibility spike preserves verification of representative v0.1, v0.2, and
+v0.3 artifacts under the exact v0.4 package and lock identity.
 
-The released implementation includes explicit decisions, the three fixed
-refiners, immutable successor revisions or rejection records, chained history,
-closed schemas, deterministic fixtures, tests, a user guide, and a learning
-lesson. Local acceptance passes 157 unit tests and 163 complete tests,
-including the real offline extractor matrix.
+Copilot produced five actionable findings across two reviews. All five were
+fixed with focused regression coverage and all review threads are resolved.
+The final contract audit added runtime, snapshot, inventory, nested identity,
+atomic publication, unsafe-path, and matrix-completeness protections. A final
+independent review found one missing HTML delta presentation, which was fixed
+before refreshed review returned `PASS`.
 
-Independent milestone review returned `PASS` on 2026-07-24. Two subsequent
-Copilot review comments identified a single paired table-coordinate integrity
-gap, which was fixed with schema and replay validation plus regression
-coverage. Pull request
-[#9](https://github.com/jameswei/tiny-corpus-workbench/pull/9) delivered the
-milestone. The release-target CI and website deployment passed, and `v0.3.0`
-was published on 2026-07-25.
-
-Milestone v0.4 is now active under its separate owner-approved contract. v0.3
-remains the latest completed and released milestone.
+Pull request
+[#11](https://github.com/jameswei/tiny-corpus-workbench/pull/11) delivered the
+milestone as `ae7ce99`. The annotated `v0.4.0` tag targets that commit. Main
+CI, release-target CI, Pages deployment, tagged documentation, and the live
+website all passed final verification. No later milestone is active.
 
 ## Previous released milestone
 
-Milestone v0.2 adds deterministic, read-only diagnosis over the canonical
-`DoclingDocument` from an intact v0.1 observation. It publishes a separate
-application-immutable diagnosis with eight fixed evidence-backed rules,
-stable findings, a deterministic report, and independent verification.
+Milestone v0.3 adds explicit refinement decisions and immutable prepared
+revisions. It includes fixed refiners for whitespace normalization, repeated
+boilerplate removal, and deterministic dehyphenation. One approved finding
+produces one successor revision. A rejected finding records the decision
+without changing the document.
 
-The accepted plan keeps MarkItDown descriptive, preserves every v0.1 public
-contract and golden fixture, adds no refinement capability, and keeps
-chunking, embeddings, retrieval, generation, and RAG evaluation out of scope.
+The released contract requires reversible transformation history,
+before-and-after hashes, forward and inverse verification, chained revision
+support, and backward verification of v0.2 diagnoses. It preserves `orig`,
+provenance, stable document references, sources, observations, diagnoses, and
+earlier revisions.
 
-The released implementation includes the two diagnosis commands, eight fixed
-rules, three public schemas, separate diagnostic fixtures, tests, a user
-guide, and a learning lesson. Verification covers the released v0.1 behavior,
-all twelve unchanged golden fixtures, and the diagnosis corpus. Local
-acceptance passes 131 tests, deterministic fixture checks, static site
-validation, and clean-checkout portability verification.
-
-An independent milestone reviewer returned `PASS` on 2026-07-23. Two later
-automated-review findings were fixed with regression coverage before merge.
-Pull request
-[#5](https://github.com/jameswei/tiny-corpus-workbench/pull/5) delivered the
-milestone. Pull request
-[#6](https://github.com/jameswei/tiny-corpus-workbench/pull/6) corrected the
-README project links before release. The final release-target CI and website
-deployment passed, and `v0.2.0` was published on 2026-07-23.
+Independent milestone review returned `PASS` after the blocking findings were
+addressed. Two later Copilot comments identified a paired table-coordinate
+integrity gap, which was fixed with schema and replay validation plus
+regression coverage. Pull request
+[#9](https://github.com/jameswei/tiny-corpus-workbench/pull/9) delivered the
+milestone as `25be2dd`. Release-target CI and Pages passed, and `v0.3.0` was
+published on 2026-07-25.
