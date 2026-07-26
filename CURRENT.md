@@ -1,6 +1,6 @@
 # Handoff Snapshot
 
-**Last updated:** 2026-07-25
+**Last updated:** 2026-07-26
 
 This is an informational handoff, not a required agent workflow or taskboard.
 Future work may use whichever sound engineering practices fit the task.
@@ -153,7 +153,27 @@ confirmation.
 
 ## Active milestone
 
-No milestone is active. Milestone v0.5 has not been planned or activated.
+Milestone v0.5, Local Visual Workbench, is active on
+`milestone/v0.5-local-visual-workbench`.
+
+The project owner accepted the frozen implementation plan on 2026-07-26. The
+accepted contract is `docs/plans/v0.5-local-visual-workbench.md`, based on
+clean `main` at `6545636`. The task ledger is
+`docs/plans/v0.5-local-visual-workbench-ledger.md`.
+
+The milestone adds a read-only, loopback-only browser workbench over explicitly
+supplied observation, diagnosis, refinement, and corpus records. Existing CLI
+commands remain the only execution and mutation surface. The workbench does
+not discover records, follow source paths, or add hosted access.
+
+v0.5 establishes one current public schema baseline. Released v0.5 code will
+write, read, and verify only `/v0.5` artifacts. It will reject v0.1-v0.4
+artifacts without migrating them. Earlier Git tags remain implementation
+history. Current v0.5 provenance support is explicit and monotonic within the
+schema baseline.
+
+No product task has passed review yet. V05-1, the unified schema baseline, is
+the first implementation task.
 
 ## Latest completed milestone
 
