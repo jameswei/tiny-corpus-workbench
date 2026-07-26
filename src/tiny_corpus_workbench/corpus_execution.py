@@ -1,4 +1,4 @@
-"""Internal sequential corpus evidence execution for milestone v0.4.
+"""Internal sequential corpus evidence execution for the v0.5 baseline.
 
 This module does not publish a corpus run and is not a public Python API.
 The caller owns the private staging directory and the later publication step.
@@ -155,7 +155,9 @@ def _load_defaults() -> tuple[
             _preflight_extractors,
             observe,
         )
-        from tiny_corpus_workbench.runtime import active_locked_runtime
+        from tiny_corpus_workbench.supported_provenance import (
+            active_build_provenance,
+        )
         from tiny_corpus_workbench.v03 import (
             RULESET,
             RULESET_PARAMETER_HASH,
@@ -169,10 +171,13 @@ def _load_defaults() -> tuple[
     ruleset = {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH}
 
     def locked_corpus_runtime() -> dict[str, Any]:
-        runtime = active_locked_runtime()
+        runtime = active_build_provenance(
+            command_id="tcw.inspect-corpus",
+            extracting=True,
+        )
         lock, _, _ = _preflight_extractors()
         if (
-            lock["sha256"] != runtime["lockfile_sha256"]
+            lock["lockfile_sha256"] != runtime["lockfile_sha256"]
             or lock["dependencies"] != runtime["dependencies"]
         ):
             raise RuntimeContractError(
@@ -561,6 +566,7 @@ def _snapshot_identity(
                         "refiner",
                         "affected_reference_count",
                         "prepared_document_sha256",
+                        "refinement_manifest_sha256",
                         "inventory_fingerprints",
                     )
                 }
@@ -620,6 +626,64 @@ def _extractor_error(
         "OBSERVATION_INCOMPLETE",
         f"The {name} extraction view is unavailable",
     )
+
+
+_MEMBER_ERROR_MESSAGES = {
+    **_EXTRACTOR_ERRORS,
+    "OBSERVATION_FAILED": "Observation failed for the corpus member",
+    "OBSERVATION_INCOMPLETE": (
+        "One or more extraction views are unavailable"
+    ),
+    "CANONICAL_UNAVAILABLE": (
+        "The Docling canonical document is unavailable"
+    ),
+    "DIAGNOSIS_FAILED": (
+        "Diagnosis failed for the canonical document"
+    ),
+    "MEMBER_INCOMPLETE": (
+        "The corpus member has incomplete reportable evidence"
+    ),
+}
+
+
+def _expected_member_error_code(
+    member: dict[str, Any],
+    observation: dict[str, Any] | None,
+    *,
+    docling_available: bool,
+    markitdown_available: bool,
+    diagnosis_complete: bool,
+) -> str | None:
+    """Derive the one allowed member error code from recorded stage evidence."""
+
+    if member["status"] == "COMPLETE":
+        return None
+    observation_stage = member["observation"]
+    diagnosis_stage = member["diagnosis"]
+    if observation_stage["status"] == "NOT_RUN":
+        return "MEMBER_INCOMPLETE"
+    if (
+        observation_stage["status"] == "FAILED"
+        and observation_stage["manifest"] is None
+    ):
+        return "OBSERVATION_FAILED"
+    if observation is None:
+        return "MEMBER_INCOMPLETE"
+    docling_claimed, docling_error = _extractor_state(
+        observation, "docling"
+    )
+    _, markitdown_error = _extractor_state(observation, "markitdown")
+    if docling_claimed and not docling_available:
+        return "CANONICAL_UNAVAILABLE"
+    if not docling_available:
+        return _extractor_error("Docling", docling_error)["code"]
+    if diagnosis_stage["status"] == "FAILED":
+        return "DIAGNOSIS_FAILED"
+    if not markitdown_available:
+        return _extractor_error("MarkItDown", markitdown_error)["code"]
+    if diagnosis_stage["status"] == "NOT_RUN" or not diagnosis_complete:
+        return "MEMBER_INCOMPLETE"
+    return "MEMBER_INCOMPLETE"
 
 
 def _metric_view(value: Any) -> dict[str, int] | None:
@@ -685,6 +749,7 @@ def _revision_records(
                             "refiner",
                             "affected_reference_count",
                             "prepared_document_sha256",
+                            "refinement_manifest_sha256",
                             "bundle_paths",
                             "inventory_fingerprints",
                         )
@@ -701,7 +766,7 @@ def _revision_records(
                     "chain_length": revision["chain_length"],
                     "finding_id": revision["finding_id"],
                     "finding_rule": revision["finding_rule"],
-                    "refiner_id": revision["refiner"]["refiner_id"],
+                    "refiner": revision["refiner"],
                     "affected_reference_count": revision[
                         "affected_reference_count"
                     ],
@@ -792,7 +857,7 @@ def _build_summary(
             item["family"],
             item["format"],
             item["finding_rule"],
-            item["refiner_id"],
+            item["refiner"]["refiner_id"],
         )
         for item in revisions
     )
@@ -817,7 +882,7 @@ def _build_summary(
         for member in members
     ]
     summary = {
-        "schema_version": "tcw.corpus-summary/v0.4",
+        "schema_version": "tcw.corpus-summary/v0.5",
         "corpus_id": admitted.normalized["corpus_id"],
         "snapshot_id": snapshot_id,
         "run_id": run_id,
@@ -879,7 +944,7 @@ def execute_corpus(
 
     root = _safe_staging_root(staging_root)
     runtime = runtime_loader()  # Global mismatch must stop before any member work.
-    summary_validator = _schema_validator("corpus-summary-v0.4.schema.json")
+    summary_validator = _schema_validator("corpus-summary-v0.5.schema.json")
     configurations = {
         "docling": docling_config,
         "markitdown": markitdown_config,
@@ -891,7 +956,6 @@ def execute_corpus(
         loader=model_inventory_loader,
     )
     runtime_record = {
-        **runtime,
         "ruleset_id": _ruleset_id(ruleset),
         "configurations": configurations,
         "model_inventory": model_manifest,
@@ -919,12 +983,14 @@ def execute_corpus(
             "observation_id": None,
             "run_id": None,
             "manifest": None,
+            "canonical_document_sha256": None,
         }
         diagnosis_record = {
             "status": "NOT_RUN",
             "diagnosis_id": None,
             "run_id": None,
             "manifest": None,
+            "findings_sha256": None,
         }
         comparison = {
             "member_id": member["member_id"],
@@ -937,6 +1003,7 @@ def execute_corpus(
         docling_available = False
         markitdown_available = False
         diagnosis_complete = False
+        observation_evidence: dict[str, Any] | None = None
         try:
             _, observation_root = observe_member(
                 str(member["source_path"]), observations_root, model_root
@@ -948,6 +1015,7 @@ def execute_corpus(
             observation = _read_json(
                 observation_manifest_path, "nested observation manifest"
             )
+            observation_evidence = observation
             docling_claimed, docling_error = _extractor_state(
                 observation, "docling"
             )
@@ -971,6 +1039,16 @@ def execute_corpus(
                 "observation_id": observation.get("observation_id"),
                 "run_id": observation.get("run_id"),
                 "manifest": _descriptor(observation_manifest_path, root),
+                "canonical_document_sha256": next(
+                    (
+                        artifact["sha256"]
+                        for extractor in observation.get("extractors", [])
+                        if extractor.get("name") == "docling"
+                        for artifact in extractor.get("artifacts", [])
+                        if artifact.get("role") == "docling-document-json"
+                    ),
+                    None,
+                ),
             }
             comparison_value = _read_json(
                 observation_root / "comparison.json",
@@ -1011,6 +1089,9 @@ def execute_corpus(
                         "diagnosis_id": diagnosis.get("diagnosis_id"),
                         "run_id": diagnosis.get("run_id"),
                         "manifest": _descriptor(diagnosis_manifest_path, root),
+                        "findings_sha256": sha256_file(
+                            diagnosis_root / "findings.json"
+                        ),
                     }
                     finding_set = _read_json(
                         diagnosis_root / "findings.json",
@@ -1067,11 +1148,28 @@ def execute_corpus(
         )
         if member_status == "COMPLETE":
             member_error = None
-        elif member_error is None:
-            member_error = _error(
-                "MEMBER_INCOMPLETE",
-                "The corpus member has incomplete reportable evidence",
+        else:
+            error_code = _expected_member_error_code(
+                {
+                    "status": member_status,
+                    "observation": observation_record,
+                    "diagnosis": diagnosis_record,
+                },
+                observation_evidence,
+                docling_available=docling_available,
+                markitdown_available=markitdown_available,
+                diagnosis_complete=diagnosis_complete,
             )
+            if (
+                error_code is not None
+                and (
+                    member_error is None
+                    or member_error.get("code") != error_code
+                )
+            ):
+                member_error = _error(
+                    error_code, _MEMBER_ERROR_MESSAGES[error_code]
+                )
         comparisons.append(comparison)
         extractor_availability.append(
             {

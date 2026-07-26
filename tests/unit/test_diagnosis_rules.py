@@ -13,7 +13,7 @@ from docling_core.types.doc import (
     TableData,
 )
 
-from tiny_corpus_workbench.diagnosis import (
+from tiny_corpus_workbench.diagnosis_rules import (
     RULESET as BASE_RULESET,
     SEVERITY_BY_RULE,
     SUMMARY_BY_RULE,

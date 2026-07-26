@@ -35,6 +35,7 @@ from tiny_corpus_workbench.v03 import (
 )
 from tiny_corpus_workbench.v03 import snapshot_tree
 from tiny_corpus_workbench.verification import verify_observation
+from tests.unit.test_unsupported_old_schemas import OLD_DIAGNOSIS_SCHEMA
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
@@ -441,7 +442,7 @@ class DiagnosisWorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "diagnosis-manifest.json").write_text(
-                '{"schema_version":"tcw.diagnosis-manifest/v0.3"}\n',
+                json.dumps({"schema_version": OLD_DIAGNOSIS_SCHEMA}) + "\n",
                 "utf-8",
             )
             code, stdout, stderr = self.invoke("verify-diagnosis", str(root))

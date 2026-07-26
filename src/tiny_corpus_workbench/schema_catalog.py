@@ -48,13 +48,6 @@ SCHEMA_FILES: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 
-PRIVATE_MIGRATION_SCHEMAS: Final = frozenset(
-    path.name
-    for path in SCHEMA_ROOT.glob("*.schema.json")
-    if path.name not in SCHEMA_FILES.values() and path != COMMON_SCHEMA_PATH
-)
-
-
 def load_schema(schema_version: str) -> dict[str, Any]:
     try:
         path = SCHEMA_ROOT / SCHEMA_FILES[schema_version]

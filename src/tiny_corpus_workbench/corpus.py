@@ -1,4 +1,4 @@
-"""Internal v0.4 corpus-specification admission.
+"""Internal v0.5 corpus-specification admission.
 
 This module is intentionally not imported by the package root or the existing
 single-document command paths.
@@ -62,7 +62,7 @@ def _schema_validator() -> Draft202012Validator:
                 schema["$id"], Resource.from_contents(schema)
             )
         return Draft202012Validator(
-            schemas["corpus-spec-v0.4.schema.json"],
+            schemas["corpus-spec-v0.5.schema.json"],
             registry=registry,
             format_checker=FORMAT_CHECKER,
         )
@@ -249,7 +249,7 @@ def _admit_revision(
         for name, root in roots.items()
     }
 
-    # Keep the large v0.3 implementation out of import paths that do not admit
+    # Keep the refinement implementation out of import paths that do not admit
     # revision bundles.
     from tiny_corpus_workbench.v03 import verify_refinement
 
@@ -276,7 +276,7 @@ def _admit_revision(
     ):
         _recheck_revision_inventory(roots, before)
         raise InputError(
-            "revision bundle does not satisfy the full v0.3 verification contract"
+            "revision bundle does not satisfy the full v0.5 verification contract"
         )
 
     try:
@@ -335,10 +335,20 @@ def _admit_revision(
     identity = {
         "revision_id": manifest["revision_id"],
         "refinement_run_id": manifest["run_id"],
-        "diagnosis_id": manifest["diagnosis_id"],
+        "refinement_manifest_sha256": sha256_file(
+            roots["refinement"] / "refinement-manifest.json"
+        ),
+        "diagnosis_id": manifest["diagnosis"]["diagnosis_id"],
         "parent": {
-            key: manifest["base"][key]
-            for key in ("kind", "subject_id", "canonical_document_sha256")
+            "kind": (
+                "OBSERVATION"
+                if manifest["base"]["kind"] == "OBSERVATION"
+                else "REVISION"
+            ),
+            "subject_id": manifest["base"]["identity_value"],
+            "canonical_document_sha256": manifest["base"][
+                "canonical_document_sha256"
+            ],
         },
         "source": {
             key: source[key] for key in ("key", "media_type", "size", "sha256")
@@ -472,7 +482,7 @@ def load_corpus_spec(path: str | Path) -> AdmittedCorpusSpec:
         )
 
     normalized = {
-        "schema_version": "tcw.corpus-spec/v0.4",
+        "schema_version": "tcw.corpus-spec/v0.5",
         "corpus_id": value["corpus_id"],
         "title": value["title"],
         "members": normalized_members,

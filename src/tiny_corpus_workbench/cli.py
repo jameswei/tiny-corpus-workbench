@@ -135,7 +135,7 @@ def _validate_staged_schemas(root: Path) -> None:
 def _published_diagnosis_line(published: Path) -> dict[str, Any]:
     manifest_path = published / "diagnosis-manifest.json"
     try:
-        snapshot = _diagnosis_callable("diagnosis", "snapshot_tree")
+        snapshot = _diagnosis_callable("diagnosis_rules", "snapshot_tree")
         before = snapshot(published)
         schema = json.loads(manifest_path.read_text("utf-8")).get("schema_version")
         if schema != "tcw.diagnosis-manifest/v0.5":

@@ -25,8 +25,8 @@ ROOT = Path(__file__).resolve().parents[2]
 MODEL_ROOT = Path(
     os.environ.get("TCW_DOCLING_ARTIFACTS", ".cache/docling/models")
 ).resolve()
-GOLDEN_SPEC = ROOT / "fixtures/corpus/v0.4/golden-matrix.json"
-QUALITY_SPEC = ROOT / "fixtures/corpus/v0.4/quality-corpus.json"
+GOLDEN_SPEC = ROOT / "fixtures/corpus/v0.5/golden-matrix.json"
+QUALITY_SPEC = ROOT / "fixtures/corpus/v0.5/quality-corpus.json"
 
 
 @contextmanager
@@ -213,7 +213,7 @@ class CorpusIntegrationTests(unittest.TestCase):
             root = Path(directory).resolve()
             inputs = root / "inputs"
             inputs.mkdir()
-            source = ROOT / "fixtures/refinement/v0.3/whitespace-cleanup.md"
+            source = ROOT / "fixtures/refinement/v0.5/whitespace-cleanup.md"
             code, observation = observe(
                 str(source), root / "observations", MODEL_ROOT
             )
@@ -256,7 +256,7 @@ class CorpusIntegrationTests(unittest.TestCase):
             self.assertEqual(
                 (
                     summary["revisions"][0]["finding_rule"],
-                    summary["revisions"][0]["refiner_id"],
+                    summary["revisions"][0]["refiner"]["refiner_id"],
                     summary["revisions"][0]["chain_length"],
                 ),
                 ("TCW-D009", "TCW-R001", 1),
@@ -338,7 +338,7 @@ class CorpusIntegrationTests(unittest.TestCase):
             spec_path.write_bytes(
                 canonical_json(
                     {
-                        "schema_version": "tcw.corpus-spec/v0.4",
+                        "schema_version": "tcw.corpus-spec/v0.5",
                         "corpus_id": "chain-corpus",
                         "title": "Two-step revision chain",
                         "members": [

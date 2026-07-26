@@ -1,4 +1,4 @@
-"""Self-contained and advisory verification for v0.4 corpus runs."""
+"""Self-contained and advisory verification for v0.5 corpus runs."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from tiny_corpus_workbench.corpus import AdmittedCorpusSpec, _tree_inventory
 from tiny_corpus_workbench.corpus_execution import (
     _build_summary,
     _comparison_record,
+    _expected_member_error_code,
     _extractor_state,
     _ruleset_id,
     _snapshot_id_from_identity,
@@ -29,8 +30,12 @@ from tiny_corpus_workbench.domain import (
     IntegrityError,
     RuntimeContractError,
 )
-from tiny_corpus_workbench.runtime import active_locked_runtime
 from tiny_corpus_workbench.source import sha256_file
+from tiny_corpus_workbench.supported_provenance import (
+    RECORDED_PROVENANCE_ERROR,
+    active_build_provenance,
+    validate_recorded_provenance,
+)
 from tiny_corpus_workbench.verification import FORMAT_CHECKER
 
 
@@ -141,6 +146,35 @@ def _descriptor_root(
         )
         return None
     return manifest_path.parent
+
+
+def _manifest_artifact_hash(
+    manifest: dict[str, Any],
+    *,
+    path: str,
+    role: str,
+) -> str | None:
+    artifacts = manifest.get("artifacts", [])
+    for item in artifacts if isinstance(artifacts, list) else []:
+        if (
+            isinstance(item, dict)
+            and item.get("path") == path
+            and item.get("role") == role
+            and isinstance(item.get("sha256"), str)
+        ):
+            return item["sha256"]
+    for extractor in manifest.get("extractors", []):
+        if not isinstance(extractor, dict):
+            continue
+        for item in extractor.get("artifacts", []):
+            if (
+                isinstance(item, dict)
+                and item.get("path") == path
+                and item.get("role") == role
+                and isinstance(item.get("sha256"), str)
+            ):
+                return item["sha256"]
+    return None
 
 
 def _top_artifacts(
@@ -410,7 +444,7 @@ def _revision_summary(revision: dict[str, Any]) -> dict[str, Any]:
         "chain_length": revision["chain_length"],
         "finding_id": revision["finding_id"],
         "finding_rule": revision["finding_rule"],
-        "refiner_id": revision["refiner"]["refiner_id"],
+        "refiner": revision["refiner"],
         "affected_reference_count": revision["affected_reference_count"],
         "before_document_sha256": revision["parent"][
             "canonical_document_sha256"
@@ -480,6 +514,7 @@ def _regenerate_summary(
         docling_available = False
         markitdown_available = False
         diagnosis_complete = False
+        observation_evidence: dict[str, Any] | None = None
         comparison = {
             "member_id": member["member_id"],
             "status": "NOT_AVAILABLE",
@@ -509,6 +544,7 @@ def _regenerate_summary(
                 _, observation = _read_json(
                     observation_root / "manifest.json", canonical=True
                 )
+                observation_evidence = observation
                 observation_identity = {
                     "status": observation.get("status"),
                     "observation_id": observation.get("observation_id"),
@@ -534,6 +570,36 @@ def _regenerate_summary(
                             "REFERENCE_MISMATCH",
                             member_path,
                             "recorded observation or source identity differs",
+                        )
+                    )
+                canonical_path = observation_root / "docling/document.json"
+                nested_canonical_hash = _manifest_artifact_hash(
+                    observation,
+                    path="docling/document.json",
+                    role="docling-document-json",
+                )
+                if (
+                    nested_canonical_hash is not None
+                    and (
+                        canonical_path.is_symlink()
+                        or not canonical_path.is_file()
+                        or sha256_file(canonical_path)
+                        != nested_canonical_hash
+                    )
+                ):
+                    nested_canonical_hash = None
+                if (
+                    member["observation"]["canonical_document_sha256"]
+                    != nested_canonical_hash
+                ):
+                    issues.append(
+                        _issue(
+                            "REFERENCE_MISMATCH",
+                            f"{member_path}/observation",
+                            (
+                                "recorded canonical document hash differs "
+                                "from nested observation evidence"
+                            ),
                         )
                     )
                 docling_claimed, _ = _extractor_state(observation, "docling")
@@ -605,8 +671,32 @@ def _regenerate_summary(
                             "recorded diagnosis identity differs",
                         )
                     )
+                findings_path = diagnosis_root / "findings.json"
+                nested_findings_hash = _manifest_artifact_hash(
+                    diagnosis,
+                    path="findings.json",
+                    role="diagnostic-findings",
+                )
+                if (
+                    nested_findings_hash is None
+                    or findings_path.is_symlink()
+                    or not findings_path.is_file()
+                    or sha256_file(findings_path) != nested_findings_hash
+                    or member["diagnosis"]["findings_sha256"]
+                    != nested_findings_hash
+                ):
+                    issues.append(
+                        _issue(
+                            "REFERENCE_MISMATCH",
+                            f"{member_path}/diagnosis",
+                            (
+                                "recorded findings hash differs from "
+                                "nested diagnosis evidence"
+                            ),
+                        )
+                    )
                 _, finding_set = _read_json(
-                    diagnosis_root / "findings.json", canonical=True
+                    findings_path, canonical=True
                 )
                 for finding in finding_set["findings"]:
                     findings.append(
@@ -647,6 +737,26 @@ def _regenerate_summary(
                     "STATUS_MISMATCH",
                     member_path,
                     "complete member contains an error",
+                )
+            )
+        expected_error_code = _expected_member_error_code(
+            member,
+            observation_evidence,
+            docling_available=docling_available,
+            markitdown_available=markitdown_available,
+            diagnosis_complete=diagnosis_complete,
+        )
+        recorded_error_code = (
+            member["error"].get("code")
+            if isinstance(member["error"], dict)
+            else None
+        )
+        if recorded_error_code != expected_error_code:
+            issues.append(
+                _issue(
+                    "STATUS_MISMATCH",
+                    f"{member_path}/error",
+                    "member error code differs from stage evidence",
                 )
             )
         if member["member_id"] not in spec_members or (
@@ -774,7 +884,7 @@ def _regenerate_summary(
                 revisions,
                 key=lambda item: (item["member_id"], item["revision_id"]),
             ),
-            validator=_validator("corpus-summary-v0.4.schema.json"),
+            validator=_validator("corpus-summary-v0.5.schema.json"),
         )
     except Exception:
         issues.append(
@@ -928,31 +1038,20 @@ def _verify_runtime_and_snapshot(
     from tiny_corpus_workbench.cli import DOCLING_CONFIG, MARKITDOWN_CONFIG
     from tiny_corpus_workbench.v03 import RULESET, RULESET_PARAMETER_HASH
 
-    runtime_keys = (
-        "python",
-        "implementation",
-        "lockfile_sha256",
-        "package_version",
-        "dependencies",
-    )
-    recorded_runtime = {
-        key: manifest["runtime"][key] for key in runtime_keys
-    }
-    active_contract_keys = (
-        "implementation",
-        "lockfile_sha256",
-        "package_version",
-        "dependencies",
-    )
-    if any(
-        recorded_runtime[key] != active_runtime[key]
-        for key in active_contract_keys
-    ):
+    try:
+        validate_recorded_provenance(
+            manifest["build_provenance"],
+            command_id="tcw.inspect-corpus",
+            extracting=True,
+        )
+    except ValueError as error:
+        if str(error) == RECORDED_PROVENANCE_ERROR:
+            raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
         issues.append(
             _issue(
                 "RUNTIME_MISMATCH",
                 "corpus-manifest.json",
-                "recorded runtime differs from the active v0.4 contract",
+                "recorded build provenance is malformed",
             )
         )
 
@@ -1046,6 +1145,7 @@ def _verify_runtime_and_snapshot(
         "refiner",
         "affected_reference_count",
         "prepared_document_sha256",
+        "refinement_manifest_sha256",
         "inventory_fingerprints",
     )
     snapshot_revisions = [
@@ -1055,7 +1155,7 @@ def _verify_runtime_and_snapshot(
     identity = {
         "normalized_specification": specification,
         "members": snapshot_members,
-        "runtime": recorded_runtime,
+        "runtime": manifest["build_provenance"],
         "configurations": configurations,
         "ruleset": ruleset,
         "model_inventory": model_identity,
@@ -1082,7 +1182,7 @@ def verify_corpus(
 ) -> dict[str, Any]:
     """Verify one corpus run without repairing or regenerating its files."""
 
-    active_runtime = active_locked_runtime()
+    active_runtime = active_build_provenance(command_id="tcw.verify-corpus")
     root = Path(os.path.abspath(os.fspath(corpus_root)))
     if root.is_symlink():
         raise IntegrityError(
@@ -1100,7 +1200,7 @@ def verify_corpus(
         _, manifest = _read_json(
             root / "corpus-manifest.json", canonical=True
         )
-        _validator("corpus-manifest-v0.4.schema.json").validate(manifest)
+        _validator("corpus-manifest-v0.5.schema.json").validate(manifest)
         expected_run_id = root.name if _expected_run_id is None else _expected_run_id
         if manifest["run_id"] != expected_run_id:
             raise ValueError
@@ -1120,7 +1220,7 @@ def verify_corpus(
             specification_bytes, specification = _read_json(
                 root / "corpus-spec.json", canonical=True
             )
-            _validator("corpus-spec-v0.4.schema.json").validate(specification)
+            _validator("corpus-spec-v0.5.schema.json").validate(specification)
             if (
                 hashlib.sha256(specification_bytes).hexdigest()
                 != manifest["input_specification"]["normalized_sha256"]
@@ -1138,7 +1238,7 @@ def verify_corpus(
             specification = None
         try:
             _, summary = _read_json(root / "summary.json", canonical=True)
-            _validator("corpus-summary-v0.4.schema.json").validate(summary)
+            _validator("corpus-summary-v0.5.schema.json").validate(summary)
         except Exception:
             issues.append(
                 _issue(
@@ -1253,7 +1353,7 @@ def verify_corpus(
         else "INTEGRITY_MISMATCH"
     )
     result = {
-        "schema_version": "tcw.corpus-verification-result/v0.4",
+        "schema_version": "tcw.corpus-verification-result/v0.5",
         "corpus_directory": str(root.resolve()),
         "artifact_integrity": {
             "status": artifact_status,
@@ -1263,6 +1363,7 @@ def verify_corpus(
         "source_states": source_states,
         "model_state": model_state,
         "revision_states": revision_states,
+        "build_provenance": active_runtime,
     }
-    _validator("corpus-verification-result-v0.4.schema.json").validate(result)
+    _validator("corpus-verification-result-v0.5.schema.json").validate(result)
     return result

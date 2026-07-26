@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the committed v0.4 corpus specifications without rewriting them."""
+"""Verify the committed v0.5 corpus specifications without rewriting them."""
 
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ from tiny_corpus_workbench.corpus import load_corpus_spec
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CORPUS = ROOT / "fixtures/corpus/v0.4"
+CORPUS = ROOT / "fixtures/corpus/v0.5"
 GOLDEN_SPEC = CORPUS / "golden-matrix.json"
 QUALITY_SPEC = CORPUS / "quality-corpus.json"
 GOLDEN_REGISTRY = ROOT / "fixtures/golden/fixtures.json"
-DIAGNOSIS_REGISTRY = ROOT / "fixtures/diagnosis/v0.2/fixtures.json"
-REFINEMENT_REGISTRY = ROOT / "fixtures/refinement/v0.3/fixtures.json"
+DIAGNOSIS_REGISTRY = ROOT / "fixtures/diagnosis/v0.5/fixtures.json"
+REFINEMENT_REGISTRY = ROOT / "fixtures/refinement/v0.5/fixtures.json"
 FORMATS = {"pdf", "docx", "md", "txt"}
 QUALITY_RULES = {
     "TCW-D002",
@@ -101,7 +101,7 @@ def main() -> int:
     if before != after:
         _fail("corpus specification verification rewrote a committed fixture")
     print(
-        "verified exact v0.4 golden and quality corpus specifications "
+        "verified exact v0.5 golden and quality corpus specifications "
         "with rules D002, D003, D004, D005, D007, D009, and D010"
     )
     return 0

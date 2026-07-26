@@ -74,6 +74,6 @@
       "source": "../../golden/release-notice.txt"
     }
   ],
-  "schema_version": "tcw.corpus-spec/v0.4",
+  "schema_version": "tcw.corpus-spec/v0.5",
   "title": "Golden three-family four-format matrix"
 }

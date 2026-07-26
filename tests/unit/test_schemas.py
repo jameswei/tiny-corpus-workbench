@@ -123,9 +123,9 @@ class SchemaTests(unittest.TestCase):
             ):
                 schema_validator(schema_version).validate({})
 
-    def test_v03_table_coordinates_are_an_all_or_nothing_pair(self) -> None:
+    def test_table_coordinates_are_an_all_or_nothing_pair(self) -> None:
         draft_schema = json.loads(
-            (SCHEMAS / "refinement-draft-v0.3.schema.json").read_text("utf-8")
+            (SCHEMAS / "refinement-draft-v0.5.schema.json").read_text("utf-8")
         )
         target_validator = Draft202012Validator(draft_schema["$defs"]["target"])
         target_validator.validate(
@@ -142,14 +142,23 @@ class SchemaTests(unittest.TestCase):
                 target_validator.validate(incomplete)
 
         finding_schema = json.loads(
-            (SCHEMAS / "finding-set-v0.3.schema.json").read_text("utf-8")
+            (SCHEMAS / "finding-set-v0.5.schema.json").read_text("utf-8")
         )
-        evidence_schema = finding_schema["$defs"]["finding"]["properties"][
-            "evidence"
-        ]
+        d003 = next(
+            branch
+            for branch in finding_schema["$defs"]["finding"]["oneOf"]
+            if branch["properties"]["rule_id"].get("const") == "TCW-D003"
+        )
+        evidence_schema = d003["properties"]["evidence"]
         evidence_validator = Draft202012Validator(evidence_schema)
-        evidence_validator.validate({"row": 0, "column": 0})
-        for incomplete in ({"row": 0}, {"column": 0}):
+        base_evidence = {"code_point_offsets": [0], "occurrence_count": 1}
+        evidence_validator.validate(
+            {**base_evidence, "row": 0, "column": 0}
+        )
+        for incomplete in (
+            {**base_evidence, "row": 0},
+            {**base_evidence, "column": 0},
+        ):
             with self.subTest(evidence=incomplete), self.assertRaises(
                 ValidationError
             ):

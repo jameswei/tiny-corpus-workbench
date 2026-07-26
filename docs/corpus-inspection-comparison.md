@@ -13,7 +13,7 @@ Inspect a committed example corpus:
 
 ```bash
 uv run --frozen tcw inspect-corpus \
-  fixtures/corpus/v0.4/golden-matrix.json
+  fixtures/corpus/v0.5/golden-matrix.json
 ```
 
 Select other local output and model directories:
@@ -47,7 +47,7 @@ The specification is a closed JSON document:
 
 ```json
 {
-  "schema_version": "tcw.corpus-spec/v0.4",
+  "schema_version": "tcw.corpus-spec/v0.5",
   "corpus_id": "example-corpus",
   "title": "Example corpus",
   "members": [

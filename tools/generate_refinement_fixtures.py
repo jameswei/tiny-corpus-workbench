@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the deterministic project-authored v0.3 refinement fixtures."""
+"""Check the deterministic project-authored v0.5 refinement fixtures."""
 
 from __future__ import annotations
 

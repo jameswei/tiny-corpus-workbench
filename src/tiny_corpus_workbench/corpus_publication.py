@@ -1,4 +1,4 @@
-"""Atomic v0.4 corpus inspection publication."""
+"""Atomic v0.5 corpus inspection publication."""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from tiny_corpus_workbench.corpus_execution import (
 from tiny_corpus_workbench.corpus_report import render_report, render_stylesheet
 from tiny_corpus_workbench.domain import InputError, IntegrityError
 from tiny_corpus_workbench.source import sha256_file
+from tiny_corpus_workbench.supported_provenance import active_build_provenance
 from tiny_corpus_workbench.verification import FORMAT_CHECKER
 
 
@@ -233,8 +234,7 @@ def _write_publication(
 
     counts = result.summary["totals"]
     manifest = {
-        "schema_version": "tcw.corpus-manifest/v0.4",
-        "milestone": "v0.4",
+        "schema_version": "tcw.corpus-manifest/v0.5",
         "corpus_id": admitted.normalized["corpus_id"],
         "snapshot_id": result.snapshot_id,
         "run_id": run_id,
@@ -277,8 +277,12 @@ def _write_publication(
                 media_type="text/css",
             ),
         ],
+        "build_provenance": active_build_provenance(
+            command_id="tcw.inspect-corpus",
+            extracting=True,
+        ),
     }
-    _schema_validator("corpus-manifest-v0.4.schema.json").validate(manifest)
+    _schema_validator("corpus-manifest-v0.5.schema.json").validate(manifest)
     (staging / "corpus-manifest.json").write_bytes(canonical_json(manifest))
     _safe_tree(staging)
     recheck_corpus_inputs(result)

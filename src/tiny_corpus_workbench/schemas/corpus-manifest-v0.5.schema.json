@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/tcw/corpus-manifest-v0.5.schema.json",
-  "title": "tiny-corpus-workbench corpus manifest v0.4",
+  "title": "tiny-corpus-workbench corpus manifest v0.5",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -630,7 +630,121 @@
             }
           ]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "COMPLETE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "observation": {
+                "properties": {
+                  "status": {
+                    "const": "FAILED"
+                  },
+                  "manifest": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/error"
+                  },
+                  {
+                    "properties": {
+                      "code": {
+                        "const": "OBSERVATION_FAILED"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "observation": {
+                "properties": {
+                  "status": {
+                    "const": "NOT_RUN"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/error"
+                  },
+                  {
+                    "properties": {
+                      "code": {
+                        "const": "MEMBER_INCOMPLETE"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "diagnosis": {
+                "properties": {
+                  "status": {
+                    "const": "FAILED"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/error"
+                  },
+                  {
+                    "properties": {
+                      "code": {
+                        "const": "DIAGNOSIS_FAILED"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     "parent": {
       "type": "object",

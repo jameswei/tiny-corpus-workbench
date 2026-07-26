@@ -19,7 +19,7 @@ from typing import Any, Iterable
 
 from docling_core.types.doc import DoclingDocument
 from tiny_corpus_workbench.artifacts import _rename_exclusive, canonical_json
-from tiny_corpus_workbench.diagnosis import (
+from tiny_corpus_workbench.diagnosis_rules import (
     RULESET as V02_RULES,
     _canonicalize_findings,
     _hash,
@@ -38,7 +38,6 @@ from tiny_corpus_workbench.domain import (
     sanitize_message,
 )
 from tiny_corpus_workbench.schema_catalog import validate_document
-from tiny_corpus_workbench.runtime import active_locked_runtime
 from tiny_corpus_workbench.supported_provenance import (
     RECORDED_PROVENANCE_ERROR,
     active_build_provenance,

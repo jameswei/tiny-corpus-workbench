@@ -20,6 +20,7 @@ from tiny_corpus_workbench.artifacts import (
 from tiny_corpus_workbench.domain import RuntimeContractError
 from tiny_corpus_workbench.runtime import PROVENANCE_DEPENDENCIES
 from tiny_corpus_workbench.schema_catalog import validator as schema_validator
+from tests.unit.test_unsupported_old_schemas import OLD_OBSERVATION_SCHEMA
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
@@ -200,7 +201,7 @@ class VerificationTests(unittest.TestCase):
             _, published = self.observation(Path(directory))
             manifest_path = published / "manifest.json"
             manifest = json.loads(manifest_path.read_text("utf-8"))
-            manifest["schema_version"] = "tcw.preparation-manifest/v0.1"
+            manifest["schema_version"] = OLD_OBSERVATION_SCHEMA
             manifest_path.write_bytes(canonical_json(manifest))
             code, stdout, stderr = self.invoke("verify", str(published))
             self.assertEqual(code, 2)

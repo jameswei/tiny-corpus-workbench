@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
+import tempfile
 import unittest
 from collections import Counter
 from copy import deepcopy
@@ -18,7 +20,6 @@ from tiny_corpus_workbench.canonical_json import (
     session_id,
 )
 from tiny_corpus_workbench.schema_catalog import (
-    PRIVATE_MIGRATION_SCHEMAS,
     SCHEMA_FILES,
     SCHEMA_ROOT,
     load_schema,
@@ -27,6 +28,7 @@ from tiny_corpus_workbench.schema_catalog import (
 )
 from tiny_corpus_workbench.semantic_validation import SemanticValidationError
 from tiny_corpus_workbench.supported_provenance import load_registry
+from tools.verify_v05_schema_baseline import AuditError, verify as verify_reset_audit
 
 
 API_FIXTURES = Path("tests/fixtures/workbench-api")
@@ -162,7 +164,29 @@ class V05SchemaBaselineTests(unittest.TestCase):
         with self.assertRaises((ValidationError, SemanticValidationError)):
             validate_document(schema_version, document)
 
-    def test_catalog_contains_exact_public_baseline_and_marks_old_schemas_private(self) -> None:
+    def copied_repository(self, parent: Path) -> Path:
+        destination = parent / "repository"
+        shutil.copytree(
+            Path.cwd(),
+            destination,
+            ignore=shutil.ignore_patterns(
+                ".git",
+                ".venv",
+                ".cache",
+                ".pytest_cache",
+                "__pycache__",
+                "build",
+            ),
+        )
+        return destination
+
+    def rewrite_json(self, root: Path, relative: str, mutate) -> None:
+        path = root / relative
+        document = json.loads(path.read_text("utf-8"))
+        mutate(document)
+        path.write_bytes(canonical_json(document) + b"\n")
+
+    def test_catalog_contains_exact_public_baseline_only(self) -> None:
         self.assertEqual(len(SCHEMA_FILES), 24)
         for schema_version, filename in SCHEMA_FILES.items():
             with self.subTest(schema=schema_version):
@@ -174,8 +198,12 @@ class V05SchemaBaselineTests(unittest.TestCase):
                     )
                 )
                 self.assertEqual(filename, (SCHEMA_ROOT / filename).name)
-        self.assertTrue(PRIVATE_MIGRATION_SCHEMAS)
-        self.assertTrue(all("-v0.5." not in name for name in PRIVATE_MIGRATION_SCHEMAS))
+        packaged = {
+            path.name
+            for path in SCHEMA_ROOT.glob("*.schema.json")
+            if path.name != "common-v0.5.schema.json"
+        }
+        self.assertEqual(packaged, set(SCHEMA_FILES.values()))
 
     def test_shared_shapes_are_closed_exact_and_not_interchangeable(self) -> None:
         for schema_version, (shape, identifier) in PLACEMENT.items():
@@ -1532,24 +1560,77 @@ class V05SchemaBaselineTests(unittest.TestCase):
             "tcw.corpus-manifest/v0.5"
         ).evolve(schema=schema["$defs"]["diagnosis"])
         descriptor = {"path": "member/manifest.json", "size": 1, "sha256": "a" * 64}
-        observation_validator.validate(
+        observation_cases = (
             {
                 "status": "SUCCESS",
                 "observation_id": "b" * 64,
                 "run_id": "run",
                 "manifest": descriptor,
                 "canonical_document_sha256": "c" * 64,
-            }
+            },
+            {
+                "status": "PARTIAL_SUCCESS",
+                "observation_id": "b" * 64,
+                "run_id": "run",
+                "manifest": descriptor,
+                "canonical_document_sha256": None,
+            },
+            {
+                "status": "FAILED",
+                "observation_id": "b" * 64,
+                "run_id": "run",
+                "manifest": descriptor,
+                "canonical_document_sha256": None,
+            },
+            {
+                "status": "FAILED",
+                "observation_id": None,
+                "run_id": None,
+                "manifest": None,
+                "canonical_document_sha256": None,
+            },
+            {
+                "status": "NOT_RUN",
+                "observation_id": None,
+                "run_id": None,
+                "manifest": None,
+                "canonical_document_sha256": None,
+            },
         )
-        diagnosis_validator.validate(
+        for case in observation_cases:
+            observation_validator.validate(case)
+        diagnosis_cases = (
+            {
+                "status": "FINDINGS",
+                "diagnosis_id": "b" * 64,
+                "run_id": "run",
+                "manifest": descriptor,
+                "findings_sha256": "c" * 64,
+            },
+            {
+                "status": "NO_FINDINGS",
+                "diagnosis_id": "b" * 64,
+                "run_id": "run",
+                "manifest": descriptor,
+                "findings_sha256": "c" * 64,
+            },
             {
                 "status": "FAILED",
                 "diagnosis_id": None,
                 "run_id": None,
                 "manifest": None,
                 "findings_sha256": None,
-            }
+            },
+            {
+                "status": "NOT_RUN",
+                "diagnosis_id": None,
+                "run_id": None,
+                "manifest": None,
+                "findings_sha256": None,
+            },
         )
+        for case in diagnosis_cases:
+            diagnosis_validator.validate(case)
         with self.assertRaises(ValidationError):
             observation_validator.validate(
                 {
@@ -2028,12 +2109,6 @@ class V05SchemaBaselineTests(unittest.TestCase):
                         "current-writer",
                     ),
                     (
-                        "legacy-diagnosis-private-staging",
-                        "src/tiny_corpus_workbench/diagnosis.py",
-                        "diagnose",
-                        "private-migration-staging-writer",
-                    ),
-                    (
                         "observation-verification-result",
                         "src/tiny_corpus_workbench/verification.py",
                         "verify_observation",
@@ -2041,7 +2116,7 @@ class V05SchemaBaselineTests(unittest.TestCase):
                     ),
                     (
                         "diagnosis-verification-result",
-                        "src/tiny_corpus_workbench/diagnosis_verification.py",
+                        "src/tiny_corpus_workbench/v03.py",
                         "verify_diagnosis",
                         "current-writer",
                     ),
@@ -2439,7 +2514,7 @@ class V05SchemaBaselineTests(unittest.TestCase):
                 ("observation", "src/tiny_corpus_workbench/verification.py"),
                 (
                     "diagnosis",
-                    "src/tiny_corpus_workbench/diagnosis_verification.py",
+                    "src/tiny_corpus_workbench/v03.py",
                 ),
                 ("refinement", "src/tiny_corpus_workbench/v03.py"),
                 ("corpus", "src/tiny_corpus_workbench/corpus_verification.py"),
@@ -2501,6 +2576,20 @@ class V05SchemaBaselineTests(unittest.TestCase):
             },
         )
 
+        renamed_fixture_base_paths = {
+            "fixtures/corpus/v0.5/golden-matrix.json": (
+                "fixtures/corpus/v0.4/golden-matrix.json"
+            ),
+            "fixtures/corpus/v0.5/quality-corpus.json": (
+                "fixtures/corpus/v0.4/quality-corpus.json"
+            ),
+            "fixtures/diagnosis/v0.5/fixtures.json": (
+                "fixtures/diagnosis/v0.2/fixtures.json"
+            ),
+            "fixtures/refinement/v0.5/fixtures.json": (
+                "fixtures/refinement/v0.3/fixtures.json"
+            ),
+        }
         for item in (
             inventory["fixtures_registries_specs"]
             + inventory["public_references"]
@@ -2509,7 +2598,15 @@ class V05SchemaBaselineTests(unittest.TestCase):
             self.assertTrue(Path(path).is_file(), path)
             self.assertTrue(item["classification"])
             subprocess.run(
-                ["git", "cat-file", "-e", f"{approved_base}:{path}"],
+                [
+                    "git",
+                    "cat-file",
+                    "-e",
+                    (
+                        f"{approved_base}:"
+                        f"{renamed_fixture_base_paths.get(path, path)}"
+                    ),
+                ],
                 check=True,
                 capture_output=True,
             )
@@ -2527,7 +2624,7 @@ class V05SchemaBaselineTests(unittest.TestCase):
         }
         self.assertEqual(
             {
-                item["path"]
+                renamed_fixture_base_paths.get(item["path"], item["path"])
                 for item in inventory["fixtures_registries_specs"]
             },
             base_fixture_scope,
@@ -2564,23 +2661,16 @@ class V05SchemaBaselineTests(unittest.TestCase):
             )
         self.assertEqual(
             {item["path"] for item in inventory["schemas"]},
-            git_tree_paths(
-                approved_base, "src/tiny_corpus_workbench/schemas"
-            )
-            | {
+            {
                 str(path.relative_to(Path.cwd()))
-                for path in SCHEMA_ROOT.glob("*-v0.5.schema.json")
-            }
-            | {
-                "src/tiny_corpus_workbench/schemas/common-v0.5.schema.json"
+                for path in SCHEMA_ROOT.glob("*.schema.json")
             },
         )
         self.assertEqual(
             {item["path"] for item in inventory["tests"]},
             {
-                path
-                for path in git_tree_paths(approved_base, "tests")
-                if path.endswith(".py")
+                path.as_posix()
+                for path in Path("tests").rglob("*.py")
             },
         )
         for item in inventory["tests"]:
@@ -2605,15 +2695,12 @@ class V05SchemaBaselineTests(unittest.TestCase):
                 for item in inventory["schema_emission_sources"]
             },
             {
-                item["path"]
-                for group in ("writers", "verifiers", "identity_inputs")
-                for item in inventory[group]
+                path.as_posix()
+                for path in Path("src/tiny_corpus_workbench").rglob("*.py")
             }
             | {
-                "src/tiny_corpus_workbench/schema_catalog.py",
-                "src/tiny_corpus_workbench/semantic_validation.py",
-                "src/tiny_corpus_workbench/supported_provenance.py",
-                "src/tiny_corpus_workbench/supported-provenance-v0.5.json",
+                path.as_posix()
+                for path in Path("tools").glob("*.py")
             },
         )
         self.assertEqual(
@@ -2639,6 +2726,86 @@ class V05SchemaBaselineTests(unittest.TestCase):
             schema = json.loads(raw)
             with self.subTest(source=source, pointer=pointer):
                 self.assertIsNotNone(resolve_pointer(schema, pointer))
+
+    def test_standalone_reset_audit_rejects_adversarial_drift(self) -> None:
+        base_repository = Path.cwd()
+        cases = (
+            (
+                "new fixture file",
+                "fixture file inventory is incomplete or stale",
+                lambda root: (root / "fixtures" / "unclassified.bin").write_bytes(
+                    b"unclassified\n"
+                ),
+            ),
+            (
+                "wrong schema version const",
+                "schema_version const differs from catalog",
+                lambda root: self.rewrite_json(
+                    root,
+                    "src/tiny_corpus_workbench/schemas/corpus-summary-v0.5.schema.json",
+                    lambda document: document["properties"]["schema_version"].update(
+                        {"const": "tcw.corpus-summary/v0.4"}
+                    ),
+                ),
+            ),
+            (
+                "wrong provenance placement",
+                "wrong build provenance placement",
+                lambda root: self.rewrite_json(
+                    root,
+                    "src/tiny_corpus_workbench/schemas/corpus-manifest-v0.5.schema.json",
+                    lambda document: document["required"].remove(
+                        "build_provenance"
+                    ),
+                ),
+            ),
+            (
+                "wrong command identifier",
+                "shared command identifiers differ from runtime declarations",
+                lambda root: self.rewrite_json(
+                    root,
+                    "src/tiny_corpus_workbench/schemas/common-v0.5.schema.json",
+                    lambda document: document["$defs"]["BUILD_COMMAND"][
+                        "properties"
+                    ]["command_id"]["enum"].append("tcw.unapproved"),
+                ),
+            ),
+            (
+                "wrong evidence classification",
+                "schema evidence inventory differs from the accepted V05-1 decision",
+                lambda root: self.rewrite_json(
+                    root,
+                    "tests/fixtures/v05-schema-evidence-inventory.json",
+                    lambda document: document["tests"][0].update(
+                        {"classification": "unapproved-test"}
+                    ),
+                ),
+            ),
+            (
+                "obsolete repository metadata",
+                "obsolete diagnosis v0.2 binary attribute remains",
+                lambda root: (root / ".gitattributes").write_text(
+                    (root / ".gitattributes").read_text("utf-8")
+                    + "fixtures/diagnosis/v0.2/*.pdf binary\n",
+                    encoding="utf-8",
+                ),
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            clean = self.copied_repository(Path(temporary))
+            verify_reset_audit(clean, base_repository=base_repository)
+        for label, message, mutate in cases:
+            with (
+                self.subTest(case=label),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                repository = self.copied_repository(Path(temporary))
+                mutate(repository)
+                with self.assertRaisesRegex(AuditError, message):
+                    verify_reset_audit(
+                        repository,
+                        base_repository=base_repository,
+                    )
 
 
 if __name__ == "__main__":

@@ -28,8 +28,7 @@ assert "jsonschema" not in sys.modules
 sys.meta_path.insert(0, BlockJsonschema())
 from tiny_corpus_workbench import cli
 assert "jsonschema" not in sys.modules
-assert "tiny_corpus_workbench.diagnosis" not in sys.modules
-assert "tiny_corpus_workbench.diagnosis_verification" not in sys.modules
+assert "tiny_corpus_workbench.diagnosis_rules" not in sys.modules
 """
 ACTIVE_RUNTIME_ERROR = (
     "active runtime does not match this package provenance registry\n"

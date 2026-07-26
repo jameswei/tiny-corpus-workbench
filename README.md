@@ -137,9 +137,9 @@ uv run --frozen tcw resolve-refinement decision.json \
 uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY \
   --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
 uv run --frozen tcw inspect-corpus \
-  fixtures/corpus/v0.4/golden-matrix.json
+  fixtures/corpus/v0.5/golden-matrix.json
 uv run --frozen tcw verify-corpus CORPUS_DIRECTORY \
-  --spec fixtures/corpus/v0.4/golden-matrix.json
+  --spec fixtures/corpus/v0.5/golden-matrix.json
 ```
 
 Each command prints a compact JSON result. Replace `OBSERVATION_DIRECTORY` with

@@ -29,7 +29,6 @@ from tiny_corpus_workbench.domain import (
     IntegrityError,
     RuntimeContractError,
 )
-from tiny_corpus_workbench.runtime import V03_LOCKFILE_SHA256
 from tiny_corpus_workbench.v03 import (
     _apply_edits,
     _diagnosis_report,
@@ -39,21 +38,15 @@ from tiny_corpus_workbench.v03 import (
     verify_diagnosis,
     verify_refinement,
 )
+from tests.unit.test_unsupported_old_schemas import (
+    OLD_DIAGNOSIS_SCHEMA,
+    OLD_REFINEMENT_DRAFT_SCHEMA,
+    OLD_REFINEMENT_SCHEMA,
+)
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
 PDF_SOURCE = Path("fixtures/diagnosis/v0.5/repeated-margin.pdf")
-RUNTIME = {
-    "python": "3.12.11",
-    "implementation": "CPython",
-    "lockfile_sha256": V03_LOCKFILE_SHA256,
-    "package_version": "0.3.0",
-    "dependencies": {
-        "docling": "2.113.0",
-        "docling-core": "2.87.1",
-        "markitdown": "0.1.6",
-    },
-}
 
 
 def docling_with_refinements(source: Path, destination: Path, model_root: Path):
@@ -109,7 +102,7 @@ class ControlledRevisionTests(unittest.TestCase):
             diagnosis.mkdir()
             base.mkdir()
             (diagnosis / "diagnosis-manifest.json").write_text(
-                '{"schema_version":"tcw.diagnosis-manifest/v0.3"}\n',
+                json.dumps({"schema_version": OLD_DIAGNOSIS_SCHEMA}) + "\n",
                 "utf-8",
             )
             (diagnosis / "findings.json").write_text("{}\n", "utf-8")
@@ -129,7 +122,7 @@ class ControlledRevisionTests(unittest.TestCase):
 
             old_draft = root / "old-decision.json"
             old_draft.write_text(
-                '{"schema_version":"tcw.refinement-draft/v0.3"}\n',
+                json.dumps({"schema_version": OLD_REFINEMENT_DRAFT_SCHEMA}) + "\n",
                 "utf-8",
             )
             code, stdout, stderr = self.invoke(
@@ -147,7 +140,7 @@ class ControlledRevisionTests(unittest.TestCase):
             old_record = root / "old-refinement"
             old_record.mkdir()
             (old_record / "refinement-manifest.json").write_text(
-                '{"schema_version":"tcw.refinement-manifest/v0.3"}\n',
+                json.dumps({"schema_version": OLD_REFINEMENT_SCHEMA}) + "\n",
                 "utf-8",
             )
             code, stdout, stderr = self.invoke(
@@ -563,9 +556,7 @@ class ControlledRevisionTests(unittest.TestCase):
             ("TCW-D010", docling_with_refinements, SOURCE),
             ("TCW-D007", docling_with_repeated_margins, PDF_SOURCE),
         )
-        with tempfile.TemporaryDirectory() as directory, mock.patch(
-            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
-        ):
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for rule_id, converter, source in cases:
                 with self.subTest(rule_id=rule_id):
@@ -602,9 +593,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     )
 
     def test_hash_consistent_semantic_tampering_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, mock.patch(
-            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
-        ):
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
                 root / "base", "TCW-D009"
@@ -675,9 +664,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     )
 
     def test_rejected_status_requires_exact_inventory_and_null_revision(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, mock.patch(
-            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
-        ):
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation = self.observation(root / "observations")
             diagnosis = cli._diagnosis_callable("v03", "diagnose")(
@@ -720,9 +707,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     )
 
     def test_refinement_nested_publication_symlinks_are_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, mock.patch(
-            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
-        ):
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation = self.observation(root / "observations")
             diagnosis = cli._diagnosis_callable("v03", "diagnose")(
@@ -772,9 +757,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     )
 
     def test_complete_refinement_base_descriptor_is_verified(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, mock.patch(
-            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
-        ):
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
                 root / "base", "TCW-D009"
@@ -809,9 +792,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     )
 
     def test_refinement_runtime_provenance_is_verified(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, mock.patch(
-            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
-        ):
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
                 root / "base", "TCW-D009"
@@ -821,10 +802,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 ("package_version", "0.5.1", False),
                 (
                     "dependencies",
-                    {
-                        **RUNTIME["dependencies"],
-                        "docling-core": "0.0.0",
-                    },
+                    None,
                     True,
                 ),
             ):
@@ -832,6 +810,11 @@ class ControlledRevisionTests(unittest.TestCase):
                     copied = self.copy_record(revision, root / field)
                     manifest_path = copied / "refinement-manifest.json"
                     manifest = json.loads(manifest_path.read_text("utf-8"))
+                    if field == "dependencies":
+                        replacement = dict(
+                            manifest["build_provenance"]["dependencies"]
+                        )
+                        replacement.pop("jsonschema")
                     manifest["build_provenance"][field] = replacement
                     manifest_path.write_bytes(canonical_json(manifest))
                     if malformed:
@@ -1139,9 +1122,7 @@ class ControlledRevisionTests(unittest.TestCase):
     def test_refinement_destination_collision_and_concurrency_are_atomic(
         self,
     ) -> None:
-        with tempfile.TemporaryDirectory() as directory, mock.patch(
-            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
-        ):
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation = self.observation(root / "observations")
             diagnosis = cli._diagnosis_callable("v03", "diagnose")(
@@ -1249,9 +1230,7 @@ class ControlledRevisionTests(unittest.TestCase):
             )
 
     def test_approve_verify_rediagnose_chain_and_reject(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, mock.patch(
-            "tiny_corpus_workbench.v03.active_locked_runtime", return_value=RUNTIME
-        ):
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation = self.observation(root / "observations")
             diagnosis = cli._diagnosis_callable("v03", "diagnose")(
