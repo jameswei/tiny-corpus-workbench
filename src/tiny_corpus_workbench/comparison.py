@@ -37,7 +37,10 @@ def _metrics(text: str, anchors: dict[str, str], artifact_hash: str) -> dict[str
     return {
         "artifact_sha256": artifact_hash,
         "normalized_sha256": hashlib.sha256(encoded).hexdigest(),
-        "anchors": {key: value in text for key, value in anchors.items()},
+        "anchors": [
+            {"name": key, "present": value in text}
+            for key, value in sorted(anchors.items())
+        ],
         "bytes": len(encoded),
         "characters": len(text),
         "non_whitespace_characters": sum(not char.isspace() for char in text),
@@ -79,7 +82,7 @@ def make_comparison(
         status = "NOT_AVAILABLE"
         deltas = None
     return {
-        "schema_version": "tcw.comparison-summary/v0.1",
+        "schema_version": "tcw.comparison-summary/v0.5",
         "observation_id": observation_id,
         "normalization_algorithm": "tcw-markdown-normalize-v1",
         "source": {
@@ -87,7 +90,10 @@ def make_comparison(
             "media_type": source["media_type"],
             "fixture_id": source.get("fixture_id"),
         },
-        "anchors": anchors,
+        "anchors": [
+            {"name": key, "value": value}
+            for key, value in sorted(anchors.items())
+        ],
         "status": status,
         "views": views,
         "deltas": deltas,

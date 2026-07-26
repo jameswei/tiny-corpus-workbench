@@ -25,8 +25,13 @@ from tiny_corpus_workbench.domain import (
     RuntimeContractError,
     sanitize_message,
 )
-from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
 from tiny_corpus_workbench.source import sha256_file
+from tiny_corpus_workbench.schema_catalog import validator as catalog_validator
+from tiny_corpus_workbench.supported_provenance import (
+    RECORDED_PROVENANCE_ERROR,
+    active_build_provenance,
+    validate_recorded_provenance,
+)
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
@@ -83,6 +88,13 @@ def _schema(name: str) -> dict[str, Any]:
 
 
 def _validator(schema: dict[str, Any]) -> Draft202012Validator:
+    schema_version = (
+        schema.get("properties", {}).get("schema_version", {}).get("const")
+    )
+    if isinstance(schema_version, str) and schema_version.endswith("/v0.5"):
+        return catalog_validator(schema_version).evolve(
+            format_checker=FORMAT_CHECKER
+        )
     return Draft202012Validator(schema, format_checker=FORMAT_CHECKER)
 
 
@@ -200,26 +212,7 @@ def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     """Check cross-field contracts that JSON Schema cannot express safely."""
 
     issues: list[dict[str, Any]] = []
-    dependencies = manifest["runtime"]["dependencies"]
-    runtime = manifest["runtime"]
-    if runtime["implementation"] != "CPython" or re.fullmatch(
-        r"3\.12(?:\.\d+)?(?:[a-z]+\d*)?", runtime["python"]
-    ) is None:
-        issues.append(
-            _issue(
-                "REFERENCE_MISMATCH",
-                "manifest.json",
-                "recorded Python runtime differs from the fixed CPython 3.12 contract",
-            )
-        )
-    if dependencies != RUNTIME_DEPENDENCIES:
-        issues.append(
-            _issue(
-                "REFERENCE_MISMATCH",
-                "manifest.json",
-                "recorded dependencies differ from the fixed runtime contract",
-            )
-        )
+    dependencies = manifest["build_provenance"]["dependencies"]
     results = {result["name"]: result for result in manifest["extractors"]}
     for name, result in results.items():
         if result["version"] != dependencies[name]:
@@ -442,8 +435,8 @@ def validate_staged_schemas(root: Path) -> None:
     """Reject staged evidence that does not satisfy both public schemas."""
 
     for filename, schema_name in (
-        ("manifest.json", "preparation-manifest-v0.1.schema.json"),
-        ("comparison.json", "comparison-summary-v0.1.schema.json"),
+        ("manifest.json", "preparation-manifest-v0.5.schema.json"),
+        ("comparison.json", "comparison-summary-v0.5.schema.json"),
     ):
         try:
             document = json.loads((root / filename).read_text("utf-8"))
@@ -462,9 +455,10 @@ def verify_observation(
     source: Path | None = None,
     model_root: Path | None = None,
 ) -> dict[str, Any]:
-    manifest_schema = _schema("preparation-manifest-v0.1.schema.json")
-    comparison_schema = _schema("comparison-summary-v0.1.schema.json")
-    result_schema = _schema("verification-result-v0.1.schema.json")
+    result_provenance = active_build_provenance(command_id="tcw.verify")
+    manifest_schema = _schema("preparation-manifest-v0.5.schema.json")
+    comparison_schema = _schema("comparison-summary-v0.5.schema.json")
+    result_schema = _schema("verification-result-v0.5.schema.json")
     issues: list[dict[str, Any]] = []
     manifest: object = _LOAD_FAILED
     valid_manifest: dict[str, Any] | None = None
@@ -490,7 +484,7 @@ def verify_observation(
                     "manifest JSON root must be an object",
                 )
             )
-        elif manifest.get("schema_version") != "tcw.preparation-manifest/v0.1":
+        elif manifest.get("schema_version") != "tcw.preparation-manifest/v0.5":
             issues.append(_issue("SCHEMA_UNSUPPORTED", "manifest.json", "manifest schema is unsupported"))
         else:
             errors = _validation_errors(manifest_schema, manifest)
@@ -501,13 +495,20 @@ def verify_observation(
 
     if valid_manifest is not None:
         manifest = valid_manifest
+        try:
+            validate_recorded_provenance(
+                manifest["build_provenance"],
+                command_id="tcw.observe",
+                extracting=True,
+            )
+        except ValueError as error:
+            raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
         if root.name != manifest["run_id"]:
             issues.append(_issue("RUN_ID_MISMATCH", None, "directory basename does not match run_id"))
         computed_id = compute_observation_id(
             manifest["source"],
-            manifest["runtime"]["dependencies"],
+            manifest["build_provenance"],
             manifest["configurations"],
-            manifest["runtime"]["lockfile"]["sha256"],
             manifest["models"]["inventory_hash"],
         )
         if computed_id != manifest["observation_id"]:
@@ -677,7 +678,10 @@ def verify_observation(
                     expected_comparison = make_comparison(
                         manifest["observation_id"],
                         manifest["source"],
-                        comparison["anchors"],
+                        {
+                            item["name"]: item["value"]
+                            for item in comparison["anchors"]
+                        },
                         markdown_views["docling"],
                         markdown_views["markitdown"],
                     )
@@ -696,7 +700,7 @@ def verify_observation(
     if issues:
         artifact_status = "BROKEN" if any(issue["code"] in BROKEN_CODES for issue in issues) else "INTEGRITY_MISMATCH"
     report = {
-        "schema_version": "tcw.verification-result/v0.1",
+        "schema_version": "tcw.verification-result/v0.5",
         "observation_directory": str(root.resolve()),
         "artifact_integrity": {"status": artifact_status, "issues": issues},
         "source_state": _advisory_source(
@@ -707,6 +711,7 @@ def verify_observation(
             model_root,
             manifest.get("models") if isinstance(manifest, dict) else None,
         ),
+        "build_provenance": result_provenance,
     }
     _validate_result(result_schema, report)
     return report
@@ -715,8 +720,24 @@ def verify_observation(
 def verify_command(
     root: Path, source: Path | None, model_root: Path | None
 ) -> int:
+    try:
+        active_build_provenance(command_id="tcw.verify")
+    except (RuntimeContractError, ValueError) as error:
+        print(sanitize_message(error), file=sys.stderr)
+        return 6
     if root.is_symlink() or not root.is_dir():
         print("OBSERVATION_DIRECTORY must be one local non-symlink directory", file=sys.stderr)
+        return 2
+    try:
+        candidate = json.loads((root / "manifest.json").read_text("utf-8"))
+    except Exception:
+        candidate = None
+    if (
+        isinstance(candidate, dict)
+        and isinstance(candidate.get("schema_version"), str)
+        and candidate["schema_version"] != "tcw.preparation-manifest/v0.5"
+    ):
+        print("manifest schema is unsupported", file=sys.stderr)
         return 2
     try:
         report = verify_observation(root, source, model_root)

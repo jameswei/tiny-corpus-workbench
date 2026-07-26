@@ -17,6 +17,7 @@ from docx.oxml.ns import qn
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 
+from tiny_corpus_workbench.supported_provenance import active_build_provenance
 
 ROOT = Path(__file__).resolve().parents[1]
 AUTHORED = ROOT / "fixtures/authored"
@@ -30,7 +31,6 @@ MEDIA_TYPES = {
 }
 FIXED_ZIP_TIME = (2026, 7, 20, 0, 0, 0)
 FIXED_DOC_TIME = datetime(2026, 7, 20, tzinfo=UTC)
-V01_LOCK_HASH = "3e711f5633f40600cb1e200692178eeb79bd8ab32163441cb926ab9ff5cbbd09"
 
 
 def digest(path: Path) -> str:
@@ -186,9 +186,9 @@ def write_pdf(spec: dict[str, Any], path: Path) -> None:
 
 def generate_into(output: Path) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
-    # The released v0.1 registry records the lock that created its bytes.
-    # Later milestone lock metadata must not rewrite released fixture evidence.
-    lock_hash = V01_LOCK_HASH
+    build_provenance = active_build_provenance(
+        generator_id="tools.generate_fixtures"
+    )
     fixtures = []
     for authored_path in sorted(AUTHORED.glob("*.json")):
         spec = json.loads(authored_path.read_text("utf-8"))
@@ -213,14 +213,22 @@ def generate_into(output: Path) -> dict[str, Any]:
                 "size": path.stat().st_size,
                 "sha256": digest(path),
                 "authored_source": {"id": family, "path": f"fixtures/authored/{authored_path.name}", "sha256": authored_hash},
-                "generator": {"name": "tools/generate_fixtures.py", "schema": spec["schema_version"], "lockfile_sha256": lock_hash},
+                "generator": {"name": "tools/generate_fixtures.py", "schema": spec["schema_version"]},
                 "ownership": "project-authored",
                 "license": "CC0-1.0",
                 "anchors": {"document_id": spec["document_id"], "date": spec["date"], "url": spec["url"]},
                 "expected_docling_table_count": 0 if format_name == "txt" else 1,
             })
     fixtures.sort(key=lambda item: item["id"])
-    registry = {"schema_version": "tcw.fixture-registry/v0.1", "generator": {"name": "tools/generate_fixtures.py", "schema": "tcw.authored-fixture/v0.1"}, "lockfile_sha256": lock_hash, "fixtures": fixtures}
+    registry = {
+        "schema_version": "tcw.fixture-registry/v0.5",
+        "generator": {
+            "name": "tools/generate_fixtures.py",
+            "schema": "tcw.authored-fixture/v0.5",
+        },
+        "fixtures": fixtures,
+        "build_provenance": build_provenance,
+    }
     (output / "fixtures.json").write_text(json.dumps(registry, ensure_ascii=False, sort_keys=True, indent=2) + "\n", "utf-8", newline="\n")
     return registry
 

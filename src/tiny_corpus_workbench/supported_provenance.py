@@ -105,7 +105,8 @@ def validate_registry(
         )
 
 
-def load_registry(path: Path = REGISTRY_PATH) -> dict[str, Any]:
+def load_registry(path: Path | None = None) -> dict[str, Any]:
+    path = REGISTRY_PATH if path is None else path
     raw = path.read_bytes()
     registry = json.loads(raw)
     if raw != canonical_json(registry) + b"\n":
@@ -138,6 +139,54 @@ def _base_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
             "dependencies",
         )
     }
+
+
+def build_provenance(
+    entry: dict[str, Any],
+    *,
+    command_id: str | None = None,
+    generator_id: str | None = None,
+    extracting: bool = False,
+) -> dict[str, Any]:
+    """Project one validated registry entry into an artifact build shape."""
+
+    if (command_id is None) == (generator_id is None):
+        raise ValueError("exactly one provenance identifier is required")
+    value = _base_from_entry(entry)
+    if command_id is not None:
+        value["command_id"] = command_id
+        if extracting:
+            value["extractor_contract"] = entry["extractor_contract"]
+    else:
+        value["generator_id"] = generator_id
+    return value
+
+
+def active_build_provenance(
+    *,
+    command_id: str | None = None,
+    generator_id: str | None = None,
+    extracting: bool = False,
+) -> dict[str, Any]:
+    """Validate the installed runtime and return its artifact projection."""
+
+    from tiny_corpus_workbench.domain import RuntimeContractError
+    from tiny_corpus_workbench.runtime import active_provenance_tuple
+
+    try:
+        entry = resolve_active_provenance(
+            active_provenance_tuple(),
+            command_id=command_id,
+            generator_id=generator_id,
+        )
+    except Exception as error:
+        raise RuntimeContractError(ACTIVE_RUNTIME_ERROR) from error
+    return build_provenance(
+        entry,
+        command_id=command_id,
+        generator_id=generator_id,
+        extracting=extracting,
+    )
 
 
 def validate_recorded_provenance(

@@ -19,10 +19,32 @@ from tiny_corpus_workbench.supported_provenance import (
     resolve_provenance,
     validate_recorded_provenance,
     validate_registry,
+    active_build_provenance,
 )
+from tiny_corpus_workbench.runtime import python_major_minor
 
 
 class SupportedProvenanceTests(unittest.TestCase):
+    def test_active_runtime_normalizes_full_python_and_projects_exact_shapes(
+        self,
+    ) -> None:
+        self.assertEqual(python_major_minor("3.12.13"), "3.12")
+        observe = active_build_provenance(
+            command_id="tcw.observe", extracting=True
+        )
+        verify = active_build_provenance(command_id="tcw.verify")
+        fixtures = active_build_provenance(
+            generator_id="tools.generate_fixtures"
+        )
+        self.assertEqual(observe["python"]["major_minor"], "3.12")
+        self.assertEqual(observe["command_id"], "tcw.observe")
+        self.assertIn("extractor_contract", observe)
+        self.assertEqual(verify["command_id"], "tcw.verify")
+        self.assertNotIn("extractor_contract", verify)
+        self.assertEqual(
+            fixtures["generator_id"], "tools.generate_fixtures"
+        )
+        self.assertNotIn("command_id", fixtures)
     def appended_entry(self, registry: dict) -> dict:
         entry = deepcopy(registry["entries"][-1])
         patch = 1
@@ -33,13 +55,25 @@ class SupportedProvenanceTests(unittest.TestCase):
                 return entry
             patch += 1
 
+    def appended_entry_matching(
+        self, registry: dict, version_template: str
+    ) -> dict:
+        entry = deepcopy(registry["entries"][-1])
+        sequence = 1
+        while True:
+            entry["package_version"] = version_template.format(sequence)
+            entry["provenance_id"] = canonical_sha256(provenance_tuple(entry))
+            if entry["provenance_id"] > registry["entries"][-1]["provenance_id"]:
+                return entry
+            sequence += 1
+
     def test_checked_in_registry_fixes_the_initial_truthful_tuple(self) -> None:
         registry = load_registry()
         self.assertEqual(registry["contract_schema_version"], "v0.5")
         self.assertEqual(len(registry["entries"]), 1)
         entry = registry["entries"][0]
         self.assertEqual(entry["package_version"], "0.5.0")
-        self.assertEqual(entry["lockfile_sha256"], "2db4442fd44959691f9a391fec9fd46f8f14cf38b03679d97f6224dd2f1b3f0b")
+        self.assertEqual(entry["lockfile_sha256"], "2a06114acb4804c445ff5d562123c7ef9930f86d18bf98d6d51fb615e40f5cca")
         self.assertEqual(entry["python"], {"implementation": "CPython", "major_minor": "3.12"})
         self.assertEqual(entry["dependencies"], {"docling": "2.113.0", "docling-core": "2.87.1", "jsonschema": "4.26.0", "markitdown": "0.1.6"})
         self.assertEqual(entry["commands"], list(COMMAND_IDS))
@@ -77,6 +111,36 @@ class SupportedProvenanceTests(unittest.TestCase):
             candidate["entries"][: len(original["entries"])],
             original["entries"],
         )
+
+    def test_synthetic_older_and_newer_v05_entries_are_readable_by_id(
+        self,
+    ) -> None:
+        registry = deepcopy(load_registry())
+        older = self.appended_entry_matching(registry, "0.5.0-alpha.{}")
+        registry["entries"].append(older)
+        newer = self.appended_entry_matching(registry, "0.5.{}")
+        registry["entries"].append(newer)
+        validate_registry(registry)
+        for entry in (older, newer):
+            recorded = {
+                key: entry[key]
+                for key in (
+                    "provenance_id",
+                    "package_version",
+                    "lockfile_sha256",
+                    "python",
+                    "dependencies",
+                )
+            }
+            recorded["command_id"] = "tcw.verify"
+            self.assertIs(
+                validate_recorded_provenance(
+                    recorded,
+                    command_id="tcw.verify",
+                    registry=registry,
+                ),
+                entry,
+            )
 
     def test_registry_rejects_deletion_mutation_replacement_reordering_and_duplicate(
         self,

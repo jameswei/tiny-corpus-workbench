@@ -7,12 +7,55 @@ from pathlib import Path
 from tiny_corpus_workbench.artifacts import (
     REQUIRED_MODEL_FILES,
     AtomicObservation,
+    compute_observation_id,
     inventory_models,
 )
 from tiny_corpus_workbench.domain import IntegrityError, RuntimeContractError
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_v05_observation_identity_preimage_is_frozen(self) -> None:
+        build_provenance = {
+            "provenance_id": "b" * 64,
+            "package_version": "0.5.0",
+            "lockfile_sha256": "c" * 64,
+            "python": {
+                "implementation": "CPython",
+                "major_minor": "3.12",
+            },
+            "dependencies": {
+                "docling": "1",
+                "docling-core": "2",
+                "jsonschema": "3",
+                "markitdown": "4",
+            },
+            "command_id": "tcw.observe",
+            "extractor_contract": {
+                "docling": {
+                    "package_version": "1",
+                    "document_schema_name": "DoclingDocument",
+                    "document_schema_version": "1.10.0",
+                },
+                "markitdown": {"package_version": "4"},
+            },
+        }
+        self.assertEqual(
+            compute_observation_id(
+                {
+                    "sha256": "a" * 64,
+                    "size": 1,
+                    "media_type": "text/plain",
+                },
+                build_provenance,
+                {
+                    "docling": {"mode": "fixed"},
+                    "markitdown": {"mode": "fixed"},
+                },
+                None,
+            ),
+            "b5ffcfcc138400d718bc2ff66043135a5001f0db855e4b9b1ee7ea8be108a36b",
+        )
+
     def test_atomic_publication_and_no_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

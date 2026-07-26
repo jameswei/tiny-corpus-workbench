@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import argparse
 import importlib
-import importlib.metadata
 import json
 import os
-import platform
 import stat
 import sys
 import time
@@ -34,6 +32,7 @@ from tiny_corpus_workbench.domain import (
     sanitize_message,
 )
 from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
+from tiny_corpus_workbench.supported_provenance import active_build_provenance
 from tiny_corpus_workbench.source import SourceSnapshot, sha256_file
 
 
@@ -254,34 +253,10 @@ def parser() -> argparse.ArgumentParser:
     return root
 
 
-def _lock_identity() -> dict[str, Any]:
-    lock = Path("uv.lock")
-    if not lock.is_file():
-        raise RuntimeContractError("uv.lock is required from the repository root")
-    try:
-        installed = {
-            name: importlib.metadata.version(name) for name in RUNTIME_DEPENDENCIES
-        }
-    except Exception as error:
-        raise RuntimeContractError(
-            "required extractor package metadata is unavailable"
-        ) from error
-    if installed != RUNTIME_DEPENDENCIES:
-        raise RuntimeContractError("installed extractor versions do not match the locked v0.1 contract")
-    if platform.python_implementation() != "CPython" or sys.version_info[:2] != (
-        3,
-        12,
-    ):
-        raise RuntimeContractError("the v0.1 acceptance runtime is CPython 3.12")
-    try:
-        lock_hash = sha256_file(lock)
-    except OSError as error:
-        raise RuntimeContractError("uv.lock is unavailable") from error
-    return {"path": str(lock.resolve()), "sha256": lock_hash, "dependencies": installed}
-
-
 def _preflight_extractors() -> tuple[dict[str, Any], Any, Any]:
-    lock = _lock_identity()
+    build_provenance = active_build_provenance(
+        command_id="tcw.observe", extracting=True
+    )
     try:
         docling_adapter = importlib.import_module(
             "tiny_corpus_workbench.extractors.docling"
@@ -299,7 +274,7 @@ def _preflight_extractors() -> tuple[dict[str, Any], Any, Any]:
         raise RuntimeContractError(
             "extractor runtime preflight failed"
         ) from error
-    return lock, docling_adapter, markitdown_adapter
+    return build_provenance, docling_adapter, markitdown_adapter
 
 
 def _fixture_anchors(fixture_id: str | None) -> dict[str, str]:
@@ -335,18 +310,21 @@ def _result(name: str, version: str) -> dict[str, Any]:
     }
 
 
-def _observation_id(source: dict[str, Any], lock: dict[str, Any], models: dict[str, Any]) -> str:
+def _observation_id(
+    source: dict[str, Any],
+    build_provenance: dict[str, Any],
+    models: dict[str, Any],
+) -> str:
     return compute_observation_id(
         source,
-        lock["dependencies"],
+        build_provenance,
         {"docling": DOCLING_CONFIG, "markitdown": MARKITDOWN_CONFIG},
-        lock["sha256"],
         models["inventory_hash"],
     )
 
 
 def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[ExitCode, Path]:
-    lock, docling_adapter, markitdown_adapter = _preflight_extractors()
+    build_provenance, docling_adapter, markitdown_adapter = _preflight_extractors()
     snapshot = SourceSnapshot(source_value)
     try:
         source_path, source = snapshot.capture()
@@ -469,7 +447,9 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
             if markitdown_result["status"] == "SUCCESS":
                 path = staging / "markitdown/document.md"
                 markitdown_view = (path.read_bytes(), sha256_file(path))
-            observation_id = _observation_id(source.to_dict(), lock, models)
+            observation_id = _observation_id(
+                source.to_dict(), build_provenance, models
+            )
             comparison = make_comparison(
                 observation_id,
                 source.to_dict(),
@@ -496,20 +476,13 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
                 exit_code = ExitCode.RUNTIME
 
             manifest = {
-                "schema_version": "tcw.preparation-manifest/v0.1",
-                "milestone": "v0.1",
+                "schema_version": "tcw.preparation-manifest/v0.5",
                 "run_id": run_id,
                 "observation_id": observation_id,
                 "created_at": now.isoformat().replace("+00:00", "Z"),
                 "status": overall,
                 "source": source.to_dict(),
-                "runtime": {
-                    "python": platform.python_version(),
-                    "implementation": platform.python_implementation(),
-                    "platform": platform.platform(),
-                    "lockfile": {"path": lock["path"], "sha256": lock["sha256"]},
-                    "dependencies": lock["dependencies"],
-                },
+                "build_provenance": build_provenance,
                 "configurations": {
                     "docling": DOCLING_CONFIG,
                     "markitdown": MARKITDOWN_CONFIG,

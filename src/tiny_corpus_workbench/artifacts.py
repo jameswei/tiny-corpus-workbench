@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from tiny_corpus_workbench.canonical_json import canonical_sha256
 from tiny_corpus_workbench.domain import IntegrityError, RuntimeContractError
 from tiny_corpus_workbench.source import sha256_file
 
@@ -28,19 +29,18 @@ def canonical_json(value: Any) -> bytes:
 
 def compute_observation_id(
     source: dict[str, Any],
-    dependencies: dict[str, str],
+    build_provenance: dict[str, Any],
     configurations: dict[str, Any],
-    lock_sha256: str,
     model_inventory_hash: str | None,
 ) -> str:
     identity = {
+        "schema_version": "tcw.preparation-manifest/v0.5",
         "source": {key: source[key] for key in ("sha256", "size", "media_type")},
-        "extractors": dependencies,
+        "build_provenance": build_provenance,
         "configurations": configurations,
-        "lock_sha256": lock_sha256,
         "model_inventory_hash": model_inventory_hash,
     }
-    return hashlib.sha256(canonical_json(identity).rstrip(b"\n")).hexdigest()
+    return canonical_sha256(identity)
 
 
 def write_json(path: Path, value: Any) -> None:

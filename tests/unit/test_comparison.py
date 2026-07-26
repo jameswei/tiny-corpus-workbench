@@ -27,7 +27,13 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(result["deltas"]["atx_headings"], 1)
         self.assertEqual(result["deltas"]["ordered_list_items"], 1)
         self.assertFalse(result["deltas"]["normalized_equal"])
-        self.assertTrue(result["views"]["docling"]["anchors"]["url"])
+        self.assertTrue(
+            next(
+                item["present"]
+                for item in result["views"]["docling"]["anchors"]
+                if item["name"] == "url"
+            )
+        )
 
     def test_unavailable_views_have_no_deltas(self) -> None:
         result = make_comparison(
