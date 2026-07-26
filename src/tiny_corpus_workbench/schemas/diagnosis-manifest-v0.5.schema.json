@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/diagnosis-manifest-v0.5.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "diagnosis_id",
+    "created_at",
+    "status",
+    "source",
+    "subject",
+    "ruleset",
+    "summary",
+    "artifacts",
+    "build_provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "tcw.diagnosis-manifest/v0.5"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "diagnosis_id": {
+      "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "FINDINGS",
+        "NO_FINDINGS"
+      ]
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "identity_type",
+        "identity_value",
+        "run_id",
+        "manifest_sha256",
+        "canonical_document_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "OBSERVATION",
+            "REFINEMENT"
+          ]
+        },
+        "identity_type": {
+          "enum": [
+            "observation_id",
+            "revision_id"
+          ]
+        },
+        "identity_value": {
+          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_sha256": {
+          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+        },
+        "canonical_document_sha256": {
+          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "OBSERVATION"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "identity_type": {
+                "const": "observation_id"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "REFINEMENT"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "identity_type": {
+                "const": "revision_id"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ruleset": {
+      "$ref": "finding-set-v0.5.schema.json#/$defs/ruleset"
+    },
+    "summary": {
+      "$ref": "finding-set-v0.5.schema.json#/$defs/summary"
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "build_provenance": {
+      "$ref": "common-v0.5.schema.json#/$defs/BUILD_COMMAND"
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "media_type",
+        "size",
+        "sha256"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "role",
+        "media_type",
+        "size",
+        "sha256",
+        "application_immutable"
+      ],
+      "properties": {
+        "path": {
+          "enum": [
+            "findings.json",
+            "report.md"
+          ]
+        },
+        "role": {
+          "enum": [
+            "diagnostic-findings",
+            "diagnostic-report"
+          ]
+        },
+        "media_type": {
+          "enum": [
+            "application/json",
+            "text/markdown"
+          ]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+        },
+        "application_immutable": {
+          "const": true
+        }
+      }
+    }
+  }
+}

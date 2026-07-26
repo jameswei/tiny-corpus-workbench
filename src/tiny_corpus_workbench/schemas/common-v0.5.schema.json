@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/common-v0.5.schema.json",
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[0-9]+(?:\\.[0-9]+)*(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "python": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "major_minor"
+      ],
+      "properties": {
+        "implementation": {
+          "const": "CPython"
+        },
+        "major_minor": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+$"
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "docling",
+        "docling-core",
+        "jsonschema",
+        "markitdown"
+      ],
+      "properties": {
+        "docling": {
+          "$ref": "#/$defs/version"
+        },
+        "docling-core": {
+          "$ref": "#/$defs/version"
+        },
+        "jsonschema": {
+          "$ref": "#/$defs/version"
+        },
+        "markitdown": {
+          "$ref": "#/$defs/version"
+        }
+      }
+    },
+    "extractor_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "docling",
+        "markitdown"
+      ],
+      "properties": {
+        "docling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "package_version",
+            "document_schema_name",
+            "document_schema_version"
+          ],
+          "properties": {
+            "package_version": {
+              "$ref": "#/$defs/version"
+            },
+            "document_schema_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "document_schema_version": {
+              "$ref": "#/$defs/version"
+            }
+          }
+        },
+        "markitdown": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "package_version"
+          ],
+          "properties": {
+            "package_version": {
+              "$ref": "#/$defs/version"
+            }
+          }
+        }
+      }
+    },
+    "BUILD_BASE": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance_id",
+        "package_version",
+        "lockfile_sha256",
+        "python",
+        "dependencies"
+      ],
+      "properties": {
+        "provenance_id": {
+          "$ref": "#/$defs/hash"
+        },
+        "package_version": {
+          "$ref": "#/$defs/version"
+        },
+        "lockfile_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "python": {
+          "$ref": "#/$defs/python"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/dependencies"
+        }
+      }
+    },
+    "BUILD_COMMAND": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance_id",
+        "package_version",
+        "lockfile_sha256",
+        "python",
+        "dependencies",
+        "command_id"
+      ],
+      "properties": {
+        "provenance_id": {
+          "$ref": "#/$defs/hash"
+        },
+        "package_version": {
+          "$ref": "#/$defs/version"
+        },
+        "lockfile_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "python": {
+          "$ref": "#/$defs/python"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/dependencies"
+        },
+        "command_id": {
+          "enum": [
+            "tcw.observe",
+            "tcw.verify",
+            "tcw.diagnose",
+            "tcw.verify-diagnosis",
+            "tcw.draft-refinement",
+            "tcw.resolve-refinement",
+            "tcw.verify-refinement",
+            "tcw.inspect-corpus",
+            "tcw.verify-corpus",
+            "tcw.workbench"
+          ]
+        }
+      }
+    },
+    "BUILD_EXTRACTING_COMMAND": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance_id",
+        "package_version",
+        "lockfile_sha256",
+        "python",
+        "dependencies",
+        "command_id",
+        "extractor_contract"
+      ],
+      "properties": {
+        "provenance_id": {
+          "$ref": "#/$defs/hash"
+        },
+        "package_version": {
+          "$ref": "#/$defs/version"
+        },
+        "lockfile_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "python": {
+          "$ref": "#/$defs/python"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/dependencies"
+        },
+        "command_id": {
+          "enum": [
+            "tcw.observe",
+            "tcw.verify",
+            "tcw.diagnose",
+            "tcw.verify-diagnosis",
+            "tcw.draft-refinement",
+            "tcw.resolve-refinement",
+            "tcw.verify-refinement",
+            "tcw.inspect-corpus",
+            "tcw.verify-corpus",
+            "tcw.workbench"
+          ]
+        },
+        "extractor_contract": {
+          "$ref": "#/$defs/extractor_contract"
+        }
+      }
+    },
+    "BUILD_GENERATOR": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance_id",
+        "package_version",
+        "lockfile_sha256",
+        "python",
+        "dependencies",
+        "generator_id"
+      ],
+      "properties": {
+        "provenance_id": {
+          "$ref": "#/$defs/hash"
+        },
+        "package_version": {
+          "$ref": "#/$defs/version"
+        },
+        "lockfile_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "python": {
+          "$ref": "#/$defs/python"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/dependencies"
+        },
+        "generator_id": {
+          "enum": [
+            "tools.generate_fixtures",
+            "tools.generate_diagnosis_fixtures",
+            "tools.generate_refinement_fixtures"
+          ]
+        }
+      }
+    },
+    "API_RUNTIME_DISPLAY": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package_version",
+        "provenance_id"
+      ],
+      "properties": {
+        "package_version": {
+          "$ref": "#/$defs/version"
+        },
+        "provenance_id": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    }
+  }
+}

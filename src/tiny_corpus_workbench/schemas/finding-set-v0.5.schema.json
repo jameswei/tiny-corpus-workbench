@@ -1,0 +1,1255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/finding-set-v0.5.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "diagnosis_id",
+    "subject",
+    "ruleset",
+    "summary",
+    "findings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "tcw.finding-set/v0.5"
+    },
+    "diagnosis_id": {
+      "$ref": "#/$defs/hash"
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "ruleset": {
+      "$ref": "#/$defs/ruleset"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subject_id",
+        "canonical_document_path",
+        "canonical_document_size",
+        "canonical_document_sha256",
+        "origin_observation_id"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "OBSERVATION",
+            "REVISION"
+          ]
+        },
+        "subject_id": {
+          "$ref": "#/$defs/hash"
+        },
+        "canonical_document_path": {
+          "enum": [
+            "docling/document.json",
+            "prepared/document.json"
+          ]
+        },
+        "canonical_document_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "canonical_document_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "origin_observation_id": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    },
+    "ruleset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "parameter_sha256",
+        "rules"
+      ],
+      "properties": {
+        "name": {
+          "const": "tcw-evidence-based-diagnosis"
+        },
+        "version": {
+          "const": "v0.3"
+        },
+        "parameter_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D001"
+                },
+                "name": {
+                  "const": "EMPTY_DOCUMENT"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "ERROR"
+                },
+                "parameters": {
+                  "const": {}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D002"
+                },
+                "name": {
+                  "const": "SUSPICIOUSLY_SHORT_DOCUMENT"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "INFO"
+                },
+                "parameters": {
+                  "const": {
+                    "minimum": 1,
+                    "maximum": 199
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D003"
+                },
+                "name": {
+                  "const": "REPLACEMENT_CHARACTER"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "ERROR"
+                },
+                "parameters": {
+                  "const": {
+                    "character": "U+FFFD"
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D004"
+                },
+                "name": {
+                  "const": "DUPLICATE_TEXT_BLOCK"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "WARNING"
+                },
+                "parameters": {
+                  "const": {
+                    "minimum_characters": 80
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D005"
+                },
+                "name": {
+                  "const": "HEADING_LEVEL_JUMP"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "WARNING"
+                },
+                "parameters": {
+                  "const": {
+                    "first_level": 1,
+                    "maximum_increase": 1
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D006"
+                },
+                "name": {
+                  "const": "ORPHAN_CAPTION"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "WARNING"
+                },
+                "parameters": {
+                  "const": {}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D007"
+                },
+                "name": {
+                  "const": "REPEATED_PAGE_MARGIN_TEXT"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "WARNING"
+                },
+                "parameters": {
+                  "const": {
+                    "minimum_characters": 3,
+                    "maximum_characters": 200,
+                    "minimum_pages": 3,
+                    "top_maximum": 0.1,
+                    "bottom_minimum": 0.9
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D008"
+                },
+                "name": {
+                  "const": "MISSING_PDF_PROVENANCE"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "WARNING"
+                },
+                "parameters": {
+                  "const": {}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D009"
+                },
+                "name": {
+                  "const": "NORMALIZABLE_WHITESPACE"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "INFO"
+                },
+                "parameters": {
+                  "const": {
+                    "line_endings": "LF",
+                    "horizontal_whitespace": "ASCII_SPACE",
+                    "preserve_internal_line_breaks": true
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rule_id",
+                "name",
+                "version",
+                "severity",
+                "parameters"
+              ],
+              "properties": {
+                "rule_id": {
+                  "const": "TCW-D010"
+                },
+                "name": {
+                  "const": "POSSIBLE_LINE_END_HYPHENATION"
+                },
+                "version": {
+                  "const": "1"
+                },
+                "severity": {
+                  "const": "WARNING"
+                },
+                "parameters": {
+                  "const": {
+                    "minimum_fragment_code_points": 2,
+                    "logical_line_breaks": 1,
+                    "right_initial": "lowercase"
+                  }
+                }
+              }
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "by_severity",
+        "by_rule"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "by_severity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ERROR",
+            "WARNING",
+            "INFO"
+          ],
+          "properties": {
+            "ERROR": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "WARNING": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "INFO": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "by_rule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "TCW-D001",
+            "TCW-D002",
+            "TCW-D003",
+            "TCW-D004",
+            "TCW-D005",
+            "TCW-D006",
+            "TCW-D007",
+            "TCW-D008",
+            "TCW-D009",
+            "TCW-D010"
+          ],
+          "properties": {
+            "TCW-D001": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "TCW-D002": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "TCW-D003": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "TCW-D004": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "TCW-D005": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "TCW-D006": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "TCW-D007": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "TCW-D008": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "TCW-D009": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "TCW-D010": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "scalar": {
+      "type": [
+        "string",
+        "integer",
+        "number",
+        "boolean"
+      ]
+    },
+    "finding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D001"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "ERROR"
+            },
+            "summary": {
+              "const": "EMPTY_DOCUMENT"
+            },
+            "document_refs": {
+              "const": [
+                "#/body"
+              ]
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "non_whitespace_characters"
+              ],
+              "properties": {
+                "non_whitespace_characters": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D002"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "INFO"
+            },
+            "summary": {
+              "const": "SUSPICIOUSLY_SHORT_DOCUMENT"
+            },
+            "document_refs": {
+              "const": [
+                "#/body"
+              ]
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "non_whitespace_characters"
+              ],
+              "properties": {
+                "non_whitespace_characters": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 199
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D003"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "ERROR"
+            },
+            "summary": {
+              "const": "REPLACEMENT_CHARACTER"
+            },
+            "document_refs": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^#/"
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code_point_offsets",
+                "occurrence_count"
+              ],
+              "properties": {
+                "code_point_offsets": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "occurrence_count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "row": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "column": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "dependentRequired": {
+                "row": [
+                  "column"
+                ],
+                "column": [
+                  "row"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D004"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "WARNING"
+            },
+            "summary": {
+              "const": "DUPLICATE_TEXT_BLOCK"
+            },
+            "document_refs": {
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^#/texts/"
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "count",
+                "normalized_character_count",
+                "normalized_text_sha256"
+              ],
+              "properties": {
+                "count": {
+                  "type": "integer",
+                  "minimum": 2
+                },
+                "normalized_character_count": {
+                  "type": "integer",
+                  "minimum": 80
+                },
+                "normalized_text_sha256": {
+                  "$ref": "#/$defs/hash"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D005"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "WARNING"
+            },
+            "summary": {
+              "const": "HEADING_LEVEL_JUMP"
+            },
+            "document_refs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^#/texts/"
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "current_level",
+                "previous_level"
+              ],
+              "properties": {
+                "current_level": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "previous_level": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "previous_ref": {
+                  "type": "string",
+                  "pattern": "^#/texts/"
+                }
+              },
+              "oneOf": [
+                {
+                  "properties": {
+                    "previous_level": {
+                      "const": 0
+                    }
+                  },
+                  "not": {
+                    "required": [
+                      "previous_ref"
+                    ]
+                  }
+                },
+                {
+                  "properties": {
+                    "previous_level": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "previous_ref"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D006"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "WARNING"
+            },
+            "summary": {
+              "const": "ORPHAN_CAPTION"
+            },
+            "document_refs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^#/texts/"
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relationship_kind"
+              ],
+              "properties": {
+                "relationship_kind": {
+                  "const": "orphan_caption"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D006"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "WARNING"
+            },
+            "summary": {
+              "const": "ORPHAN_CAPTION"
+            },
+            "document_refs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^#/(?:texts|tables|pictures)/"
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "relationship_kind",
+                "declared_ref"
+              ],
+              "properties": {
+                "relationship_kind": {
+                  "const": "invalid_declared_caption"
+                },
+                "declared_ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D007"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "WARNING"
+            },
+            "summary": {
+              "const": "REPEATED_PAGE_MARGIN_TEXT"
+            },
+            "document_refs": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^#/texts/"
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "band",
+                "normalized_character_count",
+                "normalized_text_sha256",
+                "page_count",
+                "page_numbers"
+              ],
+              "properties": {
+                "band": {
+                  "enum": [
+                    "top",
+                    "bottom"
+                  ]
+                },
+                "normalized_character_count": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 200
+                },
+                "normalized_text_sha256": {
+                  "$ref": "#/$defs/hash"
+                },
+                "page_count": {
+                  "type": "integer",
+                  "minimum": 3
+                },
+                "page_numbers": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D008"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "WARNING"
+            },
+            "summary": {
+              "const": "MISSING_PDF_PROVENANCE"
+            },
+            "document_refs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^#/(?:texts|tables|pictures)/"
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "content_layer"
+              ],
+              "properties": {
+                "content_layer": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D009"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "INFO"
+            },
+            "summary": {
+              "const": "NORMALIZABLE_WHITESPACE"
+            },
+            "document_refs": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^#/"
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code_point_offsets",
+                "occurrence_count",
+                "original_text_sha256",
+                "normalized_text_sha256"
+              ],
+              "properties": {
+                "code_point_offsets": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "occurrence_count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "original_text_sha256": {
+                  "$ref": "#/$defs/hash"
+                },
+                "normalized_text_sha256": {
+                  "$ref": "#/$defs/hash"
+                },
+                "row": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "column": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "dependentRequired": {
+                "row": [
+                  "column"
+                ],
+                "column": [
+                  "row"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding_id",
+            "rule_id",
+            "rule_version",
+            "severity",
+            "summary",
+            "document_refs",
+            "evidence"
+          ],
+          "properties": {
+            "finding_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "rule_id": {
+              "const": "TCW-D010"
+            },
+            "rule_version": {
+              "const": "1"
+            },
+            "severity": {
+              "const": "WARNING"
+            },
+            "summary": {
+              "const": "POSSIBLE_LINE_END_HYPHENATION"
+            },
+            "document_refs": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^#/"
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "hyphen_code_point_offsets",
+                "occurrence_count",
+                "original_text_sha256",
+                "repaired_text_sha256"
+              ],
+              "properties": {
+                "hyphen_code_point_offsets": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "occurrence_count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "original_text_sha256": {
+                  "$ref": "#/$defs/hash"
+                },
+                "repaired_text_sha256": {
+                  "$ref": "#/$defs/hash"
+                },
+                "row": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "column": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "dependentRequired": {
+                "row": [
+                  "column"
+                ],
+                "column": [
+                  "row"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/corpus-spec-v0.5.schema.json",
+  "title": "tiny-corpus-workbench corpus specification v0.4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "corpus_id",
+    "title",
+    "members"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "tcw.corpus-spec/v0.5"
+    },
+    "corpus_id": {
+      "$ref": "#/$defs/id"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "members": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/member"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 100
+    },
+    "localPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!-$)(?![A-Za-z][A-Za-z0-9+.-]*://)(?!.*[\\u0000*?\\[\\]{}]).+$"
+    },
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "refinement",
+        "diagnosis",
+        "base"
+      ],
+      "properties": {
+        "refinement": {
+          "$ref": "#/$defs/localPath"
+        },
+        "diagnosis": {
+          "$ref": "#/$defs/localPath"
+        },
+        "base": {
+          "$ref": "#/$defs/localPath"
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member_id",
+        "family",
+        "format",
+        "source"
+      ],
+      "properties": {
+        "member_id": {
+          "$ref": "#/$defs/id"
+        },
+        "family": {
+          "$ref": "#/$defs/id"
+        },
+        "format": {
+          "enum": [
+            "pdf",
+            "docx",
+            "md",
+            "txt"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/localPath"
+        },
+        "revisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/revision"
+          },
+          "default": []
+        }
+      }
+    }
+  }
+}

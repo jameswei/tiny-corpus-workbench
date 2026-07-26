@@ -1,0 +1,772 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/workbench-projection-v0.5.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "projection_role",
+    "session_id",
+    "runtime",
+    "counts",
+    "records",
+    "edges"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "tcw.workbench-projection/v0.5"
+    },
+    "projection_role": {
+      "const": "DERIVED_READ_ONLY"
+    },
+    "session_id": {
+      "$ref": "#/$defs/hash"
+    },
+    "runtime": {
+      "$ref": "https://example.invalid/tcw/common-v0.5.schema.json#/$defs/API_RUNTIME_DISPLAY"
+    },
+    "counts": {
+      "$ref": "#/$defs/counts"
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/record"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "$ref": "https://example.invalid/tcw/common-v0.5.schema.json#/$defs/hash"
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_count",
+        "top_level_record_count",
+        "contained_record_count"
+      ],
+      "properties": {
+        "record_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "top_level_record_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "contained_record_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "identity": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "observation_id"
+          ],
+          "properties": {
+            "observation_id": {
+              "$ref": "#/$defs/hash"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "diagnosis_id",
+            "subject_id"
+          ],
+          "properties": {
+            "diagnosis_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "subject_id": {
+              "$ref": "#/$defs/hash"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "draft_id",
+            "revision_id"
+          ],
+          "properties": {
+            "draft_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "revision_id": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/hash"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "corpus_id",
+            "snapshot_id"
+          ],
+          "properties": {
+            "corpus_id": {
+              "$ref": "https://example.invalid/tcw/common-v0.5.schema.json#/$defs/identifier"
+            },
+            "snapshot_id": {
+              "$ref": "#/$defs/hash"
+            }
+          }
+        }
+      ]
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_key",
+        "record_key",
+        "role",
+        "relative_path",
+        "recorded_media_type",
+        "served_media_type",
+        "size",
+        "sha256",
+        "availability",
+        "origin"
+      ],
+      "properties": {
+        "artifact_key": {
+          "$ref": "#/$defs/hash"
+        },
+        "record_key": {
+          "$ref": "#/$defs/hash"
+        },
+        "role": {
+          "enum": [
+            "preparation-manifest",
+            "diagnosis-manifest",
+            "refinement-manifest",
+            "corpus-manifest",
+            "comparison-summary",
+            "docling-document-json",
+            "docling-markdown",
+            "markitdown-markdown",
+            "diagnostic-findings",
+            "diagnostic-report",
+            "refinement-decision",
+            "refinement-report",
+            "transformation",
+            "transformation-history",
+            "prepared-document-json",
+            "prepared-document-markdown",
+            "normalized-corpus-specification",
+            "corpus-summary"
+          ]
+        },
+        "relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recorded_media_type": {
+          "enum": [
+            "application/json",
+            "text/markdown"
+          ]
+        },
+        "served_media_type": {
+          "const": "text/plain; charset=utf-8"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "availability": {
+          "enum": [
+            "AVAILABLE",
+            "TOO_LARGE"
+          ]
+        },
+        "origin": {
+          "enum": [
+            "ROOT_MANIFEST",
+            "MANIFEST_LISTED"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "origin": {
+                "const": "ROOT_MANIFEST"
+              }
+            }
+          },
+          "then": {
+            "oneOf": [
+              {
+                "properties": {
+                  "role": {
+                    "const": "preparation-manifest"
+                  },
+                  "relative_path": {
+                    "const": "manifest.json"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "role": {
+                    "const": "diagnosis-manifest"
+                  },
+                  "relative_path": {
+                    "const": "diagnosis-manifest.json"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "role": {
+                    "const": "refinement-manifest"
+                  },
+                  "relative_path": {
+                    "const": "refinement-manifest.json"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "role": {
+                    "const": "corpus-manifest"
+                  },
+                  "relative_path": {
+                    "const": "corpus-manifest.json"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "origin": {
+                "const": "MANIFEST_LISTED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "role": {
+                "enum": [
+                  "comparison-summary",
+                  "docling-document-json",
+                  "docling-markdown",
+                  "markitdown-markdown",
+                  "diagnostic-findings",
+                  "diagnostic-report",
+                  "refinement-decision",
+                  "refinement-report",
+                  "transformation",
+                  "transformation-history",
+                  "prepared-document-json",
+                  "prepared-document-markdown",
+                  "normalized-corpus-specification",
+                  "corpus-summary"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "record": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "record_key",
+            "kind",
+            "record_schema_version",
+            "run_id",
+            "identity",
+            "admission_origin",
+            "contained_by",
+            "status",
+            "artifact_integrity",
+            "manifest",
+            "artifact_count"
+          ],
+          "properties": {
+            "record_key": {
+              "$ref": "#/$defs/hash"
+            },
+            "kind": {
+              "const": "OBSERVATION"
+            },
+            "record_schema_version": {
+              "const": "tcw.preparation-manifest/v0.5"
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "observation_id"
+              ],
+              "properties": {
+                "observation_id": {
+                  "$ref": "#/$defs/hash"
+                }
+              }
+            },
+            "admission_origin": {
+              "enum": [
+                "TOP_LEVEL",
+                "CORPUS_CONTAINED"
+              ]
+            },
+            "contained_by": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/hash"
+              }
+            },
+            "status": {
+              "enum": [
+                "SUCCESS",
+                "PARTIAL_SUCCESS",
+                "FAILED"
+              ]
+            },
+            "artifact_integrity": {
+              "const": "VERIFIED"
+            },
+            "manifest": {
+              "$ref": "#/$defs/descriptor"
+            },
+            "artifact_count": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "record_key",
+            "kind",
+            "record_schema_version",
+            "run_id",
+            "identity",
+            "admission_origin",
+            "contained_by",
+            "status",
+            "artifact_integrity",
+            "manifest",
+            "artifact_count"
+          ],
+          "properties": {
+            "record_key": {
+              "$ref": "#/$defs/hash"
+            },
+            "kind": {
+              "const": "DIAGNOSIS"
+            },
+            "record_schema_version": {
+              "const": "tcw.diagnosis-manifest/v0.5"
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "diagnosis_id",
+                "subject_id"
+              ],
+              "properties": {
+                "diagnosis_id": {
+                  "$ref": "#/$defs/hash"
+                },
+                "subject_id": {
+                  "$ref": "#/$defs/hash"
+                }
+              }
+            },
+            "admission_origin": {
+              "enum": [
+                "TOP_LEVEL",
+                "CORPUS_CONTAINED"
+              ]
+            },
+            "contained_by": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/hash"
+              }
+            },
+            "status": {
+              "enum": [
+                "FINDINGS",
+                "NO_FINDINGS"
+              ]
+            },
+            "artifact_integrity": {
+              "const": "VERIFIED"
+            },
+            "manifest": {
+              "$ref": "#/$defs/descriptor"
+            },
+            "artifact_count": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "record_key",
+            "kind",
+            "record_schema_version",
+            "run_id",
+            "identity",
+            "admission_origin",
+            "contained_by",
+            "status",
+            "artifact_integrity",
+            "manifest",
+            "artifact_count"
+          ],
+          "properties": {
+            "record_key": {
+              "$ref": "#/$defs/hash"
+            },
+            "kind": {
+              "const": "REFINEMENT"
+            },
+            "record_schema_version": {
+              "const": "tcw.refinement-manifest/v0.5"
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "draft_id",
+                "revision_id"
+              ],
+              "properties": {
+                "draft_id": {
+                  "$ref": "#/$defs/hash"
+                },
+                "revision_id": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/hash"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "admission_origin": {
+              "enum": [
+                "TOP_LEVEL",
+                "CORPUS_CONTAINED"
+              ]
+            },
+            "contained_by": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/hash"
+              }
+            },
+            "status": {
+              "enum": [
+                "APPLIED",
+                "REJECTED"
+              ]
+            },
+            "artifact_integrity": {
+              "const": "VERIFIED"
+            },
+            "manifest": {
+              "$ref": "#/$defs/descriptor"
+            },
+            "artifact_count": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "record_key",
+            "kind",
+            "record_schema_version",
+            "run_id",
+            "identity",
+            "admission_origin",
+            "contained_by",
+            "status",
+            "artifact_integrity",
+            "manifest",
+            "artifact_count"
+          ],
+          "properties": {
+            "record_key": {
+              "$ref": "#/$defs/hash"
+            },
+            "kind": {
+              "const": "CORPUS"
+            },
+            "record_schema_version": {
+              "const": "tcw.corpus-manifest/v0.5"
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "corpus_id",
+                "snapshot_id"
+              ],
+              "properties": {
+                "corpus_id": {
+                  "$ref": "common-v0.5.schema.json#/$defs/identifier"
+                },
+                "snapshot_id": {
+                  "$ref": "#/$defs/hash"
+                }
+              }
+            },
+            "admission_origin": {
+              "enum": [
+                "TOP_LEVEL",
+                "CORPUS_CONTAINED"
+              ]
+            },
+            "contained_by": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/hash"
+              }
+            },
+            "status": {
+              "enum": [
+                "COMPLETE",
+                "PARTIAL",
+                "FAILED"
+              ]
+            },
+            "artifact_integrity": {
+              "const": "VERIFIED"
+            },
+            "manifest": {
+              "$ref": "#/$defs/descriptor"
+            },
+            "artifact_count": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      ]
+    },
+    "expected_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "record_schema_version",
+        "identity_type",
+        "identity_value",
+        "run_id",
+        "manifest_sha256",
+        "content_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "OBSERVATION",
+            "DIAGNOSIS",
+            "REFINEMENT"
+          ]
+        },
+        "record_schema_version": {
+          "enum": [
+            "tcw.preparation-manifest/v0.5",
+            "tcw.diagnosis-manifest/v0.5",
+            "tcw.refinement-manifest/v0.5"
+          ]
+        },
+        "identity_type": {
+          "enum": [
+            "observation_id",
+            "diagnosis_id",
+            "revision_id"
+          ]
+        },
+        "identity_value": {
+          "$ref": "#/$defs/hash"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/hash"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "content_sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/hash"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edge_key",
+        "relation",
+        "from_record_key",
+        "expected_target",
+        "target_record_key",
+        "state"
+      ],
+      "properties": {
+        "edge_key": {
+          "$ref": "#/$defs/hash"
+        },
+        "relation": {
+          "enum": [
+            "DIAGNOSIS_SUBJECT",
+            "REFINEMENT_DIAGNOSIS",
+            "REFINEMENT_BASE",
+            "REFINEMENT_PARENT",
+            "CORPUS_CONTAINS_OBSERVATION",
+            "CORPUS_CONTAINS_DIAGNOSIS",
+            "CORPUS_EXTERNAL_REFINEMENT"
+          ]
+        },
+        "from_record_key": {
+          "$ref": "#/$defs/hash"
+        },
+        "expected_target": {
+          "$ref": "#/$defs/expected_target"
+        },
+        "target_record_key": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/hash"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "MATCH",
+            "MISSING"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "MATCH"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target_record_key": {
+                "$ref": "#/$defs/hash"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "MISSING"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target_record_key": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
