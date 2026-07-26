@@ -245,6 +245,16 @@
           "$ref": "#/$defs/target"
         },
         "before": {
+          "$ref": "#/$defs/edit_value"
+        },
+        "after": {
+          "$ref": "#/$defs/edit_value"
+        }
+      }
+    },
+    "edit_value": {
+      "oneOf": [
+        {
           "type": [
             "string",
             "integer",
@@ -253,16 +263,61 @@
             "null"
           ]
         },
-        "after": {
-          "type": [
-            "string",
-            "integer",
-            "number",
-            "boolean",
-            "null"
+        {
+          "$ref": "#/$defs/membership"
+        }
+      ]
+    },
+    "membership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "content_layer",
+        "parent"
+      ],
+      "properties": {
+        "content_layer": {
+          "enum": [
+            "body",
+            "furniture"
+          ]
+        },
+        "body_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "furniture_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "$ref"
+          ],
+          "properties": {
+            "$ref": {
+              "enum": [
+                "#/body",
+                "#/furniture"
+              ]
+            }
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "body_index"
+          ]
+        },
+        {
+          "required": [
+            "furniture_index"
           ]
         }
-      }
+      ]
     }
   }
 }

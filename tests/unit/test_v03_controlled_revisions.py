@@ -24,10 +24,15 @@ from docling_core.types.doc import (
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import REQUIRED_MODEL_FILES, canonical_json
-from tiny_corpus_workbench.domain import InputError, IntegrityError
+from tiny_corpus_workbench.domain import (
+    InputError,
+    IntegrityError,
+    RuntimeContractError,
+)
 from tiny_corpus_workbench.runtime import V03_LOCKFILE_SHA256
 from tiny_corpus_workbench.v03 import (
     _apply_edits,
+    _diagnosis_report,
     _normalize_whitespace,
     _target,
     make_finding_set,
@@ -37,7 +42,7 @@ from tiny_corpus_workbench.v03 import (
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
-PDF_SOURCE = Path("fixtures/diagnosis/v0.2/repeated-margin.pdf")
+PDF_SOURCE = Path("fixtures/diagnosis/v0.5/repeated-margin.pdf")
 RUNTIME = {
     "python": "3.12.11",
     "implementation": "CPython",
@@ -95,6 +100,62 @@ class ControlledRevisionTests(unittest.TestCase):
         with redirect_stdout(stdout), redirect_stderr(stderr):
             code = cli.main(list(arguments))
         return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_old_refinement_inputs_exit_two(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            diagnosis = root / "diagnosis"
+            base = root / "base"
+            diagnosis.mkdir()
+            base.mkdir()
+            (diagnosis / "diagnosis-manifest.json").write_text(
+                '{"schema_version":"tcw.diagnosis-manifest/v0.3"}\n',
+                "utf-8",
+            )
+            (diagnosis / "findings.json").write_text("{}\n", "utf-8")
+            code, stdout, stderr = self.invoke(
+                "draft-refinement",
+                str(diagnosis),
+                "--finding",
+                "a" * 64,
+                "--base",
+                str(base),
+                "--output",
+                str(root / "decision.json"),
+            )
+            self.assertEqual(code, 2)
+            self.assertEqual(stdout, "")
+            self.assertIn("v0.5 diagnosis", stderr)
+
+            old_draft = root / "old-decision.json"
+            old_draft.write_text(
+                '{"schema_version":"tcw.refinement-draft/v0.3"}\n',
+                "utf-8",
+            )
+            code, stdout, stderr = self.invoke(
+                "resolve-refinement",
+                str(old_draft),
+                "--diagnosis",
+                str(diagnosis),
+                "--base",
+                str(base),
+            )
+            self.assertEqual(code, 2)
+            self.assertEqual(stdout, "")
+            self.assertIn("v0.5 refinement draft", stderr)
+
+            old_record = root / "old-refinement"
+            old_record.mkdir()
+            (old_record / "refinement-manifest.json").write_text(
+                '{"schema_version":"tcw.refinement-manifest/v0.3"}\n',
+                "utf-8",
+            )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement", str(old_record)
+            )
+            self.assertEqual(code, 2)
+            self.assertEqual(stdout, "")
+            self.assertIn("v0.5 refinement", stderr)
 
     def observation(
         self,
@@ -176,6 +237,7 @@ class ControlledRevisionTests(unittest.TestCase):
             for key, value in decision["proposal"].items()
             if key != "draft_id"
         }
+        proposal_identity["build_provenance"] = decision["build_provenance"]
         draft_id = hashlib.sha256(
             canonical_json(proposal_identity).rstrip(b"\n")
         ).hexdigest()
@@ -187,7 +249,7 @@ class ControlledRevisionTests(unittest.TestCase):
         revision_id = hashlib.sha256(
             canonical_json(
                 {
-                    "parent": manifest["base"]["subject_id"],
+                    "parent": manifest["base"]["identity_value"],
                     "base_sha256": manifest["base"]["canonical_document_sha256"],
                     "draft_id": draft_id,
                     "prepared_sha256": prepared_sha256,
@@ -208,7 +270,11 @@ class ControlledRevisionTests(unittest.TestCase):
         ).hexdigest()
         manifest["revision_id"] = revision_id
         history["revision_id"] = revision_id
-        history["transformations"][-1] = transformation
+        history["transformations"][-1] = {
+            key: value
+            for key, value in transformation.items()
+            if key != "schema_version"
+        }
         for name, value in (
             ("decision.json", decision),
             ("transformation.json", transformation),
@@ -227,6 +293,32 @@ class ControlledRevisionTests(unittest.TestCase):
         destination.mkdir(parents=True)
         shutil.copytree(record, copied)
         return copied
+
+    def approve_existing(
+        self,
+        root: Path,
+        diagnosis: Path,
+        base: Path,
+        rule_id: str,
+    ) -> Path:
+        findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+        finding = next(
+            item for item in findings["findings"] if item["rule_id"] == rule_id
+        )
+        draft = root / f"{rule_id}-decision.json"
+        cli._diagnosis_callable("v03", "draft_refinement")(
+            diagnosis, finding["finding_id"], base, draft
+        )
+        value = json.loads(draft.read_text("utf-8"))
+        value["decision"] = {
+            "state": "APPROVED",
+            "decided_by": "test-owner",
+            "note": None,
+        }
+        draft.write_bytes(canonical_json(value))
+        return cli._diagnosis_callable("v03", "resolve_refinement")(
+            draft, diagnosis, base, root / "revisions"
+        )
 
     def refresh_descriptors(
         self, record: Path, manifest: dict, *relative_paths: str
@@ -688,8 +780,8 @@ class ControlledRevisionTests(unittest.TestCase):
                 root / "base", "TCW-D009"
             )
             for operation in (
-                "document-size",
-                "document-path",
+                "manifest-hash",
+                "run-id",
                 "source",
                 "origin-run",
             ):
@@ -697,12 +789,10 @@ class ControlledRevisionTests(unittest.TestCase):
                     copied = self.copy_record(revision, root / operation)
                     manifest_path = copied / "refinement-manifest.json"
                     manifest = json.loads(manifest_path.read_text("utf-8"))
-                    if operation == "document-size":
-                        manifest["base"]["canonical_document_size"] += 1
-                    elif operation == "document-path":
-                        manifest["base"][
-                            "canonical_document_path"
-                        ] = "prepared/document.json"
+                    if operation == "manifest-hash":
+                        manifest["base"]["base_manifest_sha256"] = "f" * 64
+                    elif operation == "run-id":
+                        manifest["base"]["run_id"] += "-changed"
                     elif operation == "source":
                         manifest["source"]["key"] += "-changed"
                     else:
@@ -726,29 +816,325 @@ class ControlledRevisionTests(unittest.TestCase):
             observation, diagnosis, revision = self.approve_rule(
                 root / "base", "TCW-D009"
             )
-            for field, replacement in (
-                ("lockfile_sha256", "f" * 64),
-                ("package_version", "0.3.1"),
+            for field, replacement, malformed in (
+                ("lockfile_sha256", "f" * 64, False),
+                ("package_version", "0.5.1", False),
                 (
                     "dependencies",
                     {
                         **RUNTIME["dependencies"],
                         "docling-core": "0.0.0",
                     },
+                    True,
                 ),
             ):
                 with self.subTest(field=field):
                     copied = self.copy_record(revision, root / field)
                     manifest_path = copied / "refinement-manifest.json"
                     manifest = json.loads(manifest_path.read_text("utf-8"))
-                    manifest["runtime"][field] = replacement
+                    manifest["build_provenance"][field] = replacement
                     manifest_path.write_bytes(canonical_json(manifest))
-                    self.assertEqual(
-                        verify_refinement(
-                            copied, diagnosis, observation
-                        )["artifact_integrity"]["status"],
-                        "BROKEN",
+                    if malformed:
+                        self.assertEqual(
+                            verify_refinement(
+                                copied, diagnosis, observation
+                            )["artifact_integrity"]["status"],
+                            "BROKEN",
+                        )
+                    else:
+                        with self.assertRaisesRegex(
+                            RuntimeContractError,
+                            "recorded provenance is unsupported",
+                        ):
+                            verify_refinement(
+                                copied, diagnosis, observation
+                            )
+
+    def test_replay_requires_exact_diagnosis_and_base(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation, diagnosis, revision = self.approve_rule(
+                root / "base", "TCW-D009"
+            )
+            missing_diagnosis = verify_refinement(
+                revision, root / "missing-diagnosis", observation
+            )
+            self.assertEqual(
+                missing_diagnosis["diagnosis_state"]["status"], "MISSING"
+            )
+            self.assertEqual(
+                missing_diagnosis["base_state"]["status"], "MATCH"
+            )
+            self.assertEqual(
+                missing_diagnosis["derivation_state"]["status"],
+                "NOT_CHECKED",
+            )
+            self.assertEqual(
+                missing_diagnosis["reversibility_state"]["status"],
+                "NOT_CHECKED",
+            )
+
+            missing_base = verify_refinement(
+                revision, diagnosis, root / "missing-base"
+            )
+            self.assertEqual(
+                missing_base["diagnosis_state"]["status"], "MATCH"
+            )
+            self.assertEqual(missing_base["base_state"]["status"], "MISSING")
+            self.assertEqual(
+                missing_base["derivation_state"]["status"], "NOT_CHECKED"
+            )
+            self.assertEqual(
+                missing_base["reversibility_state"]["status"], "NOT_CHECKED"
+            )
+
+            changed = self.copy_record(
+                diagnosis, root / "changed-diagnosis"
+            )
+            findings_path = changed / "findings.json"
+            manifest_path = changed / "diagnosis-manifest.json"
+            findings = json.loads(findings_path.read_text("utf-8"))
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            finding = next(
+                item
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            finding["evidence"]["original_text_sha256"] = "f" * 64
+            finding["finding_id"] = hashlib.sha256(
+                canonical_json(
+                    {
+                        "diagnosis_id": findings["diagnosis_id"],
+                        "rule_id": finding["rule_id"],
+                        "rule_version": finding["rule_version"],
+                        "document_refs": finding["document_refs"],
+                        "evidence": finding["evidence"],
+                    }
+                ).rstrip(b"\n")
+            ).hexdigest()
+            findings["findings"].sort(key=lambda item: item["finding_id"])
+            findings_path.write_bytes(canonical_json(findings))
+            (changed / "report.md").write_bytes(_diagnosis_report(findings))
+            for descriptor in manifest["artifacts"]:
+                artifact = changed / descriptor["path"]
+                descriptor["size"] = artifact.stat().st_size
+                descriptor["sha256"] = hashlib.sha256(
+                    artifact.read_bytes()
+                ).hexdigest()
+            manifest_path.write_bytes(canonical_json(manifest))
+            changed_result = verify_refinement(
+                revision, changed, observation
+            )
+            self.assertEqual(
+                changed_result["diagnosis_state"]["status"], "CHANGED"
+            )
+            self.assertEqual(changed_result["base_state"]["status"], "MATCH")
+            self.assertEqual(
+                changed_result["derivation_state"]["status"], "NOT_CHECKED"
+            )
+            self.assertEqual(
+                changed_result["reversibility_state"]["status"],
+                "NOT_CHECKED",
+            )
+
+    def test_chained_parent_reference_is_exact_and_bound_to_base(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation, diagnosis, first = self.approve_rule(
+                root / "base", "TCW-D009"
+            )
+            second_diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                first, root / "second-diagnosis"
+            )
+            second = self.approve_existing(
+                root / "second",
+                second_diagnosis,
+                first,
+                "TCW-D010",
+            )
+            baseline = verify_refinement(second, second_diagnosis, first)
+            self.assertEqual(baseline["artifact_integrity"]["status"], "VERIFIED")
+            self.assertEqual(baseline["base_state"]["status"], "MATCH")
+
+            mutations = {
+                "revision_id": "f" * 64,
+                "run_id": "changed-run",
+                "refinement_manifest_sha256": "e" * 64,
+                "prepared_document_sha256": "d" * 64,
+            }
+            for field, replacement in mutations.items():
+                with self.subTest(field=field):
+                    copied = self.copy_record(second, root / f"parent-{field}")
+                    manifest_path = copied / "refinement-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    manifest["parent"][field] = replacement
+                    manifest_path.write_bytes(canonical_json(manifest))
+                    result = verify_refinement(
+                        copied, second_diagnosis, first
                     )
+                    self.assertEqual(
+                        result["artifact_integrity"]["status"], "BROKEN"
+                    )
+                    self.assertNotEqual(
+                        result["base_state"]["status"], "MATCH"
+                    )
+                    self.assertEqual(
+                        result["derivation_state"]["status"], "NOT_CHECKED"
+                    )
+
+            copied = self.copy_record(second, root / "parent-all")
+            manifest_path = copied / "refinement-manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["parent"].update(mutations)
+            manifest_path.write_bytes(canonical_json(manifest))
+            result = verify_refinement(copied, second_diagnosis, first)
+            self.assertEqual(result["artifact_integrity"]["status"], "BROKEN")
+            self.assertNotEqual(result["base_state"]["status"], "MATCH")
+
+    def test_supplied_relationship_provenance_failures_use_exact_cli_streams(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation, diagnosis, revision = self.approve_rule(
+                root / "base", "TCW-D009"
+            )
+
+            cases = []
+            unsupported_diagnosis = self.copy_record(
+                diagnosis, root / "unsupported-diagnosis"
+            )
+            diagnosis_manifest = unsupported_diagnosis / "diagnosis-manifest.json"
+            value = json.loads(diagnosis_manifest.read_text("utf-8"))
+            value["build_provenance"]["provenance_id"] = "0" * 64
+            diagnosis_manifest.write_bytes(canonical_json(value))
+            cases.append(
+                (
+                    "diagnosis-unsupported",
+                    unsupported_diagnosis,
+                    observation,
+                    6,
+                    "recorded provenance is unsupported by this v0.5 package\n",
+                )
+            )
+
+            malformed_diagnosis = self.copy_record(
+                diagnosis, root / "malformed-diagnosis"
+            )
+            diagnosis_manifest = malformed_diagnosis / "diagnosis-manifest.json"
+            value = json.loads(diagnosis_manifest.read_text("utf-8"))
+            del value["build_provenance"]["command_id"]
+            diagnosis_manifest.write_bytes(canonical_json(value))
+            cases.append(
+                (
+                    "diagnosis-malformed",
+                    malformed_diagnosis,
+                    observation,
+                    5,
+                    "supplied diagnosis integrity is not verified\n",
+                )
+            )
+
+            unsupported_base = self.copy_record(
+                observation, root / "unsupported-base"
+            )
+            base_manifest = unsupported_base / "manifest.json"
+            value = json.loads(base_manifest.read_text("utf-8"))
+            value["build_provenance"]["provenance_id"] = "0" * 64
+            base_manifest.write_bytes(canonical_json(value))
+            cases.append(
+                (
+                    "base-unsupported",
+                    diagnosis,
+                    unsupported_base,
+                    6,
+                    "recorded provenance is unsupported by this v0.5 package\n",
+                )
+            )
+
+            malformed_base = self.copy_record(
+                observation, root / "malformed-base"
+            )
+            base_manifest = malformed_base / "manifest.json"
+            value = json.loads(base_manifest.read_text("utf-8"))
+            del value["build_provenance"]["command_id"]
+            base_manifest.write_bytes(canonical_json(value))
+            cases.append(
+                (
+                    "base-malformed",
+                    diagnosis,
+                    malformed_base,
+                    5,
+                    "supplied base is malformed or unavailable\n",
+                )
+            )
+
+            second_diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                revision, root / "second-diagnosis"
+            )
+            second = self.approve_existing(
+                root / "second",
+                second_diagnosis,
+                revision,
+                "TCW-D010",
+            )
+            unsupported_parent = self.copy_record(
+                revision, root / "unsupported-parent"
+            )
+            parent_manifest = unsupported_parent / "refinement-manifest.json"
+            value = json.loads(parent_manifest.read_text("utf-8"))
+            value["build_provenance"]["provenance_id"] = "0" * 64
+            parent_manifest.write_bytes(canonical_json(value))
+            parent_cases = [
+                (
+                    "parent-unsupported",
+                    unsupported_parent,
+                    6,
+                    "recorded provenance is unsupported by this v0.5 package\n",
+                )
+            ]
+            malformed_parent = self.copy_record(
+                revision, root / "malformed-parent"
+            )
+            parent_manifest = malformed_parent / "refinement-manifest.json"
+            value = json.loads(parent_manifest.read_text("utf-8"))
+            del value["build_provenance"]["command_id"]
+            parent_manifest.write_bytes(canonical_json(value))
+            parent_cases.append(
+                (
+                    "parent-malformed",
+                    malformed_parent,
+                    5,
+                    "supplied base is malformed or unavailable\n",
+                )
+            )
+
+            for name, supplied_diagnosis, supplied_base, code, message in cases:
+                with self.subTest(case=name):
+                    actual, stdout, stderr = self.invoke(
+                        "verify-refinement",
+                        str(revision),
+                        "--diagnosis",
+                        str(supplied_diagnosis),
+                        "--base",
+                        str(supplied_base),
+                    )
+                    self.assertEqual(actual, code)
+                    self.assertEqual(stdout, "")
+                    self.assertEqual(stderr, message)
+            for name, supplied_parent, code, message in parent_cases:
+                with self.subTest(case=name):
+                    actual, stdout, stderr = self.invoke(
+                        "verify-refinement",
+                        str(second),
+                        "--diagnosis",
+                        str(second_diagnosis),
+                        "--base",
+                        str(supplied_parent),
+                    )
+                    self.assertEqual(actual, code)
+                    self.assertEqual(stdout, "")
+                    self.assertEqual(stderr, message)
 
     def test_refinement_destination_collision_and_concurrency_are_atomic(
         self,
@@ -893,6 +1279,22 @@ class ControlledRevisionTests(unittest.TestCase):
             revision = cli._diagnosis_callable("v03", "resolve_refinement")(
                 draft, diagnosis, observation, root / "revisions"
             )
+            decision_record = json.loads(
+                (revision / "decision.json").read_text("utf-8")
+            )
+            refinement_manifest = json.loads(
+                (revision / "refinement-manifest.json").read_text("utf-8")
+            )
+            self.assertEqual(
+                decision_record["build_provenance"]["command_id"],
+                "tcw.draft-refinement",
+            )
+            self.assertEqual(
+                refinement_manifest["build_provenance"]["command_id"],
+                "tcw.resolve-refinement",
+            )
+            self.assertNotIn("runtime", refinement_manifest)
+            self.assertNotIn("milestone", refinement_manifest)
             result = verify_refinement(revision, diagnosis, observation)
             self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
             self.assertEqual(result["derivation_state"]["status"], "MATCH")
@@ -1030,12 +1432,11 @@ class ControlledRevisionTests(unittest.TestCase):
             (changed_diagnosis / "diagnosis-manifest.json").write_bytes(
                 canonical_json(diagnosis_manifest)
             )
-            diagnosis_result = verify_refinement(
-                revision2, changed_diagnosis, revision
-            )
-            self.assertEqual(
-                diagnosis_result["diagnosis_state"]["status"], "CHANGED"
-            )
+            with self.assertRaisesRegex(
+                IntegrityError,
+                "supplied diagnosis integrity is not verified",
+            ):
+                verify_refinement(revision2, changed_diagnosis, revision)
 
 
 if __name__ == "__main__":

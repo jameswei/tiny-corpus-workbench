@@ -408,7 +408,7 @@ def _finding(
         "rule_id": rule_id,
         "rule_version": "1",
         "severity": SEVERITY_BY_RULE[rule_id],
-        "summary": SUMMARY_BY_RULE[rule_id].replace("_", " ").title(),
+        "summary": SUMMARY_BY_RULE[rule_id],
         "document_refs": document_refs,
         "evidence": stable_evidence,
     }
@@ -433,15 +433,7 @@ def _canonicalize_findings(
         if existing is not None and existing != finding:
             raise IntegrityError("finding identity collision")
         unique[finding["finding_id"]] = finding
-    return sorted(
-        unique.values(),
-        key=lambda item: (
-            item["rule_id"],
-            item["document_refs"],
-            canonical_json(item["evidence"]),
-            item["finding_id"],
-        ),
-    )
+    return sorted(unique.values(), key=lambda item: item["finding_id"])
 
 
 def _bbox_midpoint_top_ratio(
@@ -778,8 +770,7 @@ def validate_finding_set_semantics(
         validate_finding_contract(finding)
         if (
             finding["severity"] != SEVERITY_BY_RULE[finding["rule_id"]]
-            or finding["summary"]
-            != SUMMARY_BY_RULE[finding["rule_id"]].replace("_", " ").title()
+            or finding["summary"] != SUMMARY_BY_RULE[finding["rule_id"]]
             or finding["document_refs"] != sorted(set(finding["document_refs"]))
             or list(finding["evidence"]) != sorted(finding["evidence"])
             or finding["finding_id"]

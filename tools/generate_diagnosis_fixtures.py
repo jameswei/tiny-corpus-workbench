@@ -9,9 +9,11 @@ from pathlib import Path
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 
+from tiny_corpus_workbench.supported_provenance import active_build_provenance
+
 
 ROOT = Path(__file__).resolve().parents[1]
-DESTINATION = ROOT / "fixtures/diagnosis/v0.2"
+DESTINATION = ROOT / "fixtures/diagnosis/v0.5"
 
 
 def digest(path: Path) -> str:
@@ -75,7 +77,7 @@ def generate_into(root: Path) -> dict:
         records.append(
             {
                 "id": identifier,
-                "path": f"fixtures/diagnosis/v0.2/{path.name}",
+                "path": f"fixtures/diagnosis/v0.5/{path.name}",
                 "size": path.stat().st_size,
                 "sha256": digest(path),
                 "license": "CC0-1.0",
@@ -83,9 +85,12 @@ def generate_into(root: Path) -> dict:
             }
         )
     registry = {
-        "schema_version": "tcw.diagnosis-fixture-registry/v0.2",
+        "schema_version": "tcw.diagnosis-fixture-registry/v0.5",
         "generator": "tools/generate_diagnosis_fixtures.py",
         "fixtures": records,
+        "build_provenance": active_build_provenance(
+            generator_id="tools.generate_diagnosis_fixtures"
+        ),
     }
     (root / "fixtures.json").write_text(
         json.dumps(registry, ensure_ascii=False, sort_keys=True, indent=2) + "\n",

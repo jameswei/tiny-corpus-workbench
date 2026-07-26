@@ -32,8 +32,29 @@ from tiny_corpus_workbench.domain import (
     sanitize_message,
 )
 from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
-from tiny_corpus_workbench.supported_provenance import active_build_provenance
 from tiny_corpus_workbench.source import SourceSnapshot, sha256_file
+
+
+ACTIVE_RUNTIME_ERROR = (
+    "active runtime does not match this package provenance registry"
+)
+
+
+def _runtime_import_message(error: Exception, fallback: str) -> str:
+    return ACTIVE_RUNTIME_ERROR if isinstance(error, ImportError) else fallback
+
+
+def _active_build_provenance(**arguments: Any) -> dict[str, Any]:
+    try:
+        from tiny_corpus_workbench.supported_provenance import (
+            active_build_provenance,
+        )
+
+        return active_build_provenance(**arguments)
+    except RuntimeContractError:
+        raise
+    except Exception as error:
+        raise RuntimeContractError(ACTIVE_RUNTIME_ERROR) from error
 
 
 DOCLING_CONFIG = {
@@ -59,7 +80,10 @@ def _verification_callable(name: str) -> Any:
         function = getattr(module, name)
     except Exception as error:
         raise RuntimeContractError(
-            "bundled verification/schema runtime is unavailable or incompatible"
+            _runtime_import_message(
+                error,
+                "bundled verification/schema runtime is unavailable or incompatible",
+            )
         ) from error
     if not callable(function):
         raise RuntimeContractError(
@@ -74,7 +98,10 @@ def _diagnosis_callable(module_name: str, name: str) -> Any:
         function = getattr(module, name)
     except Exception as error:
         raise RuntimeContractError(
-            "bundled diagnosis/schema runtime is unavailable or incompatible"
+            _runtime_import_message(
+                error,
+                "bundled diagnosis/schema runtime is unavailable or incompatible",
+            )
         ) from error
     if not callable(function):
         raise RuntimeContractError(
@@ -89,7 +116,10 @@ def _corpus_callable(module_name: str, name: str) -> Any:
         function = getattr(module, name)
     except Exception as error:
         raise RuntimeContractError(
-            "bundled corpus/schema runtime is unavailable or incompatible"
+            _runtime_import_message(
+                error,
+                "bundled corpus/schema runtime is unavailable or incompatible",
+            )
         ) from error
     if not callable(function):
         raise RuntimeContractError(
@@ -108,10 +138,11 @@ def _published_diagnosis_line(published: Path) -> dict[str, Any]:
         snapshot = _diagnosis_callable("diagnosis", "snapshot_tree")
         before = snapshot(published)
         schema = json.loads(manifest_path.read_text("utf-8")).get("schema_version")
-        verify = _diagnosis_callable(
-            "v03" if schema == "tcw.diagnosis-manifest/v0.3" else "diagnosis_verification",
-            "verify_diagnosis",
-        )
+        if schema != "tcw.diagnosis-manifest/v0.5":
+            raise RuntimeContractError(
+                "published diagnosis manifest is unavailable or invalid"
+            )
+        verify = _diagnosis_callable("v03", "verify_diagnosis")
         verification = verify(published)
         if verification["artifact_integrity"]["status"] != "VERIFIED":
             raise IntegrityError(
@@ -254,7 +285,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def _preflight_extractors() -> tuple[dict[str, Any], Any, Any]:
-    build_provenance = active_build_provenance(
+    build_provenance = _active_build_provenance(
         command_id="tcw.observe", extracting=True
     )
     try:
@@ -635,16 +666,16 @@ def main(argv: list[str] | None = None) -> int:
                 ).get("schema_version")
             except Exception:
                 pass
-            if schema == "tcw.diagnosis-manifest/v0.3":
-                command = _diagnosis_callable("v03", "verify_diagnosis_command")
-                return command(
-                    args.diagnosis_directory, args.subject or args.observation
-                )
-            command = _diagnosis_callable("diagnosis_verification", "verify_diagnosis_command")
+            if schema != "tcw.diagnosis-manifest/v0.5":
+                print("verification requires a v0.5 diagnosis", file=sys.stderr)
+                return int(ExitCode.INPUT)
+            command = _diagnosis_callable("v03", "verify_diagnosis_command")
         except RuntimeContractError as error:
             print(sanitize_message(error), file=sys.stderr)
             return int(ExitCode.RUNTIME)
-        return command(args.diagnosis_directory, args.observation)
+        return command(
+            args.diagnosis_directory, args.subject or args.observation
+        )
     if args.command == "diagnose":
         try:
             command = _diagnosis_callable("v03", "diagnose")

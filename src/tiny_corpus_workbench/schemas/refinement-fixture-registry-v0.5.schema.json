@@ -40,7 +40,7 @@
           },
           "path": {
             "type": "string",
-            "pattern": "^fixtures/refinement/v0\\.3/"
+            "pattern": "^fixtures/refinement/v0\\.5/"
           },
           "size": {
             "type": "integer",

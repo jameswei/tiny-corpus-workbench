@@ -13,9 +13,11 @@ from pathlib import Path
 
 from docx import Document
 
+from tiny_corpus_workbench.supported_provenance import active_build_provenance
+
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = ROOT / "fixtures/refinement/v0.3"
+FIXTURES = ROOT / "fixtures/refinement/v0.5"
 REGISTRY = FIXTURES / "fixtures.json"
 HYPHENATION = FIXTURES / "line-end-hyphenation.docx"
 WHITESPACE = FIXTURES / "whitespace-cleanup.md"
@@ -79,8 +81,11 @@ def descriptor(path: Path, fixture_id: str, rules: list[str]) -> dict[str, objec
 
 def expected() -> dict[str, object]:
     return {
-        "schema_version": "tcw.refinement-fixture-registry/v0.3",
+        "schema_version": "tcw.refinement-fixture-registry/v0.5",
         "generator": "tools/generate_refinement_fixtures.py",
+        "build_provenance": active_build_provenance(
+            generator_id="tools.generate_refinement_fixtures"
+        ),
         "fixtures": [
             descriptor(
                 HYPHENATION,
@@ -100,6 +105,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     arguments = parser.parse_args()
+    FIXTURES.mkdir(parents=True, exist_ok=True)
     if arguments.check:
         with tempfile.TemporaryDirectory() as directory:
             generated = Path(directory) / HYPHENATION.name
@@ -109,7 +115,7 @@ def main() -> int:
                 or HYPHENATION.read_bytes() != generated.read_bytes()
                 or WHITESPACE.read_bytes() != WHITESPACE_BYTES
             ):
-                print("v0.3 refinement fixture bytes differ")
+                print("v0.5 refinement fixture bytes differ")
                 return 1
     else:
         write_hyphenation(HYPHENATION)
@@ -119,7 +125,7 @@ def main() -> int:
     ).encode()
     if arguments.check:
         if not REGISTRY.is_file() or REGISTRY.read_bytes() != rendered:
-            print("v0.3 refinement fixture registry differs")
+            print("v0.5 refinement fixture registry differs")
             return 1
         return 0
     REGISTRY.write_bytes(rendered)
