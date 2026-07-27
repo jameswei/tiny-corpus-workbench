@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import unittest
 import uuid
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import UTC, datetime
@@ -20,6 +21,7 @@ from docling_core.types.doc import DocItemLabel, DoclingDocument, TableData
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import canonical_json
+from tiny_corpus_workbench.diagnosis_rules import CURRENT_FINDING_METADATA
 from tiny_corpus_workbench.domain import (
     InputError,
     IntegrityError,
@@ -39,7 +41,7 @@ OLD_DIAGNOSIS_SCHEMA = "tcw.diagnosis-manifest/v0.3"
 
 # Frozen reviewed inventory for the v0.5 diagnosis migration.
 BASE_REGRESSION_INVENTORY = {
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_v03_diagnosis_is_deterministic_and_read_only"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_observe_diagnose_verify_is_v05_deterministic_and_read_only"),
+    ("tests/unit/test_v03_diagnosis_workflow.py", "test_v03_diagnosis_is_deterministic_and_read_only"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_observe_diagnose_verify_is_current_deterministic_and_read_only"),
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_partial_observation_is_supported"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_partial_success_observation_with_canonical_docling_is_diagnosable"),
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_existing_v02_diagnosis_remains_verifiable"): ("obsolete", "v0.5 deliberately rejects old diagnosis schemas with exit 2"),
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_missing_or_inconsistent_canonical_document_never_publishes"): ("restored", "test_missing_canonical_artifact_is_exit_four_without_publication"),
@@ -51,9 +53,9 @@ BASE_REGRESSION_INVENTORY = {
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_optional_subject_states_are_advisory"): ("restored", "test_subject_advisories_and_complete_source_identity"),
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_diagnosis_identity_and_complete_subject_descriptor_are_verified"): ("restored", "test_subject_advisories_and_complete_source_identity"),
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_runtime_drift_is_exit_six_without_publication"): ("restored", "test_cli_failures_have_exact_exit_and_stream_contracts"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_v03_diagnosis_runtime_provenance_is_verified"): ("restored", "test_unsupported_recorded_provenance_is_exit_six"),
+    ("tests/unit/test_v03_diagnosis_workflow.py", "test_v03_diagnosis_runtime_provenance_is_verified"): ("restored", "test_build_provenance_is_not_accepted_in_current_manifest"),
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_cli_errors_are_sanitized_and_use_exact_streams"): ("restored", "test_cli_failures_have_exact_exit_and_stream_contracts"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_observe_diagnose_verify_is_deterministic_and_read_only"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_observe_diagnose_verify_is_v05_deterministic_and_read_only"),
+    ("tests/unit/test_diagnosis_workflow.py", "test_observe_diagnose_verify_is_deterministic_and_read_only"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_observe_diagnose_verify_is_current_deterministic_and_read_only"),
     ("tests/unit/test_diagnosis_workflow.py", "test_partial_success_is_accepted_and_corruption_is_detected"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_partial_success_observation_corruption_is_rejected_and_advisory"),
     ("tests/unit/test_diagnosis_workflow.py", "test_unresolved_duplicate_caption_declarations_publish_one_valid_finding"): ("moved", "tests.unit.test_diagnosis_rules.DiagnosisRuleTests.test_duplicate_invalid_caption_declarations_emit_one_finding"),
     ("tests/unit/test_diagnosis_workflow.py", "test_canonical_collection_paths_are_required_before_publication"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_canonical_collection_paths_are_required_before_publication"),
@@ -81,7 +83,7 @@ BASE_REGRESSION_INVENTORY = {
     ("tests/unit/test_diagnosis_workflow.py", "test_verifier_rejects_generic_evidence_for_every_rule"): ("moved", "tests.unit.test_diagnosis_rules.DiagnosisRuleTests.test_generic_evidence_is_rejected_for_every_base_rule"),
 }
 BASE_REGRESSION_INVENTORY_SHA256 = (
-    "600b6bc16ea622f0dd825d4137c638a529d785e1a3e402df7d994991f1b5e5bd"
+    "7c06cda8e97450106036b363baa1f9a152c3011e2728c6f1e2f992d6eefd377a"
 )
 REVIEWED_TARGET_EQUIVALENCE = {
     (
@@ -259,7 +261,7 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(stdout, "")
             self.assertIn("regenerate", stderr)
 
-    def test_observe_diagnose_verify_is_v05_deterministic_and_read_only(self) -> None:
+    def test_observe_diagnose_verify_is_current_deterministic_and_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation = self.observation(root / "observations")
@@ -275,21 +277,14 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             manifest = json.loads(
                 (first / "diagnosis-manifest.json").read_text("utf-8")
             )
-            self.assertEqual(findings["schema_version"], "tcw.finding-set/v0.5")
+            self.assertNotIn("schema_version", findings)
             self.assertEqual(
-                manifest["schema_version"], "tcw.diagnosis-manifest/v0.5"
+                (manifest["record_type"], manifest["format_version"]),
+                ("diagnosis", 1),
             )
-            self.assertEqual(
-                manifest["build_provenance"]["command_id"], "tcw.diagnose"
-            )
+            self.assertNotIn("build_provenance", manifest)
             self.assertNotIn("runtime", manifest)
             self.assertNotIn("milestone", manifest)
-            self.assertEqual(
-                manifest["build_provenance"]["python"]["major_minor"], "3.12"
-            )
-            self.assertIn(
-                "jsonschema", manifest["build_provenance"]["dependencies"]
-            )
             code, stdout, stderr = self.invoke(
                 "verify-diagnosis",
                 str(first),
@@ -301,10 +296,8 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
             self.assertEqual(result["subject_state"]["status"], "MATCH")
             self.assertEqual(result["derivation_state"]["status"], "MATCH")
-            self.assertEqual(
-                result["build_provenance"]["command_id"],
-                "tcw.verify-diagnosis",
-            )
+            self.assertNotIn("schema_version", result)
+            self.assertNotIn("build_provenance", result)
 
     def test_partial_success_observation_with_canonical_docling_is_diagnosable(
         self,
@@ -332,6 +325,41 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
             self.assertEqual(result["subject_state"]["status"], "MATCH")
             self.assertEqual(result["derivation_state"]["status"], "MATCH")
+
+    def test_checkout_and_runtime_metadata_do_not_change_diagnosis_identity(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            observation = self.observation(root / "observations")
+            original_cwd = Path.cwd()
+            checkout_a = root / "checkout-a"
+            checkout_b = root / "checkout-b"
+            checkout_a.mkdir()
+            checkout_b.mkdir()
+            try:
+                with mock.patch(
+                    "tiny_corpus_workbench.v03.active_build_provenance",
+                    side_effect=AssertionError(
+                        "diagnosis must not inspect runtime metadata"
+                    ),
+                ):
+                    os.chdir(checkout_a)
+                    first = diagnose(observation, root / "first")
+                    os.chdir(checkout_b)
+                    second = diagnose(observation, root / "second")
+            finally:
+                os.chdir(original_cwd)
+            first_manifest = json.loads(
+                (first / "diagnosis-manifest.json").read_text("utf-8")
+            )
+            second_manifest = json.loads(
+                (second / "diagnosis-manifest.json").read_text("utf-8")
+            )
+            self.assertEqual(
+                first_manifest["diagnosis_id"],
+                second_manifest["diagnosis_id"],
+            )
 
     def test_partial_success_observation_corruption_is_rejected_and_advisory(
         self,
@@ -470,7 +498,7 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             code, stdout, stderr = self.invoke("verify-diagnosis", str(root))
             self.assertEqual(code, 2)
             self.assertEqual(stdout, "")
-            self.assertIn("v0.5 diagnosis", stderr)
+            self.assertIn("regenerate", stderr)
 
     def test_missing_canonical_artifact_is_exit_four_without_publication(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -505,14 +533,14 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertIn("output must not be inside", stderr)
             self.assertEqual(snapshot_tree(observation), before)
 
-    def test_unsupported_recorded_provenance_is_exit_six(self) -> None:
+    def test_build_provenance_is_not_accepted_in_current_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation = self.observation(root / "observations")
             diagnosis = self.diagnose(observation, root / "diagnoses")
             manifest_path = diagnosis / "diagnosis-manifest.json"
             manifest = json.loads(manifest_path.read_text("utf-8"))
-            manifest["build_provenance"]["provenance_id"] = "0" * 64
+            manifest["build_provenance"] = {"package_version": "0.5.0"}
             manifest_path.write_text(
                 json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n",
                 "utf-8",
@@ -520,11 +548,11 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             code, stdout, stderr = self.invoke(
                 "verify-diagnosis", str(diagnosis)
             )
-            self.assertEqual(code, 6)
-            self.assertEqual(stdout, "")
+            self.assertEqual(code, 5)
+            self.assertNotEqual(stdout, "")
+            self.assertEqual(stderr, "")
             self.assertEqual(
-                stderr,
-                "recorded provenance is unsupported by this v0.5 package\n",
+                json.loads(stdout)["artifact_integrity"]["status"], "BROKEN"
             )
 
     def test_publication_collision_and_concurrent_race_are_atomic(self) -> None:
@@ -689,6 +717,18 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             (invalid_json / "findings.json").write_text("{", "utf-8")
             operations["json"] = invalid_json
 
+            changed_manifest = root / "changed-manifest"
+            shutil.copytree(diagnosis, changed_manifest)
+            manifest_path = changed_manifest / "diagnosis-manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["status"] = (
+                "NO_FINDINGS"
+                if manifest["status"] == "FINDINGS"
+                else "FINDINGS"
+            )
+            manifest_path.write_bytes(canonical_json(manifest))
+            operations["manifest"] = changed_manifest
+
             invalid_node = root / "invalid-node"
             shutil.copytree(diagnosis, invalid_node)
             (invalid_node / "report.md").unlink()
@@ -701,36 +741,164 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     self.assertNotEqual(
                         result["artifact_integrity"]["status"], "VERIFIED"
                     )
+                    code, stdout, stderr = self.invoke(
+                        "verify-diagnosis", str(changed)
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertNotEqual(
+                        json.loads(stdout)["artifact_integrity"]["status"],
+                        "VERIFIED",
+                    )
 
     def test_self_consistent_finding_metadata_tamper_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation = self.observation(root / "observations")
             diagnosis = self.diagnose(observation, root / "diagnoses")
-            manifest_path = diagnosis / "diagnosis-manifest.json"
-            findings_path = diagnosis / "findings.json"
-            manifest = json.loads(manifest_path.read_text("utf-8"))
-            findings = json.loads(findings_path.read_text("utf-8"))
-            findings["findings"][0]["summary"] = "Tampered but schema-valid"
-            findings_path.write_bytes(canonical_json(findings))
-            (diagnosis / "report.md").write_bytes(_diagnosis_report(findings))
-            for descriptor in manifest["artifacts"]:
-                path = diagnosis / descriptor["path"]
-                descriptor["size"] = path.stat().st_size
-                descriptor["sha256"] = hashlib.sha256(
-                    path.read_bytes()
-                ).hexdigest()
-            manifest_path.write_bytes(canonical_json(manifest))
 
-            result = verify_diagnosis(diagnosis)
-            self.assertEqual(result["artifact_integrity"]["status"], "BROKEN")
-            self.assertTrue(
-                any(
-                    issue["code"] == "MANIFEST_INVALID"
-                    for issue in result["artifact_integrity"]["issues"]
+            def d006_empty_declared(findings):
+                finding = findings["findings"][0]
+                finding.update(
+                    {
+                        "rule_id": "TCW-D006",
+                        **CURRENT_FINDING_METADATA["TCW-D006"],
+                        "document_refs": ["#/tables/0"],
+                        "evidence": {
+                            "relationship_kind": "invalid_declared_caption",
+                            "declared_ref": "",
+                        },
+                    }
+                )
+
+            def change_ref(rule_id, reference):
+                def mutate(findings):
+                    finding = next(
+                        item
+                        for item in findings["findings"]
+                        if item["rule_id"] == rule_id
+                    )
+                    finding["document_refs"] = [reference]
+
+                return mutate
+
+            cases = {
+                "metadata": (
+                    lambda findings: findings["findings"][0].update(
+                        {"summary": "Tampered but structurally valid"}
+                    ),
+                    False,
                 ),
-                result,
-            )
+                "evidence-with-refreshed-identities": (
+                    lambda findings: findings["findings"][0].update(
+                        {"evidence": {"band": "top"}}
+                    ),
+                    True,
+                ),
+                "d006-empty-declared-ref": (d006_empty_declared, True),
+                "d009-body-target": (
+                    change_ref("TCW-D009", "#/body"),
+                    True,
+                ),
+                "d010-group-target": (
+                    change_ref("TCW-D010", "#/groups/0"),
+                    True,
+                ),
+            }
+            for name, (mutate, refresh_identities) in cases.items():
+                with self.subTest(case=name):
+                    changed = root / name
+                    shutil.copytree(diagnosis, changed)
+                    manifest_path = changed / "diagnosis-manifest.json"
+                    findings_path = changed / "findings.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    findings = json.loads(findings_path.read_text("utf-8"))
+                    mutate(findings)
+                    if refresh_identities:
+                        severity = Counter(
+                            item["severity"] for item in findings["findings"]
+                        )
+                        rules = Counter(
+                            item["rule_id"] for item in findings["findings"]
+                        )
+                        findings["summary"] = {
+                            "total": len(findings["findings"]),
+                            "by_severity": {
+                                key: severity[key]
+                                for key in ("ERROR", "WARNING", "INFO")
+                            },
+                            "by_rule": {
+                                key: rules[key]
+                                for key in findings["summary"]["by_rule"]
+                            },
+                        }
+                        domain_findings = [
+                            {
+                                key: finding[key]
+                                for key in (
+                                    "rule_id",
+                                    "rule_version",
+                                    "document_refs",
+                                    "evidence",
+                                )
+                            }
+                            for finding in findings["findings"]
+                        ]
+                        domain_findings.sort(key=canonical_json)
+                        diagnosis_id = hashlib.sha256(
+                            canonical_json(
+                                {
+                                    "subject": findings["subject"],
+                                    "ruleset": findings["ruleset"],
+                                    "findings": domain_findings,
+                                }
+                            ).rstrip(b"\n")
+                        ).hexdigest()
+                        findings["diagnosis_id"] = diagnosis_id
+                        manifest["diagnosis_id"] = diagnosis_id
+                        for finding in findings["findings"]:
+                            finding["finding_id"] = hashlib.sha256(
+                                canonical_json(
+                                    {
+                                        "diagnosis_id": diagnosis_id,
+                                        "rule_id": finding["rule_id"],
+                                        "rule_version": finding[
+                                            "rule_version"
+                                        ],
+                                        "document_refs": finding[
+                                            "document_refs"
+                                        ],
+                                        "evidence": finding["evidence"],
+                                    }
+                                ).rstrip(b"\n")
+                            ).hexdigest()
+                        findings["findings"].sort(
+                            key=lambda finding: finding["finding_id"]
+                        )
+                    findings_path.write_bytes(canonical_json(findings))
+                    (changed / "report.md").write_bytes(
+                        _diagnosis_report(findings)
+                    )
+                    for descriptor in manifest["artifacts"]:
+                        path = changed / descriptor["path"]
+                        descriptor["size"] = path.stat().st_size
+                        descriptor["sha256"] = hashlib.sha256(
+                            path.read_bytes()
+                        ).hexdigest()
+                    manifest_path.write_bytes(canonical_json(manifest))
+
+                    result = verify_diagnosis(changed)
+                    self.assertEqual(
+                        result["artifact_integrity"]["status"],
+                        "BROKEN",
+                    )
+                    self.assertTrue(
+                        any(
+                            issue["code"] == "MANIFEST_INVALID"
+                            for issue in result["artifact_integrity"]["issues"]
+                        ),
+                        result,
+                    )
 
     def test_subject_advisories_and_complete_source_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -777,7 +945,8 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 (
                     ("verify-diagnosis", str(root / "missing")),
                     2,
-                    "verification requires a v0.5 diagnosis\n",
+                    "diagnosis record format is unsupported; regenerate the "
+                    "record with the current project\n",
                 ),
                 (
                     ("diagnose", str(root / "missing")),
@@ -795,9 +964,7 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             observation = self.observation(root / "observations")
             with mock.patch(
                 "tiny_corpus_workbench.v03.active_build_provenance",
-                side_effect=RuntimeContractError(
-                    "active runtime does not match this package provenance registry"
-                ),
+                side_effect=AssertionError("diagnosis must not inspect runtime"),
             ):
                 code, stdout, stderr = self.invoke(
                     "diagnose",
@@ -805,12 +972,8 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     "--output-root",
                     str(root / "diagnoses"),
                 )
-            self.assertEqual(code, 6)
-            self.assertEqual(stdout, "")
-            self.assertEqual(
-                stderr,
-                "active runtime does not match this package provenance registry\n",
-            )
+            self.assertEqual(code, 0, stderr)
+            self.assertNotEqual(stdout, "")
 
     def test_base_regression_inventory_is_complete_and_classified(self) -> None:
         snapshot = [

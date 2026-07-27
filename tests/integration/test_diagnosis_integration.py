@@ -27,7 +27,7 @@ class DiagnosisIntegrationTests(unittest.TestCase):
 
     def test_raw_diagnosis_corpus_runs_offline_with_expected_rules(self) -> None:
         registry = json.loads(
-            (ROOT / "fixtures/diagnosis/v0.5/fixtures.json").read_text("utf-8")
+            (ROOT / "fixtures/diagnosis/fixtures.json").read_text("utf-8")
         )
 
         def deny(*args, **kwargs):

@@ -598,8 +598,8 @@ def _capture_record(root: Path) -> _AdmissionCapture:
         if not isinstance(manifest, dict) or raw != artifact_json(manifest):
             raise IntegrityError("record manifest is not canonical JSON")
         kind, schema, _ = ROOTS[name]
-        if kind == "OBSERVATION":
-            require_record_header(manifest, "observation")
+        if kind in {"OBSERVATION", "DIAGNOSIS"}:
+            require_record_header(manifest, kind.lower())
         elif manifest.get("schema_version") != schema:
             raise InputError("workbench requires a v0.5 record")
         listed = _listed_descriptors(kind, manifest)

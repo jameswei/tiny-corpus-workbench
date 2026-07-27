@@ -103,10 +103,10 @@ class PublishedCorpus:
             ("meeting-minutes", "fixtures/golden/meeting-minutes.md"),
             ("policy-memo", "fixtures/golden/policy-memo.md"),
             ("release-notice", "fixtures/golden/release-notice.md"),
-            ("short-note", "fixtures/diagnosis/v0.5/short-note.md"),
+            ("short-note", "fixtures/diagnosis/short-note.md"),
             (
                 "structural-traps",
-                "fixtures/diagnosis/v0.5/structural-traps.md",
+                "fixtures/diagnosis/structural-traps.md",
             ),
         )
         corpus_spec = input_root / "model-free-corpus.json"

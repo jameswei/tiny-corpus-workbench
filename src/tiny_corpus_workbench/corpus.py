@@ -17,6 +17,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
+from tiny_corpus_workbench.application.records import require_record_header
 from tiny_corpus_workbench.artifacts import canonical_json
 from tiny_corpus_workbench.domain import InputError, IntegrityError, RuntimeContractError
 from tiny_corpus_workbench.source import MEDIA_TYPES, sha256_file, validate_source
@@ -248,6 +249,11 @@ def _admit_revision(
         name: _tree_inventory(root, f"revision {name}")
         for name, root in roots.items()
     }
+    _, diagnosis_manifest = _load_json_file(
+        roots["diagnosis"] / "diagnosis-manifest.json",
+        "diagnosis manifest",
+    )
+    require_record_header(diagnosis_manifest, "diagnosis")
 
     # Keep the refinement implementation out of import paths that do not admit
     # revision bundles.

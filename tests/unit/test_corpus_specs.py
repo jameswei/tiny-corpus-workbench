@@ -833,6 +833,10 @@ class CorpusAdmissionTests(unittest.TestCase):
             for path in revision_paths.values():
                 path.mkdir()
                 (path / "record.json").write_text("{}", "utf-8")
+            (revision_paths["diagnosis"] / "diagnosis-manifest.json").write_text(
+                json.dumps({"record_type": "diagnosis", "format_version": 1}),
+                "utf-8",
+            )
             prepared = revision_paths["revision"] / "prepared"
             prepared.mkdir()
             (prepared / "document.json").write_text("{}", "utf-8")
@@ -926,6 +930,27 @@ class CorpusAdmissionTests(unittest.TestCase):
             self.assertIn(
                 {"path": "prepared", "kind": "directory"},
                 refinement_entries,
+            )
+
+            diagnosis_manifest_path = (
+                revision_paths["diagnosis"] / "diagnosis-manifest.json"
+            )
+            current_diagnosis_header = {
+                "record_type": "diagnosis",
+                "format_version": 1,
+            }
+            for name, invalid_header in (
+                ("unknown", {"record_type": "diagnosis", "format_version": 99}),
+                ("missing", {"format_version": 1}),
+            ):
+                with self.subTest(diagnosis_header=name):
+                    diagnosis_manifest_path.write_text(
+                        json.dumps(invalid_header), "utf-8"
+                    )
+                    with self.assertRaisesRegex(InputError, "regenerate"):
+                        load_corpus_spec(spec)
+            diagnosis_manifest_path.write_text(
+                json.dumps(current_diagnosis_header), "utf-8"
             )
 
             def mutate_source(*_args: object, **_kwargs: object) -> dict:

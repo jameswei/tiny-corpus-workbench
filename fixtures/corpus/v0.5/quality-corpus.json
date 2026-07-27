@@ -11,19 +11,19 @@
       "family": "repeated-margin",
       "format": "pdf",
       "member_id": "repeated-margin",
-      "source": "../../diagnosis/v0.5/repeated-margin.pdf"
+      "source": "../../diagnosis/repeated-margin.pdf"
     },
     {
       "family": "short-note",
       "format": "md",
       "member_id": "short-note",
-      "source": "../../diagnosis/v0.5/short-note.md"
+      "source": "../../diagnosis/short-note.md"
     },
     {
       "family": "structural-traps",
       "format": "md",
       "member_id": "structural-traps",
-      "source": "../../diagnosis/v0.5/structural-traps.md"
+      "source": "../../diagnosis/structural-traps.md"
     },
     {
       "family": "whitespace-cleanup",

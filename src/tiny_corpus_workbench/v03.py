@@ -19,10 +19,16 @@ from typing import Any, Iterable
 
 from docling_core.types.doc import DoclingDocument
 
-from tiny_corpus_workbench.application.records import require_record_header
+from tiny_corpus_workbench.application.records import (
+    record_header,
+    require_record_header,
+)
 from tiny_corpus_workbench.artifacts import _rename_exclusive, canonical_json
 from tiny_corpus_workbench.diagnosis_rules import (
-    RULESET as V02_RULES,
+    CURRENT_FINDING_METADATA,
+    CURRENT_RULES,
+    CURRENT_RULESET,
+    CURRENT_RULESET_PARAMETER_HASH,
     _canonicalize_findings,
     _hash,
     _index,
@@ -30,7 +36,7 @@ from tiny_corpus_workbench.diagnosis_rules import (
     _table_cells,
     analyze_document as analyze_v02,
     snapshot_tree,
-    validate_finding_contract as validate_v02_finding,
+    validate_finding_contract,
 )
 from tiny_corpus_workbench.domain import (
     CanonicalUnavailableError,
@@ -50,48 +56,9 @@ from tiny_corpus_workbench.verification import verify_observation
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
-V03_RULES = [
-    *V02_RULES,
-    {
-        "rule_id": "TCW-D009",
-        "name": "NORMALIZABLE_WHITESPACE",
-        "version": "1",
-        "severity": "INFO",
-        "parameters": {
-            "line_endings": "LF",
-            "horizontal_whitespace": "ASCII_SPACE",
-            "preserve_internal_line_breaks": True,
-        },
-    },
-    {
-        "rule_id": "TCW-D010",
-        "name": "POSSIBLE_LINE_END_HYPHENATION",
-        "version": "1",
-        "severity": "WARNING",
-        "parameters": {
-            "minimum_fragment_code_points": 2,
-            "logical_line_breaks": 1,
-            "right_initial": "lowercase",
-        },
-    },
-]
-RULESET = {
-    "name": "tcw-evidence-based-diagnosis",
-    "version": "v0.3",
-    "rules": V03_RULES,
-}
-RULESET_PARAMETER_HASH = _hash(
-    canonical_json(
-        [
-            {
-                "rule_id": item["rule_id"],
-                "rule_version": item["version"],
-                "parameters": item["parameters"],
-            }
-            for item in V03_RULES
-        ]
-    ).rstrip(b"\n")
-)
+V03_RULES = CURRENT_RULES
+RULESET = CURRENT_RULESET
+RULESET_PARAMETER_HASH = CURRENT_RULESET_PARAMETER_HASH
 REFINERS = {
     "TCW-D009": {
         "refiner_id": "TCW-R001",
@@ -122,16 +89,8 @@ DIAGNOSIS_ARTIFACTS = {
     "report.md": ("diagnostic-report", "text/markdown"),
 }
 V03_FINDING_METADATA = {
-    "TCW-D009": {
-        "rule_version": "1",
-        "severity": "INFO",
-        "summary": "NORMALIZABLE_WHITESPACE",
-    },
-    "TCW-D010": {
-        "rule_version": "1",
-        "severity": "WARNING",
-        "summary": "POSSIBLE_LINE_END_HYPHENATION",
-    },
+    rule_id: CURRENT_FINDING_METADATA[rule_id]
+    for rule_id in ("TCW-D009", "TCW-D010")
 }
 
 
@@ -534,34 +493,44 @@ def _manifest_subject_descriptor(subject: dict[str, Any]) -> dict[str, Any]:
 
 
 def _diagnosis_identity(
-    descriptor: dict[str, Any], ruleset: dict[str, Any]
+    descriptor: dict[str, Any],
+    ruleset: dict[str, Any],
+    findings: Iterable[dict[str, Any]],
 ) -> str:
+    domain_findings = [
+        {
+            key: finding[key]
+            for key in (
+                "rule_id",
+                "rule_version",
+                "document_refs",
+                "evidence",
+            )
+        }
+        for finding in findings
+    ]
+    domain_findings.sort(key=lambda item: canonical_json(item))
     return _hash(
         canonical_json(
             {
                 "subject": descriptor,
-                "canonical_document_sha256": descriptor[
-                    "canonical_document_sha256"
-                ],
                 "ruleset": ruleset,
+                "findings": domain_findings,
             }
         ).rstrip(b"\n")
     )
 
 
 def compute_diagnosis_id(subject: dict[str, Any]) -> str:
-    return _diagnosis_identity(
-        _subject_descriptor(subject),
-        {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH},
-    )
+    return make_finding_set(subject)["diagnosis_id"]
 
 
 def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
-    diagnosis_id = compute_diagnosis_id(subject)
+    provisional_id = "0" * 64
     findings = analyze_v02(
         subject["payload"],
         media_type=subject["source"]["media_type"],
-        diagnosis_id=diagnosis_id,
+        diagnosis_id=provisional_id,
     )
     for target_value, target in _eligible_targets(subject["payload"]):
         value = target_value["text"]
@@ -575,7 +544,7 @@ def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
                 "normalized_text_sha256": _hash(normalized),
             }
             evidence.update({key: target[key] for key in ("row", "column") if key in target})
-            findings.append(_v3_finding(diagnosis_id, "TCW-D009", target, evidence))
+            findings.append(_v3_finding(provisional_id, "TCW-D009", target, evidence))
         matches = _hyphen_matches(value)
         if matches:
             repaired = _repair_hyphenation(value)
@@ -588,7 +557,26 @@ def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
                 "repaired_text_sha256": _hash(repaired),
             }
             evidence.update({key: target[key] for key in ("row", "column") if key in target})
-            findings.append(_v3_finding(diagnosis_id, "TCW-D010", target, evidence))
+            findings.append(_v3_finding(provisional_id, "TCW-D010", target, evidence))
+    findings = _canonicalize_findings(findings)
+    ruleset = {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH}
+    diagnosis_id = _diagnosis_identity(
+        _subject_descriptor(subject),
+        ruleset,
+        findings,
+    )
+    for finding in findings:
+        finding["finding_id"] = _hash(
+            canonical_json(
+                {
+                    "diagnosis_id": diagnosis_id,
+                    "rule_id": finding["rule_id"],
+                    "rule_version": finding["rule_version"],
+                    "document_refs": finding["document_refs"],
+                    "evidence": finding["evidence"],
+                }
+            ).rstrip(b"\n")
+        )
     findings = _canonicalize_findings(findings)
     severity = Counter(item["severity"] for item in findings)
     rules = Counter(item["rule_id"] for item in findings)
@@ -602,10 +590,9 @@ def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
         },
     }
     return {
-        "schema_version": "tcw.finding-set/v0.5",
         "diagnosis_id": diagnosis_id,
         "subject": _subject_descriptor(subject),
-        "ruleset": {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH},
+        "ruleset": ruleset,
         "summary": summary,
         "findings": findings,
     }
@@ -645,43 +632,7 @@ def validate_finding_set(value: dict[str, Any]) -> None:
         )
         if finding["finding_id"] != expected_id:
             raise IntegrityError("finding identity is inconsistent")
-        if finding["rule_id"] in {item["rule_id"] for item in V02_RULES}:
-            validate_v02_finding(finding)
-            continue
-        if {
-            key: finding.get(key)
-            for key in ("rule_version", "severity", "summary")
-        } != V03_FINDING_METADATA.get(finding["rule_id"]):
-            raise IntegrityError("v0.5 finding metadata is inconsistent")
-        evidence = finding["evidence"]
-        offsets_name = (
-            "code_point_offsets"
-            if finding["rule_id"] == "TCW-D009"
-            else "hyphen_code_point_offsets"
-        )
-        required = {
-            offsets_name,
-            "occurrence_count",
-            "original_text_sha256",
-            (
-                "normalized_text_sha256"
-                if finding["rule_id"] == "TCW-D009"
-                else "repaired_text_sha256"
-            ),
-        }
-        if "row" in evidence or "column" in evidence:
-            required.update({"row", "column"})
-        offsets = evidence.get(offsets_name)
-        if (
-            set(evidence) != required
-            or not isinstance(offsets, list)
-            or not offsets
-            or offsets != sorted(set(offsets))
-            or any(type(offset) is not int or offset < 0 for offset in offsets)
-            or evidence.get("occurrence_count") != len(offsets)
-            or len(finding["document_refs"]) != 1
-        ):
-            raise IntegrityError("v0.5 finding evidence is inconsistent")
+        validate_finding_contract(finding)
 
 
 def _diagnosis_report(findings: dict[str, Any]) -> bytes:
@@ -720,7 +671,6 @@ def _diagnosis_report(findings: dict[str, Any]) -> bytes:
 
 
 def diagnose(root: Path, output_root: Path) -> Path:
-    build_provenance = active_build_provenance(command_id="tcw.diagnose")
     subject = load_subject(root)
     findings = make_finding_set(subject)
     validate_finding_set(findings)
@@ -747,7 +697,7 @@ def diagnose(root: Path, output_root: Path) -> Path:
             _artifact(staging / "report.md", staging, "diagnostic-report", "text/markdown"),
         ]
         manifest = {
-            "schema_version": "tcw.diagnosis-manifest/v0.5",
+            **record_header("diagnosis"),
             "run_id": run_id,
             "diagnosis_id": findings["diagnosis_id"],
             "created_at": now.isoformat().replace("+00:00", "Z"),
@@ -757,11 +707,10 @@ def diagnose(root: Path, output_root: Path) -> Path:
             "ruleset": {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH},
             "summary": findings["summary"],
             "artifacts": artifacts,
-            "build_provenance": build_provenance,
         }
         (staging / "diagnosis-manifest.json").write_bytes(canonical_json(manifest))
-        _validate("tcw.finding-set/v0.5", findings)
-        _validate("tcw.diagnosis-manifest/v0.5", manifest)
+        _validate("finding-set", findings)
+        _validate("diagnosis-manifest", manifest)
         staged_files, staged_directories, staged_issues = _inventory(staging)
         if (
             staged_issues
@@ -797,18 +746,9 @@ def _load_diagnosis(root: Path) -> tuple[tuple[Any, ...], dict[str, Any], dict[s
         root / "diagnosis-manifest.json", "diagnosis manifest"
     )
     _, findings = _load_json_regular(root / "findings.json", "finding set")
-    if manifest.get("schema_version") != "tcw.diagnosis-manifest/v0.5":
-        raise InputError("refinement requires a v0.5 diagnosis")
-    _validate("tcw.diagnosis-manifest/v0.5", manifest)
-    _validate("tcw.finding-set/v0.5", findings)
-    try:
-        validate_recorded_provenance(
-            manifest["build_provenance"], command_id="tcw.diagnose"
-        )
-    except ValueError as error:
-        if str(error) == RECORDED_PROVENANCE_ERROR:
-            raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
-        raise IntegrityError("diagnosis build provenance is malformed") from error
+    require_record_header(manifest, "diagnosis")
+    _validate("diagnosis-manifest", manifest)
+    _validate("finding-set", findings)
     if verify_diagnosis(root)["artifact_integrity"]["status"] != "VERIFIED":
         raise InputError("diagnosis integrity is not verified")
     return before, manifest, findings
@@ -1525,9 +1465,6 @@ def _validate_refinement_semantics(
 
 
 def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, Any]:
-    build_provenance = active_build_provenance(
-        command_id="tcw.verify-diagnosis"
-    )
     files, directories, issues = _inventory(root)
     expected = {"diagnosis-manifest.json", "findings.json", "report.md"}
     for path in sorted(expected - files):
@@ -1542,21 +1479,12 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
             root / "diagnosis-manifest.json", "manifest"
         )
         _, findings = _load_json_regular(root / "findings.json", "findings")
-        if manifest.get("schema_version") != "tcw.diagnosis-manifest/v0.5":
-            raise InputError("verification requires a v0.5 diagnosis")
-        _validate("tcw.diagnosis-manifest/v0.5", manifest)
-        _validate("tcw.finding-set/v0.5", findings)
-        try:
-            validate_recorded_provenance(
-                manifest["build_provenance"], command_id="tcw.diagnose"
-            )
-        except ValueError as error:
-            if str(error) == RECORDED_PROVENANCE_ERROR:
-                raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
-            raise IntegrityError("diagnosis build provenance is malformed") from error
+        require_record_header(manifest, "diagnosis")
+        _validate("diagnosis-manifest", manifest)
+        _validate("finding-set", findings)
         validate_finding_set(findings)
         expected_diagnosis_id = _diagnosis_identity(
-            findings["subject"], findings["ruleset"]
+            findings["subject"], findings["ruleset"], findings["findings"]
         )
         if root.name != manifest["run_id"] or findings["diagnosis_id"] != manifest["diagnosis_id"]:
             raise IntegrityError("diagnosis identity differs")
@@ -1637,14 +1565,12 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
                 subject_state = {"status": "ERROR"}
     status = "VERIFIED" if not issues else ("BROKEN" if any(item["code"] == "MANIFEST_INVALID" for item in issues) else "INTEGRITY_MISMATCH")
     result = {
-        "schema_version": "tcw.diagnosis-verification-result/v0.5",
         "diagnosis_directory": str(root.resolve()),
         "artifact_integrity": {"status": status, "issues": issues},
         "subject_state": subject_state,
         "derivation_state": derivation_state,
-        "build_provenance": build_provenance,
     }
-    _validate("tcw.diagnosis-verification-result/v0.5", result)
+    _validate("diagnosis-verification-result", result)
     return result
 
 
@@ -1656,9 +1582,7 @@ def verify_diagnosis_command(root: Path, subject_root: Path | None) -> int:
         _, candidate = _load_json_regular(
             root / "diagnosis-manifest.json", "diagnosis manifest"
         )
-        if candidate.get("schema_version") != "tcw.diagnosis-manifest/v0.5":
-            print("verification requires a v0.5 diagnosis", file=sys.stderr)
-            return 2
+        require_record_header(candidate, "diagnosis")
         report = verify_diagnosis(root, subject_root)
     except InputError as error:
         print(sanitize_message(error), file=sys.stderr)

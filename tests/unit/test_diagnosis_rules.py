@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from copy import deepcopy
+from pathlib import Path
 
 from docling_core.types.doc import (
     BoundingBox,
@@ -12,18 +13,33 @@ from docling_core.types.doc import (
     TableCell,
     TableData,
 )
+from jsonschema import Draft202012Validator
 
 from tiny_corpus_workbench.diagnosis_rules import (
+    CURRENT_FINDING_METADATA,
     RULESET as BASE_RULESET,
-    SEVERITY_BY_RULE,
-    SUMMARY_BY_RULE,
     analyze_document,
     validate_finding_contract,
 )
 from tiny_corpus_workbench.domain import IntegrityError
+from tiny_corpus_workbench.schema_catalog import load_schema
 
 
 DIAGNOSIS_ID = "a" * 64
+
+
+def contract_finding(
+    rule_id: str,
+    document_refs: list[str],
+    evidence: dict,
+) -> dict:
+    return {
+        "finding_id": "0" * 64,
+        "rule_id": rule_id,
+        **CURRENT_FINDING_METADATA[rule_id],
+        "document_refs": document_refs,
+        "evidence": evidence,
+    }
 
 
 def document(
@@ -109,16 +125,268 @@ def rules(payload: dict, media_type: str = "text/markdown") -> list[str]:
 
 
 class DiagnosisRuleTests(unittest.TestCase):
+    def test_compact_schema_defers_all_rule_contracts_to_domain_validation(
+        self,
+    ) -> None:
+        schema_path = Path(
+            "src/tiny_corpus_workbench/schemas/"
+            "finding-set-v0.5.schema.json"
+        )
+        schema = load_schema("finding-set")
+        finding_schema = {
+            "$schema": schema["$schema"],
+            "$defs": schema["$defs"],
+            "$ref": "#/$defs/finding",
+        }
+        structural = Draft202012Validator(finding_schema)
+        self.assertLess(len(schema_path.read_text("utf-8").splitlines()), 300)
+        self.assertNotIn("oneOf", schema["$defs"]["finding"])
+
+        valid = [
+            contract_finding(
+                "TCW-D001",
+                ["#/body"],
+                {"non_whitespace_characters": 0},
+            ),
+            contract_finding(
+                "TCW-D002",
+                ["#/body"],
+                {"non_whitespace_characters": 42},
+            ),
+            contract_finding(
+                "TCW-D003",
+                ["#/texts/0"],
+                {"code_point_offsets": [1], "occurrence_count": 1},
+            ),
+            contract_finding(
+                "TCW-D003",
+                ["#/tables/0"],
+                {
+                    "code_point_offsets": [1],
+                    "occurrence_count": 1,
+                    "row": 0,
+                    "column": 1,
+                },
+            ),
+            contract_finding(
+                "TCW-D004",
+                ["#/texts/0", "#/texts/1"],
+                {
+                    "count": 2,
+                    "normalized_character_count": 80,
+                    "normalized_text_sha256": "a" * 64,
+                },
+            ),
+            contract_finding(
+                "TCW-D005",
+                ["#/texts/0"],
+                {"current_level": 2, "previous_level": 0},
+            ),
+            contract_finding(
+                "TCW-D005",
+                ["#/texts/1"],
+                {
+                    "current_level": 4,
+                    "previous_level": 2,
+                    "previous_ref": "#/texts/0",
+                },
+            ),
+            contract_finding(
+                "TCW-D006",
+                ["#/texts/0"],
+                {"relationship_kind": "orphan_caption"},
+            ),
+            contract_finding(
+                "TCW-D006",
+                ["#/tables/0", "#/texts/1"],
+                {
+                    "relationship_kind": "invalid_declared_caption",
+                    "declared_ref": "#/texts/1",
+                },
+            ),
+            contract_finding(
+                "TCW-D007",
+                ["#/texts/0", "#/texts/1", "#/texts/2"],
+                {
+                    "band": "top",
+                    "normalized_character_count": 8,
+                    "normalized_text_sha256": "b" * 64,
+                    "page_count": 3,
+                    "page_numbers": [1, 2, 3],
+                },
+            ),
+            contract_finding(
+                "TCW-D008",
+                ["#/pictures/0"],
+                {"content_layer": "body"},
+            ),
+            contract_finding(
+                "TCW-D009",
+                ["#/texts/0"],
+                {
+                    "code_point_offsets": [1],
+                    "occurrence_count": 1,
+                    "original_text_sha256": "c" * 64,
+                    "normalized_text_sha256": "d" * 64,
+                },
+            ),
+            contract_finding(
+                "TCW-D009",
+                ["#/field_items/0"],
+                {
+                    "code_point_offsets": [1],
+                    "occurrence_count": 1,
+                    "original_text_sha256": "c" * 64,
+                    "normalized_text_sha256": "d" * 64,
+                },
+            ),
+            contract_finding(
+                "TCW-D009",
+                ["#/tables/0"],
+                {
+                    "code_point_offsets": [1],
+                    "occurrence_count": 1,
+                    "original_text_sha256": "c" * 64,
+                    "normalized_text_sha256": "d" * 64,
+                    "row": 0,
+                    "column": 1,
+                },
+            ),
+            contract_finding(
+                "TCW-D010",
+                ["#/texts/0"],
+                {
+                    "hyphen_code_point_offsets": [1],
+                    "occurrence_count": 1,
+                    "original_text_sha256": "e" * 64,
+                    "repaired_text_sha256": "f" * 64,
+                },
+            ),
+            contract_finding(
+                "TCW-D010",
+                ["#/field_items/0"],
+                {
+                    "hyphen_code_point_offsets": [1],
+                    "occurrence_count": 1,
+                    "original_text_sha256": "e" * 64,
+                    "repaired_text_sha256": "f" * 64,
+                },
+            ),
+            contract_finding(
+                "TCW-D010",
+                ["#/tables/0"],
+                {
+                    "hyphen_code_point_offsets": [1],
+                    "occurrence_count": 1,
+                    "original_text_sha256": "e" * 64,
+                    "repaired_text_sha256": "f" * 64,
+                    "row": 0,
+                    "column": 1,
+                },
+            ),
+        ]
+        for finding in valid:
+            with self.subTest(
+                rule_id=finding["rule_id"],
+                evidence=tuple(finding["evidence"]),
+            ):
+                structural.validate(finding)
+                validate_finding_contract(finding)
+
+        by_rule = {}
+        for finding in valid:
+            by_rule.setdefault(finding["rule_id"], finding)
+        for rule_id, finding in by_rule.items():
+            with self.subTest(rule_id=rule_id, defect="evidence"):
+                invalid = deepcopy(finding)
+                invalid["evidence"] = {"band": "top"}
+                structural.validate(invalid)
+                with self.assertRaises(IntegrityError):
+                    validate_finding_contract(invalid)
+            with self.subTest(rule_id=rule_id, defect="metadata"):
+                invalid = deepcopy(finding)
+                invalid["severity"] = (
+                    "INFO" if invalid["severity"] != "INFO" else "WARNING"
+                )
+                structural.validate(invalid)
+                with self.assertRaises(IntegrityError):
+                    validate_finding_contract(invalid)
+
+    def test_d006_and_refinable_target_constraints_are_domain_owned(
+        self,
+    ) -> None:
+        schema = load_schema("finding-set")
+        structural = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$defs": schema["$defs"],
+                "$ref": "#/$defs/finding",
+            }
+        )
+        empty_declared = contract_finding(
+            "TCW-D006",
+            ["#/tables/0"],
+            {
+                "relationship_kind": "invalid_declared_caption",
+                "declared_ref": "",
+            },
+        )
+        structural.validate(empty_declared)
+        with self.assertRaises(IntegrityError):
+            validate_finding_contract(empty_declared)
+
+        valid_evidence = {
+            "TCW-D009": {
+                "code_point_offsets": [1],
+                "occurrence_count": 1,
+                "original_text_sha256": "a" * 64,
+                "normalized_text_sha256": "b" * 64,
+            },
+            "TCW-D010": {
+                "hyphen_code_point_offsets": [1],
+                "occurrence_count": 1,
+                "original_text_sha256": "c" * 64,
+                "repaired_text_sha256": "d" * 64,
+            },
+        }
+        for rule_id, evidence in valid_evidence.items():
+            for reference in ("#/texts/0", "#/field_items/0"):
+                with self.subTest(
+                    rule_id=rule_id,
+                    reference=reference,
+                    valid=True,
+                ):
+                    validate_finding_contract(
+                        contract_finding(rule_id, [reference], evidence)
+                    )
+            for reference in (
+                "#/body",
+                "#/groups/0",
+                "#/pages/1",
+                "#/pictures/0",
+                "#/tables/0",
+                "#/field_regions/0",
+            ):
+                with self.subTest(
+                    rule_id=rule_id,
+                    reference=reference,
+                    valid=False,
+                ):
+                    invalid = contract_finding(
+                        rule_id,
+                        [reference],
+                        evidence,
+                    )
+                    structural.validate(invalid)
+                    with self.assertRaises(IntegrityError):
+                        validate_finding_contract(invalid)
+
     def test_generic_evidence_is_rejected_for_every_base_rule(self) -> None:
         for rule in BASE_RULESET:
             finding = {
                 "finding_id": "0" * 64,
                 "rule_id": rule["rule_id"],
-                "rule_version": rule["version"],
-                "severity": SEVERITY_BY_RULE[rule["rule_id"]],
-                "summary": SUMMARY_BY_RULE[rule["rule_id"]]
-                .replace("_", " ")
-                .title(),
+                **CURRENT_FINDING_METADATA[rule["rule_id"]],
                 "document_refs": ["#/body"],
                 "evidence": {"band": "top"},
             }
@@ -150,7 +418,8 @@ class DiagnosisRuleTests(unittest.TestCase):
                 "evidence": {"content_layer": "body"},
             },
         }
-        for finding in valid.values():
+        for rule_id, finding in valid.items():
+            finding.update(CURRENT_FINDING_METADATA[rule_id])
             validate_finding_contract(finding)
 
         negatives = []

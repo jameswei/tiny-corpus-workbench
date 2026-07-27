@@ -7,11 +7,16 @@ from typing import Any, Callable, Iterable
 
 from tiny_corpus_workbench.canonical_json import (
     artifact_key,
-    canonical_sha256,
     edge_key,
     record_key,
     session_id,
 )
+from tiny_corpus_workbench.diagnosis_rules import (
+    CURRENT_RULESET,
+    CURRENT_RULESET_PARAMETER_HASH,
+    validate_finding_contract,
+)
+from tiny_corpus_workbench.domain import IntegrityError
 
 
 class SemanticValidationError(ValueError):
@@ -200,6 +205,10 @@ def _validate_comparison(comparison: dict[str, Any]) -> None:
 
 
 def _validate_finding(finding: dict[str, Any]) -> None:
+    try:
+        validate_finding_contract(finding)
+    except IntegrityError as error:
+        raise SemanticValidationError(str(error)) from error
     refs = finding["document_refs"]
     _require_ordered(
         refs,
@@ -284,25 +293,13 @@ def _validate_finding_collection(
     )
     for finding in findings:
         _validate_finding(finding)
-    rules = ruleset["rules"]
     _require(
-        [rule["rule_id"] for rule in rules]
-        == [f"TCW-D{number:03d}" for number in range(1, 11)],
-        "diagnosis rules are not in D001..D010 order",
-    )
-    _require(
-        ruleset["parameter_sha256"]
-        == canonical_sha256(
-            [
-                {
-                    "rule_id": rule["rule_id"],
-                    "rule_version": rule["version"],
-                    "parameters": rule["parameters"],
-                }
-                for rule in rules
-            ]
-        ),
-        "diagnosis ruleset parameter_sha256 is incorrect",
+        ruleset
+        == {
+            **CURRENT_RULESET,
+            "parameter_sha256": CURRENT_RULESET_PARAMETER_HASH,
+        },
+        "diagnosis ruleset metadata or parameter hash is inconsistent",
     )
     by_rule = Counter(finding["rule_id"] for finding in findings)
     by_severity = Counter(finding["severity"] for finding in findings)
@@ -1144,7 +1141,7 @@ def validate_semantics(
         _validate_projection(document)
     elif schema_version == "tcw.workbench-record-detail/v0.5":
         _validate_record_detail(document)
-    elif schema_version == "tcw.finding-set/v0.5":
+    elif schema_version == "finding-set":
         _validate_finding_collection(
             document["findings"],
             document["ruleset"],

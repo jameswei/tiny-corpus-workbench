@@ -31,6 +31,7 @@ from tiny_corpus_workbench.domain import (
 )
 from tiny_corpus_workbench.v03 import (
     _apply_edits,
+    _diagnosis_identity,
     _diagnosis_report,
     _normalize_whitespace,
     _target,
@@ -39,7 +40,7 @@ from tiny_corpus_workbench.v03 import (
     verify_refinement,
 )
 SOURCE = Path("fixtures/golden/policy-memo.md")
-PDF_SOURCE = Path("fixtures/diagnosis/v0.5/repeated-margin.pdf")
+PDF_SOURCE = Path("fixtures/diagnosis/repeated-margin.pdf")
 OLD_DIAGNOSIS_SCHEMA = "tcw.diagnosis-manifest/v0.3"
 OLD_REFINEMENT_DRAFT_SCHEMA = "tcw.refinement-draft/v0.3"
 OLD_REFINEMENT_SCHEMA = "tcw.refinement-manifest/v0.3"
@@ -114,7 +115,7 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             self.assertEqual(code, 2)
             self.assertEqual(stdout, "")
-            self.assertIn("v0.5 diagnosis", stderr)
+            self.assertIn("regenerate", stderr)
 
             old_draft = root / "old-decision.json"
             old_draft.write_text(
@@ -880,18 +881,25 @@ class ControlledRevisionTests(unittest.TestCase):
                 if item["rule_id"] == "TCW-D009"
             )
             finding["evidence"]["original_text_sha256"] = "f" * 64
-            finding["finding_id"] = hashlib.sha256(
-                canonical_json(
-                    {
-                        "diagnosis_id": findings["diagnosis_id"],
-                        "rule_id": finding["rule_id"],
-                        "rule_version": finding["rule_version"],
-                        "document_refs": finding["document_refs"],
-                        "evidence": finding["evidence"],
-                    }
-                ).rstrip(b"\n")
-            ).hexdigest()
+            findings["diagnosis_id"] = _diagnosis_identity(
+                findings["subject"],
+                findings["ruleset"],
+                findings["findings"],
+            )
+            for item in findings["findings"]:
+                item["finding_id"] = hashlib.sha256(
+                    canonical_json(
+                        {
+                            "diagnosis_id": findings["diagnosis_id"],
+                            "rule_id": item["rule_id"],
+                            "rule_version": item["rule_version"],
+                            "document_refs": item["document_refs"],
+                            "evidence": item["evidence"],
+                        }
+                    ).rstrip(b"\n")
+                ).hexdigest()
             findings["findings"].sort(key=lambda item: item["finding_id"])
+            manifest["diagnosis_id"] = findings["diagnosis_id"]
             findings_path.write_bytes(canonical_json(findings))
             (changed / "report.md").write_bytes(_diagnosis_report(findings))
             for descriptor in manifest["artifacts"]:
@@ -985,15 +993,15 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             diagnosis_manifest = unsupported_diagnosis / "diagnosis-manifest.json"
             value = json.loads(diagnosis_manifest.read_text("utf-8"))
-            value["build_provenance"]["provenance_id"] = "0" * 64
+            value["format_version"] = 99
             diagnosis_manifest.write_bytes(canonical_json(value))
             cases.append(
                 (
-                    "diagnosis-unsupported",
+                    "diagnosis-unknown-format",
                     unsupported_diagnosis,
                     observation,
-                    6,
-                    "recorded provenance is unsupported by this v0.5 package\n",
+                    5,
+                    "supplied diagnosis integrity is not verified\n",
                 )
             )
 
@@ -1002,11 +1010,11 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             diagnosis_manifest = malformed_diagnosis / "diagnosis-manifest.json"
             value = json.loads(diagnosis_manifest.read_text("utf-8"))
-            del value["build_provenance"]["command_id"]
+            del value["record_type"]
             diagnosis_manifest.write_bytes(canonical_json(value))
             cases.append(
                 (
-                    "diagnosis-malformed",
+                    "diagnosis-missing-header",
                     malformed_diagnosis,
                     observation,
                     5,

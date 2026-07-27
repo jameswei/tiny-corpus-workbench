@@ -38,17 +38,18 @@ uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY \
   --subject DOCUMENT_DIRECTORY
 ```
 
-`diagnose` accepts an intact v0.5 observation or an intact applied v0.5
-revision. An observation's Docling result must be `SUCCESS` or
+`diagnose` accepts an intact current observation or an intact applied
+refinement. An observation's Docling result must be `SUCCESS` or
 `PARTIAL_SUCCESS`. The command runs all ten rules. It has no rule or threshold
 options.
 
-The verifier accepts the current v0.5 diagnosis contract. Use `--subject` for
-the optional observation or applied-revision comparison and rule rerun.
+The verifier accepts only the current diagnosis format. An old or unknown
+format must be regenerated. Use `--subject` for the optional observation or
+applied-revision comparison and rule rerun.
 
 ## Published artifacts
 
-The current `diagnose` command publishes the v0.5 contract. Its output path is:
+The current `diagnose` command publishes this internal layout:
 
 ```text
 <output-root>/<source-key>/<subject-id>/<diagnosis-run-id>/
@@ -71,8 +72,8 @@ directories.
 
 - source, subject, and originating observation identities
 - subject manifest and canonical document hashes
-- manifest schema version and diagnosis status
-- CPython, lock, package, and dependency versions
+- root header `record_type = diagnosis` and `format_version = 1`
+- diagnosis status
 - the complete fixed ruleset and parameter hash
 - finding counts by severity and rule
 - immutable descriptors for `findings.json` and `report.md`
@@ -86,12 +87,12 @@ Each canonical item must declare the `self_ref` implied by its collection and
 array position. Child references must resolve through those canonical paths.
 Diagnosis rejects inconsistent paths before publication.
 
-The diagnosis ID is a full SHA-256 hash over canonical JSON with three
-inputs: the subject descriptor, the canonical document SHA-256 as a separate
-input, and the complete ruleset. The descriptor includes the subject kind and
-ID, canonical document path, size and hash, and originating observation ID.
-The subject manifest hash is provenance; it is not an input to the diagnosis
-ID.
+The diagnosis ID is a full SHA-256 hash over canonical JSON. Its inputs are
+the canonical subject descriptor, the complete ruleset, and the domain
+evidence for each finding. The descriptor includes the subject kind and ID,
+canonical document path, size and hash, and originating observation ID.
+Checkout paths, package metadata, the lock file, and Python runtime metadata
+are not identity inputs.
 Finding IDs bind the diagnosis, rule, sorted document references, and canonical
 evidence.
 Each rule has one closed evidence shape and a rule-specific document-reference
@@ -139,17 +140,11 @@ Diagnosis neither modifies content nor approves a repair. See the
 
 ## Verification
 
-`verify-diagnosis` always checks the diagnosis inventory, schemas, hashes,
+`verify-diagnosis` always checks the diagnosis inventory, internal shapes, hashes,
 identities, counts, canonical JSON, fixed rule metadata, exact artifact
 descriptor meanings, canonical ordering, and deterministic report.
-Diagnosis and verification read active installed distribution metadata. The
-installed project and extractor versions must match the source contract.
-`uv.lock` must match the committed exact-lock byte identity before publication
-or rule rerun.
-
-Each v0.5 diagnosis records one supported provenance ID and the exact
-applicable build fields. The verifier resolves that ID directly in the bundled
-registry. An unknown ID or a mismatching recorded field is unsupported.
+Diagnosis and diagnosis verification do not record or check Python, package,
+dependency, build, or lock-file metadata.
 
 `artifact_integrity` is one of:
 
@@ -188,7 +183,7 @@ changed.
 | `2` | Invalid or unsupported input. |
 | `4` | Canonical Docling artifact is unavailable. |
 | `5` | Integrity change, verification failure, or publication conflict. |
-| `6` | Locked runtime, schema, or Docling API is incompatible. |
+| `6` | Required bundled runtime code is unavailable or incompatible. |
 
 `diagnose` failures write no stdout. `verify-diagnosis` usage, runtime, and
 internal failures also write no stdout. A verifier integrity failure exits `5`

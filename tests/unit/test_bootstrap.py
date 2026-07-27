@@ -36,6 +36,9 @@ ACTIVE_RUNTIME_ERROR = (
 OBSERVATION_SCHEMA_ERROR = (
     "bundled observation schema validation is unavailable\n"
 )
+DIAGNOSIS_SCHEMA_ERROR = (
+    "bundled diagnosis/schema runtime is unavailable or incompatible\n"
+)
 
 
 class BootstrapTests(unittest.TestCase):
@@ -124,7 +127,10 @@ raise SystemExit(cli.main(["diagnose", str(root)]))
 """
         with tempfile.TemporaryDirectory() as directory:
             completed = self.run_fresh(script, str(Path(directory) / "observation"))
-        self.assert_runtime_bootstrap_failure(completed)
+        self.assertEqual(completed.returncode, 6)
+        self.assertEqual(completed.stdout, "")
+        self.assertEqual(completed.stderr, DIAGNOSIS_SCHEMA_ERROR)
+        self.assertNotIn("Traceback", completed.stderr)
 
     def test_fresh_process_without_jsonschema_handles_corpus_bootstrap(self) -> None:
         script = BLOCK_JSONSCHEMA + r"""

@@ -4,17 +4,12 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version",
     "diagnosis_directory",
     "artifact_integrity",
     "subject_state",
-    "derivation_state",
-    "build_provenance"
+    "derivation_state"
   ],
   "properties": {
-    "schema_version": {
-      "const": "tcw.diagnosis-verification-result/v0.5"
-    },
     "diagnosis_directory": {
       "type": "string"
     },
@@ -40,9 +35,6 @@
           ]
         }
       }
-    },
-    "build_provenance": {
-      "$ref": "common-v0.5.schema.json#/$defs/BUILD_COMMAND"
     }
   }
 }
