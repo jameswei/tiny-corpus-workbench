@@ -1,19 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/tcw/diagnosis-fixture-registry-v0.5.schema.json",
-  "title": "tiny-corpus-workbench diagnosis fixture registry v0.5",
+  "title": "tiny-corpus-workbench diagnosis fixture registry",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version",
     "generator",
-    "fixtures",
-    "build_provenance"
+    "fixtures"
   ],
   "properties": {
-    "schema_version": {
-      "const": "tcw.diagnosis-fixture-registry/v0.5"
-    },
     "generator": {
       "const": "tools/generate_diagnosis_fixtures.py"
     },
@@ -42,7 +37,7 @@
           },
           "path": {
             "type": "string",
-            "pattern": "^fixtures/diagnosis/v0\\.5/"
+            "pattern": "^fixtures/diagnosis/"
           },
           "size": {
             "type": "integer",
@@ -66,9 +61,6 @@
           }
         }
       }
-    },
-    "build_provenance": {
-      "$ref": "common-v0.5.schema.json#/$defs/BUILD_GENERATOR"
     }
   }
 }

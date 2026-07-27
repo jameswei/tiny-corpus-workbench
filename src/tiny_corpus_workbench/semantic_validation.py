@@ -1144,7 +1144,7 @@ def validate_semantics(
         _validate_projection(document)
     elif schema_version == "tcw.workbench-record-detail/v0.5":
         _validate_record_detail(document)
-    elif schema_version == "tcw.finding-set/v0.5":
+    elif schema_version == "finding-set":
         _validate_finding_collection(
             document["findings"],
             document["ruleset"],

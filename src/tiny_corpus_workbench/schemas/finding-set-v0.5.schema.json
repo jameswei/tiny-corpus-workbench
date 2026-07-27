@@ -4,7 +4,6 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version",
     "diagnosis_id",
     "subject",
     "ruleset",
@@ -12,9 +11,6 @@
     "findings"
   ],
   "properties": {
-    "schema_version": {
-      "const": "tcw.finding-set/v0.5"
-    },
     "diagnosis_id": {
       "$ref": "#/$defs/hash"
     },

@@ -10,6 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from tiny_corpus_workbench.application.observation import observe
+from tiny_corpus_workbench.application.diagnosis import (
+    diagnose,
+    published_diagnosis_line,
+    verify_diagnosis_command,
+)
+from tiny_corpus_workbench.application.records import require_record_header
 from tiny_corpus_workbench.domain import (
     ExitCode,
     InputError,
@@ -123,71 +129,6 @@ def _corpus_callable(module_name: str, name: str) -> Any:
             "bundled corpus/schema runtime is unavailable or incompatible"
         )
     return function
-
-
-def _published_diagnosis_line(published: Path) -> dict[str, Any]:
-    manifest_path = published / "diagnosis-manifest.json"
-    try:
-        snapshot = _diagnosis_callable("diagnosis_rules", "snapshot_tree")
-        before = snapshot(published)
-        schema = json.loads(manifest_path.read_text("utf-8")).get("schema_version")
-        if schema != "tcw.diagnosis-manifest/v0.5":
-            raise RuntimeContractError(
-                "published diagnosis manifest is unavailable or invalid"
-            )
-        verify = _diagnosis_callable("v03", "verify_diagnosis")
-        verification = verify(published)
-        if verification["artifact_integrity"]["status"] != "VERIFIED":
-            raise IntegrityError(
-                "published diagnosis manifest is unavailable or invalid"
-            )
-    except (RuntimeContractError, IntegrityError):
-        raise
-    except Exception as error:
-        raise IntegrityError(
-            "published diagnosis manifest is unavailable or invalid"
-        ) from error
-    try:
-        if not stat.S_ISREG(manifest_path.lstat().st_mode):
-            raise OSError
-        manifest = json.loads(manifest_path.read_text("utf-8"))
-        diagnosis_id = manifest["diagnosis_id"]
-        finding_count = manifest["summary"]["total"]
-        run_id = manifest["run_id"]
-        status = manifest["status"]
-        if (
-            not isinstance(diagnosis_id, str)
-            or len(diagnosis_id) != 64
-            or type(finding_count) is not int
-            or finding_count < 0
-            or not isinstance(run_id, str)
-            or run_id != published.name
-            or status not in {"FINDINGS", "NO_FINDINGS"}
-        ):
-            raise ValueError
-        line = {
-            "diagnosis_id": diagnosis_id,
-            "finding_count": finding_count,
-            "manifest": str(manifest_path.resolve()),
-            "run_id": run_id,
-            "status": status,
-        }
-    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
-        raise IntegrityError(
-            "published diagnosis manifest is unavailable or invalid"
-        ) from error
-    try:
-        if snapshot(published) != before:
-            raise IntegrityError(
-                "published diagnosis changed before summary output"
-            )
-    except IntegrityError:
-        raise
-    except Exception as error:
-        raise IntegrityError(
-            "published diagnosis changed before summary output"
-        ) from error
-    return line
 
 
 def parser() -> argparse.ArgumentParser:
@@ -415,31 +356,31 @@ def main(argv: list[str] | None = None) -> int:
             print("--observation and --subject are mutually exclusive", file=sys.stderr)
             return int(ExitCode.INPUT)
         try:
-            schema = None
             try:
-                schema = json.loads(
+                candidate = json.loads(
                     (args.diagnosis_directory / "diagnosis-manifest.json").read_text("utf-8")
-                ).get("schema_version")
+                )
+                require_record_header(candidate, "diagnosis")
             except Exception:
-                pass
-            if schema != "tcw.diagnosis-manifest/v0.5":
-                print("verification requires a v0.5 diagnosis", file=sys.stderr)
+                print(
+                    "diagnosis record format is unsupported; regenerate the "
+                    "record with the current project",
+                    file=sys.stderr,
+                )
                 return int(ExitCode.INPUT)
-            command = _diagnosis_callable("v03", "verify_diagnosis_command")
         except RuntimeContractError as error:
             print(sanitize_message(error), file=sys.stderr)
             return int(ExitCode.RUNTIME)
-        return command(
+        return verify_diagnosis_command(
             args.diagnosis_directory, args.subject or args.observation
         )
     if args.command == "diagnose":
         try:
-            command = _diagnosis_callable("v03", "diagnose")
-            published = command(
+            published = diagnose(
                 args.document_directory,
                 args.output_root,
             )
-            line = _published_diagnosis_line(published)
+            line = published_diagnosis_line(published)
         except WorkbenchError as error:
             print(sanitize_message(error), file=sys.stderr)
             return int(error.exit_code)
