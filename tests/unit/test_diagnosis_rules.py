@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from copy import deepcopy
 
 from docling_core.types.doc import (
     BoundingBox,
@@ -12,10 +13,14 @@ from docling_core.types.doc import (
     TableData,
 )
 
-from tiny_corpus_workbench.diagnosis import (
+from tiny_corpus_workbench.diagnosis_rules import (
+    RULESET as BASE_RULESET,
+    SEVERITY_BY_RULE,
+    SUMMARY_BY_RULE,
     analyze_document,
     validate_finding_contract,
 )
+from tiny_corpus_workbench.domain import IntegrityError
 
 
 DIAGNOSIS_ID = "a" * 64
@@ -104,6 +109,81 @@ def rules(payload: dict, media_type: str = "text/markdown") -> list[str]:
 
 
 class DiagnosisRuleTests(unittest.TestCase):
+    def test_generic_evidence_is_rejected_for_every_base_rule(self) -> None:
+        for rule in BASE_RULESET:
+            finding = {
+                "finding_id": "0" * 64,
+                "rule_id": rule["rule_id"],
+                "rule_version": rule["version"],
+                "severity": SEVERITY_BY_RULE[rule["rule_id"]],
+                "summary": SUMMARY_BY_RULE[rule["rule_id"]]
+                .replace("_", " ")
+                .title(),
+                "document_refs": ["#/body"],
+                "evidence": {"band": "top"},
+            }
+            with self.subTest(rule_id=rule["rule_id"]):
+                with self.assertRaises(IntegrityError):
+                    validate_finding_contract(finding)
+
+    def test_d005_d007_d008_reference_prefix_and_cardinality_negatives(self) -> None:
+        valid = {
+            "TCW-D005": {
+                "rule_id": "TCW-D005",
+                "document_refs": ["#/texts/1"],
+                "evidence": {"current_level": 3, "previous_level": 0},
+            },
+            "TCW-D007": {
+                "rule_id": "TCW-D007",
+                "document_refs": ["#/texts/1", "#/texts/2", "#/texts/3"],
+                "evidence": {
+                    "band": "top",
+                    "normalized_character_count": 8,
+                    "normalized_text_sha256": "a" * 64,
+                    "page_count": 3,
+                    "page_numbers": [1, 2, 3],
+                },
+            },
+            "TCW-D008": {
+                "rule_id": "TCW-D008",
+                "document_refs": ["#/pictures/0"],
+                "evidence": {"content_layer": "body"},
+            },
+        }
+        for finding in valid.values():
+            validate_finding_contract(finding)
+
+        negatives = []
+        for rule_id, references in (
+            ("TCW-D005", ["#/tables/0"]),
+            ("TCW-D005", ["#/texts/0", "#/texts/1"]),
+            ("TCW-D007", ["#/tables/0"]),
+            ("TCW-D007", []),
+            ("TCW-D008", ["#/body"]),
+            ("TCW-D008", ["#/texts/0", "#/pictures/0"]),
+        ):
+            finding = deepcopy(valid[rule_id])
+            finding["document_refs"] = references
+            negatives.append(finding)
+        d005_previous = deepcopy(valid["TCW-D005"])
+        d005_previous["evidence"] = {
+            "current_level": 4,
+            "previous_level": 2,
+            "previous_ref": "#/tables/0",
+        }
+        negatives.append(d005_previous)
+        d007_pages = deepcopy(valid["TCW-D007"])
+        d007_pages["evidence"]["page_count"] = 2
+        negatives.append(d007_pages)
+
+        for finding in negatives:
+            with self.subTest(
+                rule_id=finding["rule_id"],
+                references=finding["document_refs"],
+            ):
+                with self.assertRaises(IntegrityError):
+                    validate_finding_contract(finding)
+
     def test_schema_valid_constructed_documents_cover_d001_d006_and_d008(self) -> None:
         empty = DoclingDocument(name="empty")
         empty_payload = empty.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -242,6 +322,31 @@ class DiagnosisRuleTests(unittest.TestCase):
                 "orphan_caption",
             ],
         )
+
+    def test_duplicate_invalid_caption_declarations_emit_one_finding(self) -> None:
+        owner = {
+            "self_ref": "#/tables/0",
+            "children": [],
+            "content_layer": "body",
+            "label": "table",
+            "prov": [],
+            "captions": [{"$ref": "#/texts/99"}, {"$ref": "#/texts/99"}],
+            "data": {"table_cells": [{"text": "x" * 200}]},
+        }
+        findings = analyze_document(
+            document(tables=[owner]),
+            media_type="text/markdown",
+            diagnosis_id=DIAGNOSIS_ID,
+        )
+        invalid = [
+            item
+            for item in findings
+            if item["rule_id"] == "TCW-D006"
+            and item["evidence"]["relationship_kind"]
+            == "invalid_declared_caption"
+        ]
+        self.assertEqual(len(invalid), 1)
+        self.assertEqual(invalid[0]["evidence"]["declared_ref"], "#/texts/99")
 
     def test_non_caption_owner_reference_is_valid_d006_evidence(self) -> None:
         owner = {
@@ -520,8 +625,8 @@ class DiagnosisRuleTests(unittest.TestCase):
         )
         self.assertEqual(first, second)
         self.assertEqual(
-            [item["rule_id"] for item in first],
-            sorted(item["rule_id"] for item in first),
+            [item["finding_id"] for item in first],
+            sorted(item["finding_id"] for item in first),
         )
 
 

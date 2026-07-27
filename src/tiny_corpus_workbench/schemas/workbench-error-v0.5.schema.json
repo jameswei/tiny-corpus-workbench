@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/workbench-error-v0.5.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "error"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "tcw.workbench-error/v0.5"
+    },
+    "status": {
+      "enum": [
+        400,
+        403,
+        404,
+        405,
+        409,
+        413,
+        500
+      ]
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "BAD_REQUEST",
+            "HOST_REJECTED",
+            "ORIGIN_REJECTED",
+            "NOT_FOUND",
+            "METHOD_NOT_ALLOWED",
+            "ARTIFACT_CHANGED",
+            "REQUEST_TOO_LARGE",
+            "RESPONSE_TOO_LARGE",
+            "INTERNAL_ERROR"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "const": "BAD_REQUEST"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": 400
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "HOST_REJECTED",
+                  "ORIGIN_REJECTED"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": 403
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "const": "NOT_FOUND"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": 404
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "const": "METHOD_NOT_ALLOWED"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": 405
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "const": "ARTIFACT_CHANGED"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": 409
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "REQUEST_TOO_LARGE",
+                  "RESPONSE_TOO_LARGE"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": 413
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "const": "INTERNAL_ERROR"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": 500
+          }
+        }
+      }
+    }
+  ]
+}

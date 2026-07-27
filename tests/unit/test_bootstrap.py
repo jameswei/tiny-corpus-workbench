@@ -28,9 +28,11 @@ assert "jsonschema" not in sys.modules
 sys.meta_path.insert(0, BlockJsonschema())
 from tiny_corpus_workbench import cli
 assert "jsonschema" not in sys.modules
-assert "tiny_corpus_workbench.diagnosis" not in sys.modules
-assert "tiny_corpus_workbench.diagnosis_verification" not in sys.modules
+assert "tiny_corpus_workbench.diagnosis_rules" not in sys.modules
 """
+ACTIVE_RUNTIME_ERROR = (
+    "active runtime does not match this package provenance registry\n"
+)
 
 
 class BootstrapTests(unittest.TestCase):
@@ -48,9 +50,8 @@ class BootstrapTests(unittest.TestCase):
     ) -> None:
         self.assertEqual(completed.returncode, 6)
         self.assertEqual(completed.stdout, "")
-        self.assertIn("runtime is unavailable or incompatible", completed.stderr)
+        self.assertEqual(completed.stderr, ACTIVE_RUNTIME_ERROR)
         self.assertNotIn("Traceback", completed.stderr)
-        self.assertEqual(len(completed.stderr.splitlines()), 1)
 
     def test_fresh_process_without_jsonschema_handles_verify_bootstrap(self) -> None:
         script = BLOCK_JSONSCHEMA + r"""

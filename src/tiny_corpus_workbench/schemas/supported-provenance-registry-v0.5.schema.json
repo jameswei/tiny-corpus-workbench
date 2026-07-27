@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/supported-provenance-registry-v0.5.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_schema_version",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "tcw.supported-provenance-registry/v0.5"
+    },
+    "contract_schema_version": {
+      "const": "v0.5"
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance_id",
+        "package_version",
+        "lockfile_sha256",
+        "python",
+        "dependencies",
+        "extractor_contract",
+        "commands",
+        "generators"
+      ],
+      "properties": {
+        "provenance_id": {
+          "$ref": "https://example.invalid/tcw/common-v0.5.schema.json#/$defs/hash"
+        },
+        "package_version": {
+          "$ref": "https://example.invalid/tcw/common-v0.5.schema.json#/$defs/version"
+        },
+        "lockfile_sha256": {
+          "$ref": "https://example.invalid/tcw/common-v0.5.schema.json#/$defs/hash"
+        },
+        "python": {
+          "$ref": "https://example.invalid/tcw/common-v0.5.schema.json#/$defs/python"
+        },
+        "dependencies": {
+          "$ref": "https://example.invalid/tcw/common-v0.5.schema.json#/$defs/dependencies"
+        },
+        "extractor_contract": {
+          "$ref": "https://example.invalid/tcw/common-v0.5.schema.json#/$defs/extractor_contract"
+        },
+        "commands": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "tcw.observe",
+              "tcw.verify",
+              "tcw.diagnose",
+              "tcw.verify-diagnosis",
+              "tcw.draft-refinement",
+              "tcw.resolve-refinement",
+              "tcw.verify-refinement",
+              "tcw.inspect-corpus",
+              "tcw.verify-corpus",
+              "tcw.workbench"
+            ]
+          }
+        },
+        "generators": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "tools.generate_fixtures",
+              "tools.generate_diagnosis_fixtures",
+              "tools.generate_refinement_fixtures"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/refinement-fixture-registry-v0.5.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generator",
+    "fixtures",
+    "build_provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "tcw.refinement-fixture-registry/v0.5"
+    },
+    "generator": {
+      "const": "tools/generate_refinement_fixtures.py"
+    },
+    "fixtures": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "path",
+          "size",
+          "sha256",
+          "license",
+          "expected_rules"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "line-end-hyphenation",
+              "whitespace-cleanup"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^fixtures/refinement/v0\\.5/"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "license": {
+            "const": "CC0-1.0"
+          },
+          "expected_rules": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "TCW-D009",
+                "TCW-D010"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "build_provenance": {
+      "$ref": "common-v0.5.schema.json#/$defs/BUILD_GENERATOR"
+    }
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/corpus-verification-result-v0.5.schema.json",
+  "title": "tiny-corpus-workbench corpus verification result v0.5",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "corpus_directory",
+    "artifact_integrity",
+    "specification_state",
+    "source_states",
+    "model_state",
+    "revision_states",
+    "build_provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "tcw.corpus-verification-result/v0.5"
+    },
+    "corpus_directory": {
+      "type": "string"
+    },
+    "artifact_integrity": {
+      "$ref": "refinement-verification-result-v0.5.schema.json#/$defs/integrity"
+    },
+    "specification_state": {
+      "$ref": "#/$defs/advisory"
+    },
+    "source_states": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sourceAdvisory"
+      }
+    },
+    "model_state": {
+      "$ref": "#/$defs/advisory"
+    },
+    "revision_states": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/revisionAdvisory"
+      }
+    },
+    "build_provenance": {
+      "$ref": "common-v0.5.schema.json#/$defs/BUILD_COMMAND"
+    }
+  },
+  "$defs": {
+    "advisory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "NOT_CHECKED",
+            "MATCH",
+            "CHANGED",
+            "MISSING",
+            "ERROR"
+          ]
+        }
+      }
+    },
+    "sourceAdvisory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member_id",
+        "state"
+      ],
+      "properties": {
+        "member_id": {
+          "$ref": "corpus-spec-v0.5.schema.json#/$defs/id"
+        },
+        "state": {
+          "$ref": "#/$defs/advisory"
+        }
+      }
+    },
+    "revisionAdvisory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member_id",
+        "revision_id",
+        "refinement_state",
+        "diagnosis_state",
+        "base_state"
+      ],
+      "properties": {
+        "member_id": {
+          "$ref": "corpus-spec-v0.5.schema.json#/$defs/id"
+        },
+        "revision_id": {
+          "$ref": "corpus-manifest-v0.5.schema.json#/$defs/hash"
+        },
+        "refinement_state": {
+          "$ref": "#/$defs/advisory"
+        },
+        "diagnosis_state": {
+          "$ref": "#/$defs/advisory"
+        },
+        "base_state": {
+          "$ref": "#/$defs/advisory"
+        }
+      }
+    }
+  }
+}

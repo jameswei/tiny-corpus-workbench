@@ -57,6 +57,20 @@ jobs:
       - name: Run unit tests
         run: uv run --frozen --group test python -m unittest discover -s tests/unit -v
 
+      - name: Run model-free workflow and workbench integrations
+        run: >-
+          uv run --frozen --group test python -m unittest -v
+          tests.integration.test_v05_workflows
+          tests.integration.test_workbench_integration
+
+      - name: Audit the unified v0.5 schema and documentation baseline
+        run: uv run --frozen python tools/verify_v05_schema_baseline.py
+
+      - name: Validate bundled workbench UI assets
+        run: >-
+          uv run --frozen python tools/validate_workbench_assets.py
+          src/tiny_corpus_workbench/workbench_assets
+
       - name: Validate static site
         run: uv run --frozen python tools/validate_site.py site
 
@@ -83,7 +97,7 @@ jobs:
         run: uv run --frozen python tools/verify_corpus_specs.py
 
       - name: Verify checkout portability
-        run: uv run --frozen --group fixtures python tools/verify_checkout_portability.py
+        run: uv run --frozen --group test python tools/verify_checkout_portability.py
 
       - name: Check post-validation working tree
         run: |
@@ -102,6 +116,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up CPython
@@ -126,4 +141,37 @@ jobs:
       - name: Run full extraction and corpus suite
         env:
           TCW_DOCLING_ARTIFACTS: .cache/docling/models
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
         run: uv run --frozen --group test python -m unittest discover -s tests -v
+
+      - name: Audit the unified v0.5 schema and documentation baseline
+        run: uv run --frozen python tools/verify_v05_schema_baseline.py
+
+      - name: Validate bundled workbench UI assets and static site
+        run: |
+          uv run --frozen python tools/validate_workbench_assets.py src/tiny_corpus_workbench/workbench_assets
+          uv run --frozen python tools/validate_site.py site
+
+      - name: Check all deterministic fixture generation
+        run: |
+          uv run --frozen --group fixtures python tools/generate_fixtures.py --check
+          uv run --frozen --group fixtures python tools/generate_diagnosis_fixtures.py --check
+          uv run --frozen --group fixtures python tools/generate_refinement_fixtures.py --check
+          uv run --frozen --group fixtures python tools/verify_fixtures.py
+          uv run --frozen python tools/verify_corpus_specs.py
+
+      - name: Verify clean export and checkout portability
+        run: uv run --frozen --group test python tools/verify_checkout_portability.py
+
+      - name: Compile Python sources
+        run: uv run --frozen --group test python -m compileall -q src tests tools
+
+      - name: Check post-validation working tree
+        run: |
+          git diff --check
+          status="$(git status --porcelain=v1)"
+          if [[ -n "${status}" ]]; then
+            printf '%s\n' "${status}"
+            exit 1
+          fi

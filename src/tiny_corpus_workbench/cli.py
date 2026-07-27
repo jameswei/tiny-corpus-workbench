@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import argparse
 import importlib
-import importlib.metadata
 import json
 import os
-import platform
 import stat
 import sys
 import time
@@ -37,6 +35,56 @@ from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
 from tiny_corpus_workbench.source import SourceSnapshot, sha256_file
 
 
+ACTIVE_RUNTIME_ERROR = (
+    "active runtime does not match this package provenance registry"
+)
+WORKBENCH_ROOT_MANIFESTS = (
+    "manifest.json",
+    "diagnosis-manifest.json",
+    "refinement-manifest.json",
+    "corpus-manifest.json",
+)
+
+
+def _runtime_import_message(error: Exception, fallback: str) -> str:
+    return ACTIVE_RUNTIME_ERROR if isinstance(error, ImportError) else fallback
+
+
+def _active_build_provenance(**arguments: Any) -> dict[str, Any]:
+    try:
+        from tiny_corpus_workbench.supported_provenance import (
+            active_build_provenance,
+        )
+
+        return active_build_provenance(**arguments)
+    except RuntimeContractError:
+        raise
+    except Exception as error:
+        raise RuntimeContractError(ACTIVE_RUNTIME_ERROR) from error
+
+
+def _preflight_workbench_roots(roots: list[Path]) -> None:
+    for root in roots:
+        try:
+            metadata = root.lstat()
+        except FileNotFoundError as error:
+            raise InputError("RECORD root is unavailable") from error
+        except OSError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode):
+            continue
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise InputError("RECORD must be a root directory")
+        try:
+            known = any(
+                os.path.lexists(root / name) for name in WORKBENCH_ROOT_MANIFESTS
+            )
+        except OSError:
+            continue
+        if not known:
+            raise InputError("RECORD root is not a supported record")
+
+
 DOCLING_CONFIG = {
     "accelerator": "cpu",
     "ocr": False,
@@ -60,7 +108,10 @@ def _verification_callable(name: str) -> Any:
         function = getattr(module, name)
     except Exception as error:
         raise RuntimeContractError(
-            "bundled verification/schema runtime is unavailable or incompatible"
+            _runtime_import_message(
+                error,
+                "bundled verification/schema runtime is unavailable or incompatible",
+            )
         ) from error
     if not callable(function):
         raise RuntimeContractError(
@@ -75,7 +126,10 @@ def _diagnosis_callable(module_name: str, name: str) -> Any:
         function = getattr(module, name)
     except Exception as error:
         raise RuntimeContractError(
-            "bundled diagnosis/schema runtime is unavailable or incompatible"
+            _runtime_import_message(
+                error,
+                "bundled diagnosis/schema runtime is unavailable or incompatible",
+            )
         ) from error
     if not callable(function):
         raise RuntimeContractError(
@@ -90,7 +144,10 @@ def _corpus_callable(module_name: str, name: str) -> Any:
         function = getattr(module, name)
     except Exception as error:
         raise RuntimeContractError(
-            "bundled corpus/schema runtime is unavailable or incompatible"
+            _runtime_import_message(
+                error,
+                "bundled corpus/schema runtime is unavailable or incompatible",
+            )
         ) from error
     if not callable(function):
         raise RuntimeContractError(
@@ -106,13 +163,14 @@ def _validate_staged_schemas(root: Path) -> None:
 def _published_diagnosis_line(published: Path) -> dict[str, Any]:
     manifest_path = published / "diagnosis-manifest.json"
     try:
-        snapshot = _diagnosis_callable("diagnosis", "snapshot_tree")
+        snapshot = _diagnosis_callable("diagnosis_rules", "snapshot_tree")
         before = snapshot(published)
         schema = json.loads(manifest_path.read_text("utf-8")).get("schema_version")
-        verify = _diagnosis_callable(
-            "v03" if schema == "tcw.diagnosis-manifest/v0.3" else "diagnosis_verification",
-            "verify_diagnosis",
-        )
+        if schema != "tcw.diagnosis-manifest/v0.5":
+            raise RuntimeContractError(
+                "published diagnosis manifest is unavailable or invalid"
+            )
+        verify = _diagnosis_callable("v03", "verify_diagnosis")
         verification = verify(published)
         if verification["artifact_integrity"]["status"] != "VERIFIED":
             raise IntegrityError(
@@ -251,37 +309,19 @@ def parser() -> argparse.ArgumentParser:
         "corpus_directory", metavar="CORPUS_DIRECTORY", type=Path
     )
     verify_corpus.add_argument("--spec", metavar="CORPUS_SPEC", type=Path)
+    workbench = commands.add_parser(
+        "workbench", help="serve explicit records in a read-only local workbench"
+    )
+    workbench.add_argument("records", metavar="RECORD", type=Path, nargs="+")
+    workbench.add_argument("--port", default="8765")
+    workbench.add_argument("--no-open", action="store_true")
     return root
 
 
-def _lock_identity() -> dict[str, Any]:
-    lock = Path("uv.lock")
-    if not lock.is_file():
-        raise RuntimeContractError("uv.lock is required from the repository root")
-    try:
-        installed = {
-            name: importlib.metadata.version(name) for name in RUNTIME_DEPENDENCIES
-        }
-    except Exception as error:
-        raise RuntimeContractError(
-            "required extractor package metadata is unavailable"
-        ) from error
-    if installed != RUNTIME_DEPENDENCIES:
-        raise RuntimeContractError("installed extractor versions do not match the locked v0.1 contract")
-    if platform.python_implementation() != "CPython" or sys.version_info[:2] != (
-        3,
-        12,
-    ):
-        raise RuntimeContractError("the v0.1 acceptance runtime is CPython 3.12")
-    try:
-        lock_hash = sha256_file(lock)
-    except OSError as error:
-        raise RuntimeContractError("uv.lock is unavailable") from error
-    return {"path": str(lock.resolve()), "sha256": lock_hash, "dependencies": installed}
-
-
 def _preflight_extractors() -> tuple[dict[str, Any], Any, Any]:
-    lock = _lock_identity()
+    build_provenance = _active_build_provenance(
+        command_id="tcw.observe", extracting=True
+    )
     try:
         docling_adapter = importlib.import_module(
             "tiny_corpus_workbench.extractors.docling"
@@ -299,7 +339,7 @@ def _preflight_extractors() -> tuple[dict[str, Any], Any, Any]:
         raise RuntimeContractError(
             "extractor runtime preflight failed"
         ) from error
-    return lock, docling_adapter, markitdown_adapter
+    return build_provenance, docling_adapter, markitdown_adapter
 
 
 def _fixture_anchors(fixture_id: str | None) -> dict[str, str]:
@@ -335,18 +375,21 @@ def _result(name: str, version: str) -> dict[str, Any]:
     }
 
 
-def _observation_id(source: dict[str, Any], lock: dict[str, Any], models: dict[str, Any]) -> str:
+def _observation_id(
+    source: dict[str, Any],
+    build_provenance: dict[str, Any],
+    models: dict[str, Any],
+) -> str:
     return compute_observation_id(
         source,
-        lock["dependencies"],
+        build_provenance,
         {"docling": DOCLING_CONFIG, "markitdown": MARKITDOWN_CONFIG},
-        lock["sha256"],
         models["inventory_hash"],
     )
 
 
 def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[ExitCode, Path]:
-    lock, docling_adapter, markitdown_adapter = _preflight_extractors()
+    build_provenance, docling_adapter, markitdown_adapter = _preflight_extractors()
     snapshot = SourceSnapshot(source_value)
     try:
         source_path, source = snapshot.capture()
@@ -469,7 +512,9 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
             if markitdown_result["status"] == "SUCCESS":
                 path = staging / "markitdown/document.md"
                 markitdown_view = (path.read_bytes(), sha256_file(path))
-            observation_id = _observation_id(source.to_dict(), lock, models)
+            observation_id = _observation_id(
+                source.to_dict(), build_provenance, models
+            )
             comparison = make_comparison(
                 observation_id,
                 source.to_dict(),
@@ -496,20 +541,13 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
                 exit_code = ExitCode.RUNTIME
 
             manifest = {
-                "schema_version": "tcw.preparation-manifest/v0.1",
-                "milestone": "v0.1",
+                "schema_version": "tcw.preparation-manifest/v0.5",
                 "run_id": run_id,
                 "observation_id": observation_id,
                 "created_at": now.isoformat().replace("+00:00", "Z"),
                 "status": overall,
                 "source": source.to_dict(),
-                "runtime": {
-                    "python": platform.python_version(),
-                    "implementation": platform.python_implementation(),
-                    "platform": platform.platform(),
-                    "lockfile": {"path": lock["path"], "sha256": lock["sha256"]},
-                    "dependencies": lock["dependencies"],
-                },
+                "build_provenance": build_provenance,
                 "configurations": {
                     "docling": DOCLING_CONFIG,
                     "markitdown": MARKITDOWN_CONFIG,
@@ -575,6 +613,56 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "workbench":
+        server = None
+        try:
+            _active_build_provenance(command_id="tcw.workbench")
+            from tiny_corpus_workbench.workbench_projection import build_projection
+            from tiny_corpus_workbench.workbench_records import admit_records
+            from tiny_corpus_workbench.workbench_server import (
+                create_server,
+                open_browser,
+                startup_document,
+                validate_port,
+            )
+
+            port = validate_port(args.port)
+            _preflight_workbench_roots(args.records)
+            records = admit_records(args.records)
+            try:
+                projection = build_projection(records)
+            except IntegrityError as error:
+                if "structured response limit" not in str(error):
+                    raise
+                raise InputError(
+                    "workbench projection exceeds the structured response limit"
+                ) from error
+            server = create_server(records, projection, port)
+            try:
+                startup = startup_document(projection, port)
+                print(
+                    json.dumps(startup, sort_keys=True, separators=(",", ":")),
+                    flush=True,
+                )
+                if not args.no_open:
+                    warning = open_browser(startup["url"])
+                    if warning is not None:
+                        print(warning, file=sys.stderr, flush=True)
+                server.serve_forever()
+            except KeyboardInterrupt:
+                pass
+            return int(ExitCode.SUCCESS)
+        except KeyboardInterrupt:
+            return int(ExitCode.SUCCESS)
+        except WorkbenchError as error:
+            print(sanitize_message(error), file=sys.stderr)
+            return int(error.exit_code)
+        except Exception:
+            print("internal workbench failure", file=sys.stderr)
+            return int(ExitCode.INTERNAL)
+        finally:
+            if server is not None:
+                server.server_close()
     if args.command == "inspect-corpus":
         try:
             command = _corpus_callable(
@@ -662,16 +750,16 @@ def main(argv: list[str] | None = None) -> int:
                 ).get("schema_version")
             except Exception:
                 pass
-            if schema == "tcw.diagnosis-manifest/v0.3":
-                command = _diagnosis_callable("v03", "verify_diagnosis_command")
-                return command(
-                    args.diagnosis_directory, args.subject or args.observation
-                )
-            command = _diagnosis_callable("diagnosis_verification", "verify_diagnosis_command")
+            if schema != "tcw.diagnosis-manifest/v0.5":
+                print("verification requires a v0.5 diagnosis", file=sys.stderr)
+                return int(ExitCode.INPUT)
+            command = _diagnosis_callable("v03", "verify_diagnosis_command")
         except RuntimeContractError as error:
             print(sanitize_message(error), file=sys.stderr)
             return int(ExitCode.RUNTIME)
-        return command(args.diagnosis_directory, args.observation)
+        return command(
+            args.diagnosis_directory, args.subject or args.observation
+        )
     if args.command == "diagnose":
         try:
             command = _diagnosis_callable("v03", "diagnose")

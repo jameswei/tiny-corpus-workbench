@@ -1,4 +1,4 @@
-"""Deterministic offline HTML rendering for v0.4 corpus runs."""
+"""Deterministic offline HTML rendering for v0.5 corpus runs."""
 
 from __future__ import annotations
 

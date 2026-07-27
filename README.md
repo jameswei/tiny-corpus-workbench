@@ -48,7 +48,8 @@ prepared document revision
 The released workflow covers source capture, extraction observation,
 evidence-based diagnosis, explicit refinement decisions, immutable prepared
 revisions, and inspection of an explicit local corpus through a static
-comparison report.
+comparison report. The current v0.5 release candidate also provides a
+read-only local browser workbench for explicit records.
 
 ## What you can do today
 
@@ -73,6 +74,9 @@ comparison report.
 - **Verify a corpus report.** `tcw verify-corpus` checks the corpus record,
   its runtime and snapshot identities, every nested observation and diagnosis,
   and exact report regeneration.
+- **Inspect records in a browser.** `tcw workbench` admits explicit local
+  observation, diagnosis, refinement, or corpus records and serves one frozen,
+  read-only view on `127.0.0.1`.
 
 Diagnosis publishes a separate immutable record. It does not repair a document
 or authorize a change. `NO_FINDINGS` means that none of the ten rules
@@ -137,9 +141,10 @@ uv run --frozen tcw resolve-refinement decision.json \
 uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY \
   --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
 uv run --frozen tcw inspect-corpus \
-  fixtures/corpus/v0.4/golden-matrix.json
+  fixtures/corpus/v0.5/golden-matrix.json
 uv run --frozen tcw verify-corpus CORPUS_DIRECTORY \
-  --spec fixtures/corpus/v0.4/golden-matrix.json
+  --spec fixtures/corpus/v0.5/golden-matrix.json
+uv run --frozen tcw workbench RECORD_DIRECTORY --no-open
 ```
 
 Each command prints a compact JSON result. Replace `OBSERVATION_DIRECTORY` with
@@ -165,12 +170,18 @@ apply refinements. The generated report contains no JavaScript or remote
 resources. It aggregates counts, extractor deltas, findings, and explicitly
 listed verified revision histories without embedding source passages.
 
+The visual workbench also accepts only explicit record roots. It binds only to
+`127.0.0.1`, keeps its projection in memory, and provides no execution,
+mutation, upload, discovery, or source-file route. Stop it with `Ctrl-C`.
+
 See the [Controlled Revisions guide](docs/controlled-revisions.md) for the
 supported findings, artifact layout, chaining rules, verification states, and
 integrity limits. See the
 [Corpus Inspection and Comparison guide](docs/corpus-inspection-comparison.md)
 for corpus specifications, report navigation, statuses, verification, and
-privacy limits.
+privacy limits. See the
+[Local Visual Workbench guide](docs/local-visual-workbench.md) for admission,
+browser views, API limits, security checks, and local startup.
 
 ## Learning
 

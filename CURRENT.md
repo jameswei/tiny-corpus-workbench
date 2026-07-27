@@ -1,12 +1,24 @@
 # Handoff Snapshot
 
-**Last updated:** 2026-07-25
+**Last updated:** 2026-07-27
 
 This is an informational handoff, not a required agent workflow or taskboard.
 Future work may use whichever sound engineering practices fit the task.
 
 ## Status
 
+- Milestone v0.5, Local Visual Workbench, is a complete local release candidate.
+  Fresh task reviews and the complete milestone integration review returned
+  `PASS`. Milestone PR
+  [#13](https://github.com/jameswei/tiny-corpus-workbench/pull/13) is open and
+  ready for review. v0.5 is not released.
+- V05-1 through V05-8 are accepted with stable checkpoints. V05-8 completes the
+  user guide, learning lesson, release disclosure, site presentation,
+  documentation audit, CI coverage, and clean-export validation.
+- The release candidate provides a read-only, loopback-only, non-persisted
+  browser workbench for explicitly supplied observation, diagnosis, refinement,
+  and corpus records. Existing CLI commands remain the only execution and
+  mutation surface.
 - Milestone v0.1, Extraction Observatory, is released as `v0.1.0` on `main`.
 - The released baseline contains `tcw observe`, `tcw verify`, twelve
   deterministic CC0 fixtures, immutable observation artifacts, tests, user
@@ -153,7 +165,47 @@ confirmation.
 
 ## Active milestone
 
-No milestone is active. Milestone v0.5 has not been planned or activated.
+Milestone v0.5, Local Visual Workbench, is active on
+`milestone/v0.5-local-visual-workbench`.
+
+The project owner accepted the frozen implementation plan on 2026-07-26. The
+accepted contract is `docs/plans/v0.5-local-visual-workbench.md`, based on
+clean `main` at `6545636`. The task ledger is
+`docs/plans/v0.5-local-visual-workbench-ledger.md`.
+
+The milestone adds a read-only, loopback-only browser workbench over explicitly
+supplied observation, diagnosis, refinement, and corpus records. Existing CLI
+commands remain the only execution and mutation surface. The workbench does
+not discover records, follow source paths, or add hosted access.
+
+The complete schema/reset verdict is settled:
+
+- all 25 active JSON schemas and every active writer, reader, verifier,
+  registry, fixture, specification, and workbench API use `/v0.5`;
+- no v0.5 schema defines or requires a `milestone` field;
+- schema version is separate from package and build provenance;
+- supported v0.5 provenance tuples are explicit and monotonic;
+- active v0.5 code writes, reads, verifies, and admits only v0.5 artifacts;
+- v0.1 through v0.4 artifacts are unsupported and are not migrated;
+- users must regenerate old milestone artifacts with v0.5;
+- earlier Git tags preserve implementation history, not current compatibility.
+
+V05-1 through V05-8 are accepted. The complete milestone integration review and
+the bounded correction review returned `PASS`. After hosted review corrections,
+current release-candidate validation passes 324 unit tests and 344 complete
+tests with the prefetched Docling models in offline mode. Two final audit
+methods cover 27 unsafe
+copied-repository mutations and seven safe or historical contexts, including
+clause-local mixed claims. Deterministic fixture generation, registries, corpus
+specifications, the 17-document schema audit, bundled workbench assets, the
+static site, compilation, checkout portability, branch-range diff hygiene, and
+packaging also pass. A clean exported tree runs the model-free observation,
+diagnosis, approved-refinement, corpus, and workbench startup/API workflows
+without changing the export.
+
+Publication review has started with milestone PR #13. Hosted CI must pass on the
+review-correction commit. Merge, tag, GitHub Release, and post-release website
+publication remain paused pending separate owner authority.
 
 ## Latest completed milestone
 
@@ -186,7 +238,8 @@ Pull request
 [#11](https://github.com/jameswei/tiny-corpus-workbench/pull/11) delivered the
 milestone as `ae7ce99`. The annotated `v0.4.0` tag targets that commit. Main
 CI, release-target CI, Pages deployment, tagged documentation, and the live
-website all passed final verification. No later milestone is active.
+website all passed final verification. At the v0.4 closeout, no later
+milestone was active.
 
 ## Previous released milestone
 

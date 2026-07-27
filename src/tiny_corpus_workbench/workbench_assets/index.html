@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Local Visual Workbench</title>
+  <link rel="stylesheet" href="/assets/workbench.css">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to record details</a>
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">tiny-corpus-workbench</p>
+      <h1>Local Visual Workbench</h1>
+      <p>Inspect prepared-document evidence in a read-only local session.</p>
+    </div>
+    <p class="read-only"><span aria-hidden="true">●</span> Read only</p>
+  </header>
+
+  <div class="layout">
+    <nav class="record-nav" aria-labelledby="records-heading">
+      <div class="nav-heading">
+        <h2 id="records-heading">Records</h2>
+        <span id="record-count" class="count" aria-label="record count">0</span>
+      </div>
+      <div id="record-list" class="record-list"></div>
+    </nav>
+
+    <main id="workspace" tabindex="-1">
+      <div id="announcer" class="visually-hidden" role="status" aria-live="polite"></div>
+      <section id="session-overview" class="panel" aria-labelledby="overview-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Session</p>
+            <h2 id="overview-heading">Overview</h2>
+          </div>
+          <span id="session-state" class="status status-neutral">Loading</span>
+        </div>
+        <p id="session-message">Loading the local projection.</p>
+        <dl id="session-facts" class="facts"></dl>
+        <div id="state-key"></div>
+      </section>
+
+      <section id="record-view" class="panel" aria-labelledby="record-heading" hidden>
+        <div class="section-heading">
+          <div>
+            <p id="record-kind" class="eyebrow">Record</p>
+            <h2 id="record-heading" tabindex="-1">Record details</h2>
+          </div>
+          <span id="record-state" class="status status-neutral">Loading</span>
+        </div>
+        <div id="record-summary"></div>
+        <div id="record-content"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/assets/workbench.js" defer></script>
+</body>
+</html>

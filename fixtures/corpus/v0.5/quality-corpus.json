@@ -1,0 +1,37 @@
+{
+  "corpus_id": "quality-corpus",
+  "members": [
+    {
+      "family": "line-end-hyphenation",
+      "format": "docx",
+      "member_id": "line-end-hyphenation",
+      "source": "../../refinement/v0.5/line-end-hyphenation.docx"
+    },
+    {
+      "family": "repeated-margin",
+      "format": "pdf",
+      "member_id": "repeated-margin",
+      "source": "../../diagnosis/v0.5/repeated-margin.pdf"
+    },
+    {
+      "family": "short-note",
+      "format": "md",
+      "member_id": "short-note",
+      "source": "../../diagnosis/v0.5/short-note.md"
+    },
+    {
+      "family": "structural-traps",
+      "format": "md",
+      "member_id": "structural-traps",
+      "source": "../../diagnosis/v0.5/structural-traps.md"
+    },
+    {
+      "family": "whitespace-cleanup",
+      "format": "md",
+      "member_id": "whitespace-cleanup",
+      "source": "../../refinement/v0.5/whitespace-cleanup.md"
+    }
+  ],
+  "schema_version": "tcw.corpus-spec/v0.5",
+  "title": "Evidence-based diagnosis and refinement quality cases"
+}

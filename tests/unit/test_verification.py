@@ -11,8 +11,6 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from jsonschema import Draft202012Validator
-
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import (
     REQUIRED_MODEL_FILES,
@@ -20,16 +18,13 @@ from tiny_corpus_workbench.artifacts import (
     compute_observation_id,
 )
 from tiny_corpus_workbench.domain import RuntimeContractError
-from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
+from tiny_corpus_workbench.runtime import PROVENANCE_DEPENDENCIES
+from tiny_corpus_workbench.schema_catalog import validator as schema_validator
+from tests.unit.test_unsupported_old_schemas import OLD_OBSERVATION_SCHEMA
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
 PDF_SOURCE = Path("fixtures/golden/policy-memo.pdf")
-RESULT_SCHEMA = Path(
-    "src/tiny_corpus_workbench/schemas/verification-result-v0.1.schema.json"
-)
-
-
 def fake_docling(source: Path, destination: Path, model_root: Path):
     destination.mkdir(parents=True)
     (destination / "document.json").write_text(
@@ -75,9 +70,8 @@ def snapshot(root: Path) -> dict[str, tuple[int, int, bytes]]:
 def rewrite_observation_identity(root: Path, manifest: dict) -> None:
     observation_id = compute_observation_id(
         manifest["source"],
-        manifest["runtime"]["dependencies"],
+        manifest["build_provenance"],
         manifest["configurations"],
-        manifest["runtime"]["lockfile"]["sha256"],
         manifest["models"]["inventory_hash"],
     )
     manifest["observation_id"] = observation_id
@@ -156,8 +150,63 @@ class VerificationTests(unittest.TestCase):
                             manifest["docling_document_schema"],
                             {"name": None, "version": None, "compatibility": None},
                         )
-                    schema = json.loads(RESULT_SCHEMA.read_text("utf-8"))
-                    Draft202012Validator(schema).validate(report)
+                    schema_validator("tcw.verification-result/v0.5").validate(
+                        report
+                    )
+
+    def test_observation_runtime_evidence_migrates_to_exact_build_shapes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, published = self.observation(Path(directory))
+            manifest = json.loads(
+                (published / "manifest.json").read_text("utf-8")
+            )
+            self.assertEqual(
+                manifest["schema_version"],
+                "tcw.preparation-manifest/v0.5",
+            )
+            self.assertNotIn("runtime", manifest)
+            self.assertNotIn("milestone", manifest)
+            provenance = manifest["build_provenance"]
+            self.assertEqual(provenance["package_version"], "0.5.0")
+            self.assertEqual(
+                provenance["python"],
+                {"implementation": "CPython", "major_minor": "3.12"},
+            )
+            self.assertEqual(
+                set(provenance["dependencies"]),
+                {"docling", "docling-core", "jsonschema", "markitdown"},
+            )
+            self.assertEqual(provenance["command_id"], "tcw.observe")
+            self.assertEqual(
+                provenance["extractor_contract"]["docling"][
+                    "document_schema_version"
+                ],
+                "1.10.0",
+            )
+            self.assertNotIn("platform", provenance)
+            self.assertNotIn("path", provenance)
+
+            code, report, _, stderr = self.verify(published)
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            result_provenance = report["build_provenance"]
+            self.assertEqual(result_provenance["command_id"], "tcw.verify")
+            self.assertNotIn("extractor_contract", result_provenance)
+            self.assertNotIn("generator_id", result_provenance)
+
+    def test_old_observation_schema_exits_two_without_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, published = self.observation(Path(directory))
+            manifest_path = published / "manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["schema_version"] = OLD_OBSERVATION_SCHEMA
+            manifest_path.write_bytes(canonical_json(manifest))
+            code, stdout, stderr = self.invoke("verify", str(published))
+            self.assertEqual(code, 2)
+            self.assertEqual(stdout, "")
+            self.assertEqual(stderr, "manifest schema is unsupported\n")
 
     def test_verifier_detects_file_corruption_shapes(self) -> None:
         operations = ("missing", "extra", "edited", "truncated", "symlink", "special")
@@ -282,12 +331,16 @@ class VerificationTests(unittest.TestCase):
     def test_malformed_manifest_nested_types_complete_with_safe_advisories(self) -> None:
         cases = (
             ("source-null", ("source",), None),
-            ("runtime-boolean", ("runtime",), True),
+            ("provenance-boolean", ("build_provenance",), True),
             ("models-number", ("models",), 1),
             ("extractors-string", ("extractors",), "extractors"),
             ("comparison-array", ("comparison",), []),
             ("source-wrong-object", ("source",), {}),
-            ("dependencies-array", ("runtime", "dependencies"), []),
+            (
+                "dependencies-array",
+                ("build_provenance", "dependencies"),
+                [],
+            ),
             ("extractor-elements", ("extractors",), [None, None]),
             ("model-files-object", ("models", "files"), {}),
             ("comparison-wrong-object", ("comparison",), {}),
@@ -548,10 +601,10 @@ class VerificationTests(unittest.TestCase):
         }
         schema = json.loads(
             Path(
-                "src/tiny_corpus_workbench/schemas/preparation-manifest-v0.1.schema.json"
+                "src/tiny_corpus_workbench/schemas/preparation-manifest-v0.5.schema.json"
             ).read_text("utf-8")
         )
-        validator = Draft202012Validator(schema)
+        validator = schema_validator("tcw.preparation-manifest/v0.5")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             _, baseline = self.observation(root / "baseline")
@@ -626,7 +679,7 @@ class VerificationTests(unittest.TestCase):
 
     def test_every_runtime_dependency_mapping_mutation_is_broken(self) -> None:
         cases = []
-        for name in RUNTIME_DEPENDENCIES:
+        for name in PROVENANCE_DEPENDENCIES:
             cases.append((f"changed-{name}", "change", name))
             cases.append((f"missing-{name}", "remove", name))
         cases.append(("unexpected-dependency", "add", "unexpected"))
@@ -641,7 +694,7 @@ class VerificationTests(unittest.TestCase):
                     shutil.copytree(baseline, copied)
                     manifest_path = copied / "manifest.json"
                     manifest = json.loads(manifest_path.read_text("utf-8"))
-                    dependencies = manifest["runtime"]["dependencies"]
+                    dependencies = manifest["build_provenance"]["dependencies"]
                     if mutation == "change":
                         dependencies[name] = "9.9.9"
                     elif mutation == "remove":
@@ -651,35 +704,35 @@ class VerificationTests(unittest.TestCase):
                     rewrite_observation_identity(copied, manifest)
 
                     code, report, stdout, stderr = self.verify(copied)
-                    self.assertEqual(code, 5)
-                    self.assertEqual(stderr, "")
-                    self.assertEqual(len(stdout.splitlines()), 1)
-                    self.assertEqual(
-                        report["artifact_integrity"]["status"], "BROKEN"
-                    )
-                    self.assertIn(
-                        "MANIFEST_INVALID",
-                        {
-                            issue["code"]
-                            for issue in report["artifact_integrity"]["issues"]
-                        },
-                    )
-                    if operation == "changed-docling-core":
+                    if mutation == "change":
+                        self.assertEqual(code, 6)
+                        self.assertEqual(stdout, "")
                         self.assertEqual(
+                            stderr,
+                            "recorded provenance is unsupported by this v0.5 package\n",
+                        )
+                    else:
+                        self.assertEqual(code, 5)
+                        self.assertEqual(stderr, "")
+                        self.assertEqual(len(stdout.splitlines()), 1)
+                        self.assertEqual(
+                            report["artifact_integrity"]["status"], "BROKEN"
+                        )
+                        self.assertIn(
+                            "MANIFEST_INVALID",
                             {
                                 issue["code"]
                                 for issue in report["artifact_integrity"]["issues"]
                             },
-                            {"MANIFEST_INVALID"},
                         )
 
     def test_pdf_model_runtime_manifest_mutations_are_broken(self) -> None:
         schema = json.loads(
             Path(
-                "src/tiny_corpus_workbench/schemas/preparation-manifest-v0.1.schema.json"
+                "src/tiny_corpus_workbench/schemas/preparation-manifest-v0.5.schema.json"
             ).read_text("utf-8")
         )
-        validator = Draft202012Validator(schema)
+        validator = schema_validator("tcw.preparation-manifest/v0.5")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             models = root / "models"
@@ -727,7 +780,7 @@ class VerificationTests(unittest.TestCase):
             "schema-version": ("success", "REFERENCE_MISMATCH"),
             "schema-compatibility": ("success", "MANIFEST_INVALID"),
             "runtime-implementation": ("success", "MANIFEST_INVALID"),
-            "runtime-version": ("success", "MANIFEST_INVALID"),
+            "runtime-version": ("success", "RECORDED_PROVENANCE_UNSUPPORTED"),
             "invalid-timestamp": ("success", "MANIFEST_INVALID"),
             "impossible-date": ("success", "MANIFEST_INVALID"),
             "missing-timezone": ("success", "MANIFEST_INVALID"),
@@ -772,9 +825,13 @@ class VerificationTests(unittest.TestCase):
                             "reloadable anywhere"
                         )
                     elif operation == "runtime-implementation":
-                        manifest["runtime"]["implementation"] = "PyPy"
+                        manifest["build_provenance"]["python"][
+                            "implementation"
+                        ] = "PyPy"
                     elif operation == "runtime-version":
-                        manifest["runtime"]["python"] = "9.9.9"
+                        manifest["build_provenance"]["python"][
+                            "major_minor"
+                        ] = "9.9"
                     elif operation == "invalid-timestamp":
                         manifest["created_at"] = "2026-99-99 12:00"
                     elif operation == "impossible-date":
@@ -839,19 +896,27 @@ class VerificationTests(unittest.TestCase):
                     manifest_path.write_text(json.dumps(manifest), "utf-8")
 
                     code, report, stdout, stderr = self.verify(copied)
-                    self.assertEqual(code, 5)
-                    self.assertEqual(stderr, "")
-                    self.assertEqual(len(stdout.splitlines()), 1)
-                    self.assertEqual(
-                        report["artifact_integrity"]["status"], "BROKEN"
-                    )
-                    self.assertIn(
-                        expected_code,
-                        {
-                            issue["code"]
-                            for issue in report["artifact_integrity"]["issues"]
-                        },
-                    )
+                    if expected_code == "RECORDED_PROVENANCE_UNSUPPORTED":
+                        self.assertEqual(code, 6)
+                        self.assertEqual(stdout, "")
+                        self.assertEqual(
+                            stderr,
+                            "recorded provenance is unsupported by this v0.5 package\n",
+                        )
+                    else:
+                        self.assertEqual(code, 5)
+                        self.assertEqual(stderr, "")
+                        self.assertEqual(len(stdout.splitlines()), 1)
+                        self.assertEqual(
+                            report["artifact_integrity"]["status"], "BROKEN"
+                        )
+                        self.assertIn(
+                            expected_code,
+                            {
+                                issue["code"]
+                                for issue in report["artifact_integrity"]["issues"]
+                            },
+                        )
 
     def test_valid_nonderivable_timestamp_change_remains_verified(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -8,12 +8,12 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from jsonschema import Draft202012Validator
-
 from tiny_corpus_workbench import cli
-from tiny_corpus_workbench.artifacts import AtomicObservation
+from tiny_corpus_workbench.artifacts import AtomicObservation, canonical_json
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.extractors.docling import DoclingSerializationError
+from tiny_corpus_workbench.schema_catalog import validator as schema_validator
+from tiny_corpus_workbench.supported_provenance import load_registry
 
 
 FIXTURE = Path("fixtures/golden/policy-memo.md")
@@ -72,6 +72,55 @@ class CliFailureTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(stdout, "")
         self.assertIn("unsupported media type", stderr)
+
+    def test_bundled_registry_failures_are_exact_active_runtime_errors(
+        self,
+    ) -> None:
+        baseline = load_registry()
+        cases = {
+            "missing": None,
+            "invalid-json": b"{",
+            "structurally-invalid": canonical_json(
+                {
+                    "schema_version": (
+                        "tcw.supported-provenance-registry/v0.5"
+                    )
+                }
+            ),
+            "integrity-invalid": canonical_json(
+                {
+                    **baseline,
+                    "entries": [
+                        {
+                            **baseline["entries"][0],
+                            "provenance_id": "0" * 64,
+                        }
+                    ],
+                }
+            ),
+        }
+        commands = (
+            ("observe", str(FIXTURE)),
+            ("verify", "missing-observation"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for label, raw in cases.items():
+                registry_path = root / f"{label}.json"
+                if raw is not None:
+                    registry_path.write_bytes(raw)
+                for command in commands:
+                    with self.subTest(case=label, command=command[0]), mock.patch(
+                        "tiny_corpus_workbench.supported_provenance.REGISTRY_PATH",
+                        registry_path,
+                    ):
+                        code, stdout, stderr = self.invoke(*command)
+                    self.assertEqual(code, 6)
+                    self.assertEqual(stdout, "")
+                    self.assertEqual(
+                        stderr,
+                        "active runtime does not match this package provenance registry\n",
+                    )
 
     def test_empty_markdown_and_text_publish_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -298,13 +347,9 @@ class CliFailureTests(unittest.TestCase):
             manifest_path = Path(summary["manifest"])
             self.assertTrue(manifest_path.is_file())
             manifest = json.loads(manifest_path.read_text("utf-8"))
-            schema = json.loads(
-                Path(
-                    "src/tiny_corpus_workbench/schemas/"
-                    "preparation-manifest-v0.1.schema.json"
-                ).read_text("utf-8")
+            schema_validator("tcw.preparation-manifest/v0.5").validate(
+                manifest
             )
-            Draft202012Validator(schema).validate(manifest)
             error = manifest["extractors"][0]["error"]
             self.assertEqual(error["code"], "MODEL_ARTIFACTS_MISSING")
             self.assertTrue(error["message"])
@@ -346,11 +391,17 @@ class CliFailureTests(unittest.TestCase):
             self.assertTrue(stdout)
 
     def test_unavailable_dependency_metadata_is_runtime_exit(self) -> None:
-        with mock.patch("tiny_corpus_workbench.cli.importlib.metadata.version", side_effect=cli.importlib.metadata.PackageNotFoundError("docling")):
+        with mock.patch(
+            "tiny_corpus_workbench.runtime.importlib.metadata.version",
+            side_effect=RuntimeError("metadata unavailable"),
+        ):
             code, stdout, stderr = self.invoke("observe", str(FIXTURE))
         self.assertEqual(code, 6)
         self.assertEqual(stdout, "")
-        self.assertIn("package metadata is unavailable", stderr)
+        self.assertEqual(
+            stderr,
+            "active runtime does not match this package provenance registry\n",
+        )
 
     def test_publication_races_are_integrity_exit_without_replacement(self) -> None:
         original_publish = AtomicObservation.publish

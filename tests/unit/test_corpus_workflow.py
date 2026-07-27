@@ -65,7 +65,7 @@ def _write_spec(root: Path) -> Path:
     spec.write_bytes(
         canonical_json(
             {
-                "schema_version": "tcw.corpus-spec/v0.4",
+                "schema_version": "tcw.corpus-spec/v0.5",
                 "corpus_id": "unit-corpus",
                 "title": "Unit <Corpus>",
                 "members": [
@@ -86,13 +86,13 @@ class CorpusWorkflowTests(unittest.TestCase):
     def test_all_corpus_runtime_validators_share_format_checker(self) -> None:
         self.assertIs(
             execution_schema_validator(
-                "corpus-summary-v0.4.schema.json"
+                "corpus-summary-v0.5.schema.json"
             ).format_checker,
             FORMAT_CHECKER,
         )
         self.assertIs(
             publication_schema_validator(
-                "corpus-manifest-v0.4.schema.json"
+                "corpus-manifest-v0.5.schema.json"
             ).format_checker,
             FORMAT_CHECKER,
         )
@@ -308,6 +308,115 @@ class CorpusWorkflowTests(unittest.TestCase):
                         verification["artifact_integrity"]["status"],
                         "VERIFIED",
                     )
+
+    def test_nested_content_hash_tampering_is_independently_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            _, published = self.publish(root)
+            original_summary = (
+                published.directory / "summary.json"
+            ).read_bytes()
+            original_report = (
+                published.directory / "report/index.html"
+            ).read_bytes()
+            mutations = {
+                "canonical": ("observation", "canonical_document_sha256"),
+                "findings": ("diagnosis", "findings_sha256"),
+            }
+            for names in (("canonical",), ("findings",), ("canonical", "findings")):
+                with self.subTest(names=names):
+                    copied = root / "-".join(names) / published.directory.name
+                    shutil.copytree(published.directory, copied)
+                    manifest_path = copied / "corpus-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    for name in names:
+                        stage, field = mutations[name]
+                        manifest["members"][0][stage][field] = "f" * 64
+                    manifest_path.write_bytes(canonical_json(manifest))
+                    self.assertEqual(
+                        (copied / "summary.json").read_bytes(),
+                        original_summary,
+                    )
+                    self.assertEqual(
+                        (copied / "report/index.html").read_bytes(),
+                        original_report,
+                    )
+                    verification = verify_corpus(copied)
+                    self.assertEqual(
+                        verification["artifact_integrity"]["status"],
+                        "BROKEN",
+                    )
+                    mismatch_paths = {
+                        issue["path"]
+                        for issue in verification["artifact_integrity"]["issues"]
+                        if issue["code"] == "REFERENCE_MISMATCH"
+                    }
+                    if "canonical" in names:
+                        self.assertIn(
+                            "members/unit-member/observation",
+                            mismatch_paths,
+                        )
+                    if "findings" in names:
+                        self.assertIn(
+                            "members/unit-member/diagnosis",
+                            mismatch_paths,
+                        )
+
+    def test_wrong_enum_valid_error_code_survives_derived_rewrite_but_fails(
+        self,
+    ) -> None:
+        cases = (
+            (_docling, _fail, "DIAGNOSIS_FAILED"),
+            (_fail, _fail, "MODEL_ARTIFACTS_INVALID"),
+        )
+        for docling, markitdown, wrong_code in cases:
+            with self.subTest(wrong_code=wrong_code), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve()
+                _, published = self.publish(
+                    root,
+                    docling=docling,
+                    markitdown=markitdown,
+                )
+                copied = root / "wrong-code" / published.directory.name
+                shutil.copytree(published.directory, copied)
+                manifest_path = copied / "corpus-manifest.json"
+                summary_path = copied / "summary.json"
+                report_path = copied / "report/index.html"
+                spec = json.loads(
+                    (copied / "corpus-spec.json").read_text("utf-8")
+                )
+                manifest = json.loads(manifest_path.read_text("utf-8"))
+                summary = json.loads(summary_path.read_text("utf-8"))
+                manifest["members"][0]["error"]["code"] = wrong_code
+                summary["members"][0]["error"]["code"] = wrong_code
+                summary_path.write_bytes(canonical_json(summary))
+                report_path.write_bytes(
+                    render_report(
+                        title=spec["title"],
+                        summary=summary,
+                        members=manifest["members"],
+                        revisions=[],
+                    )
+                )
+                descriptors = {
+                    item["path"]: item for item in manifest["artifacts"]
+                }
+                for relative in ("summary.json", "report/index.html"):
+                    path = copied / relative
+                    descriptors[relative]["size"] = path.stat().st_size
+                    descriptors[relative]["sha256"] = sha256_file(path)
+                manifest_path.write_bytes(canonical_json(manifest))
+                verification = verify_corpus(copied)
+                self.assertEqual(
+                    verification["artifact_integrity"]["status"], "BROKEN"
+                )
+                self.assertIn(
+                    "member error code differs from stage evidence",
+                    {
+                        issue["message"]
+                        for issue in verification["artifact_integrity"]["issues"]
+                    },
+                )
 
     def test_family_format_matrix_lists_every_member(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -9,11 +9,9 @@ from pathlib import Path
 from unittest import mock
 
 from tiny_corpus_workbench.cli import observe
-from tiny_corpus_workbench.diagnosis import diagnose
-from tiny_corpus_workbench.diagnosis_verification import verify_diagnosis
 from tiny_corpus_workbench.v03 import (
-    diagnose as diagnose_v03,
-    verify_diagnosis as verify_diagnosis_v03,
+    diagnose,
+    verify_diagnosis,
 )
 
 
@@ -29,7 +27,7 @@ class DiagnosisIntegrationTests(unittest.TestCase):
 
     def test_raw_diagnosis_corpus_runs_offline_with_expected_rules(self) -> None:
         registry = json.loads(
-            (ROOT / "fixtures/diagnosis/v0.2/fixtures.json").read_text("utf-8")
+            (ROOT / "fixtures/diagnosis/v0.5/fixtures.json").read_text("utf-8")
         )
 
         def deny(*args, **kwargs):
@@ -63,7 +61,7 @@ class DiagnosisIntegrationTests(unittest.TestCase):
                     self.assertEqual(
                         verified["artifact_integrity"]["status"], "VERIFIED"
                     )
-                    self.assertEqual(verified["observation_state"]["status"], "MATCH")
+                    self.assertEqual(verified["subject_state"]["status"], "MATCH")
                     self.assertEqual(verified["derivation_state"]["status"], "MATCH")
                     self.assertEqual(source.read_bytes(), source_before)
 
@@ -71,11 +69,11 @@ class DiagnosisIntegrationTests(unittest.TestCase):
         self,
     ) -> None:
         registry = json.loads(
-            (ROOT / "fixtures/refinement/v0.3/fixtures.json").read_text("utf-8")
+            (ROOT / "fixtures/refinement/v0.5/fixtures.json").read_text("utf-8")
         )
 
         def deny(*args, **kwargs):
-            raise AssertionError("v0.3 fixture workflow attempted network access")
+            raise AssertionError("v0.5 fixture workflow attempted network access")
 
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(
             socket, "create_connection", deny
@@ -91,7 +89,7 @@ class DiagnosisIntegrationTests(unittest.TestCase):
                         str(source), root / "observations", MODEL_ROOT
                     )
                     self.assertEqual(int(code), 0)
-                    diagnosis = diagnose_v03(
+                    diagnosis = diagnose(
                         observation, root / "diagnoses"
                     )
                     findings = json.loads(
@@ -101,7 +99,7 @@ class DiagnosisIntegrationTests(unittest.TestCase):
                         {item["rule_id"] for item in findings["findings"]}
                     )
                     self.assertEqual(actual, fixture["expected_rules"])
-                    verified = verify_diagnosis_v03(
+                    verified = verify_diagnosis(
                         diagnosis, observation
                     )
                     self.assertEqual(

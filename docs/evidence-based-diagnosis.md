@@ -31,33 +31,24 @@ Verify the published diagnosis:
 uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY
 ```
 
-Compare a v0.3 diagnosis with its subject and rerun all rules:
+Compare a diagnosis with its subject and rerun all rules:
 
 ```bash
 uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY \
   --subject DOCUMENT_DIRECTORY
 ```
 
-`diagnose` accepts an intact v0.1 observation or an intact applied v0.3
+`diagnose` accepts an intact v0.5 observation or an intact applied v0.5
 revision. An observation's Docling result must be `SUCCESS` or
 `PARTIAL_SUCCESS`. The command runs all ten rules. It has no rule or threshold
 options.
 
-For a diagnosis published by v0.2, retain the released observation-only
-verification command:
-
-```bash
-uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY \
-  --observation OBSERVATION_DIRECTORY
-```
-
-The verifier selects the contract from the diagnosis manifest schema.
-Use `--subject` for v0.3. Use `--observation` for the optional v0.2 observation
-comparison and rule rerun.
+The verifier accepts the current v0.5 diagnosis contract. Use `--subject` for
+the optional observation or applied-revision comparison and rule rerun.
 
 ## Published artifacts
 
-The current `diagnose` command publishes the v0.3 contract. Its output path is:
+The current `diagnose` command publishes the v0.5 contract. Its output path is:
 
 ```text
 <output-root>/<source-key>/<subject-id>/<diagnosis-run-id>/
@@ -95,14 +86,12 @@ Each canonical item must declare the `self_ref` implied by its collection and
 array position. Child references must resolve through those canonical paths.
 Diagnosis rejects inconsistent paths before publication.
 
-The v0.3 diagnosis ID is a full SHA-256 hash over canonical JSON with three
+The diagnosis ID is a full SHA-256 hash over canonical JSON with three
 inputs: the subject descriptor, the canonical document SHA-256 as a separate
 input, and the complete ruleset. The descriptor includes the subject kind and
 ID, canonical document path, size and hash, and originating observation ID.
 The subject manifest hash is provenance; it is not an input to the diagnosis
 ID.
-The v0.2 diagnosis ID instead binds the observation ID, observation manifest
-hash, canonical document hash, and complete v0.2 ruleset.
 Finding IDs bind the diagnosis, rule, sorted document references, and canonical
 evidence.
 Each rule has one closed evidence shape and a rule-specific document-reference
@@ -158,11 +147,9 @@ installed project and extractor versions must match the source contract.
 `uv.lock` must match the committed exact-lock byte identity before publication
 or rule rerun.
 
-Package v0.4 retains the v0.3 diagnosis schema and rule behavior. A v0.3
-diagnosis verifier accepts exactly the historical v0.3 package and lock pair or
-the active v0.4 package and lock pair. Both pairs require CPython 3.12 and the
-same exact third-party dependency versions. Mixed pairs and arbitrary package
-or lock values fail verification. Historical artifacts are not rewritten.
+Each v0.5 diagnosis records one supported provenance ID and the exact
+applicable build fields. The verifier resolves that ID directly in the bundled
+registry. An unknown ID or a mismatching recorded field is unsupported.
 
 `artifact_integrity` is one of:
 
@@ -170,7 +157,7 @@ or lock values fail verification. Historical artifacts are not rewritten.
 - `INTEGRITY_MISMATCH`
 - `BROKEN`
 
-For v0.3, `--subject` compares the recorded subject with an observation or
+`--subject` compares the recorded subject with an observation or
 applied revision. `subject_state` is one of:
 
 - `MATCH`
@@ -181,10 +168,6 @@ applied revision. `subject_state` is one of:
 Without `--subject`, it is `NOT_CHECKED`. The match check includes the complete
 subject descriptor, subject manifest identity, and source identity.
 
-For v0.2, `--observation` retains the released observation-only comparison.
-Its result uses `observation_state` with the same status values. Without
-`--observation`, it is `NOT_CHECKED`.
-
 The corresponding rule rerun uses `derivation_state`:
 
 - `MATCH`
@@ -192,7 +175,7 @@ The corresponding rule rerun uses `derivation_state`:
 - `ERROR`
 - `NOT_CHECKED`
 
-Subject or observation state and derivation state are advisory. An intact
+Subject state and derivation state are advisory. An intact
 diagnosis still exits zero when its optional external subject is missing or
 changed.
 

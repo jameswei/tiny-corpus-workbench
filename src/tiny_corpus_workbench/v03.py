@@ -1,4 +1,4 @@
-"""v0.3 diagnosis subjects, explicit decisions, and reversible revisions."""
+"""Current diagnosis, explicit decisions, and reversible revisions."""
 
 from __future__ import annotations
 
@@ -18,11 +18,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
 from docling_core.types.doc import DoclingDocument
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
-
 from tiny_corpus_workbench.artifacts import _rename_exclusive, canonical_json
-from tiny_corpus_workbench.diagnosis import (
+from tiny_corpus_workbench.diagnosis_rules import (
     RULESET as V02_RULES,
     _canonicalize_findings,
     _hash,
@@ -40,12 +37,14 @@ from tiny_corpus_workbench.domain import (
     RuntimeContractError,
     sanitize_message,
 )
-from tiny_corpus_workbench.runtime import (
-    active_locked_runtime,
-    is_v03_compatible_runtime,
+from tiny_corpus_workbench.schema_catalog import validate_document
+from tiny_corpus_workbench.supported_provenance import (
+    RECORDED_PROVENANCE_ERROR,
+    active_build_provenance,
+    validate_recorded_provenance,
 )
 from tiny_corpus_workbench.source import sha256_file
-from tiny_corpus_workbench.verification import FORMAT_CHECKER, verify_observation
+from tiny_corpus_workbench.verification import verify_observation
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
@@ -124,41 +123,21 @@ V03_FINDING_METADATA = {
     "TCW-D009": {
         "rule_version": "1",
         "severity": "INFO",
-        "summary": "Normalizable Whitespace",
+        "summary": "NORMALIZABLE_WHITESPACE",
     },
     "TCW-D010": {
         "rule_version": "1",
         "severity": "WARNING",
-        "summary": "Possible Line End Hyphenation",
+        "summary": "POSSIBLE_LINE_END_HYPHENATION",
     },
 }
 
 
-def _validator(name: str) -> Draft202012Validator:
+def _validate(schema_version: str, value: dict[str, Any]) -> None:
     try:
-        schemas = {
-            path.name: json.loads(path.read_text("utf-8"))
-            for path in SCHEMA_ROOT.glob("*.schema.json")
-        }
-        registry = Registry()
-        for schema in schemas.values():
-            registry = registry.with_resource(
-                schema["$id"], Resource.from_contents(schema)
-            )
-        return Draft202012Validator(
-            schemas[name], registry=registry, format_checker=FORMAT_CHECKER
-        )
+        validate_document(schema_version, value)
     except Exception as error:
-        raise RuntimeContractError("bundled v0.3 schema is unavailable") from error
-
-
-def _validate(name: str, value: object) -> None:
-    try:
-        _validator(name).validate(value)
-    except RuntimeContractError:
-        raise
-    except Exception as error:
-        raise IntegrityError(f"{name} validation failed") from error
+        raise IntegrityError(f"{schema_version} validation failed") from error
 
 
 def _artifact(path: Path, root: Path, role: str, media_type: str) -> dict[str, Any]:
@@ -303,7 +282,7 @@ def _observation_subject(root: Path) -> dict[str, Any]:
     if not (root / descriptor["path"]).is_file():
         raise CanonicalUnavailableError("canonical Docling artifact is unavailable")
     if (
-        manifest.get("schema_version") != "tcw.preparation-manifest/v0.1"
+        manifest.get("schema_version") != "tcw.preparation-manifest/v0.5"
         or verify_observation(root)["artifact_integrity"]["status"] != "VERIFIED"
     ):
         raise InputError("observation integrity is not verified")
@@ -359,7 +338,7 @@ def _refinement_subject(root: Path) -> dict[str, Any]:
         "root": root,
         "kind": "REVISION",
         "subject_id": manifest["revision_id"],
-        "parent_id": manifest["base"]["subject_id"],
+        "parent_id": manifest["base"]["identity_value"],
         "origin_observation_id": manifest["origin_observation_id"],
         "origin_observation_run_id": manifest["origin_observation_run_id"],
         "source": manifest["source"],
@@ -539,6 +518,19 @@ def _subject_descriptor(subject: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _manifest_subject_descriptor(subject: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "kind": "OBSERVATION" if subject["kind"] == "OBSERVATION" else "REFINEMENT",
+        "identity_type": (
+            "observation_id" if subject["kind"] == "OBSERVATION" else "revision_id"
+        ),
+        "identity_value": subject["subject_id"],
+        "run_id": subject["manifest"]["run_id"],
+        "manifest_sha256": _hash(subject["manifest_bytes"]),
+        "canonical_document_sha256": _hash(subject["document_bytes"]),
+    }
+
+
 def _diagnosis_identity(
     descriptor: dict[str, Any], ruleset: dict[str, Any]
 ) -> str:
@@ -556,7 +548,10 @@ def _diagnosis_identity(
 
 
 def compute_diagnosis_id(subject: dict[str, Any]) -> str:
-    return _diagnosis_identity(_subject_descriptor(subject), RULESET)
+    return _diagnosis_identity(
+        _subject_descriptor(subject),
+        {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH},
+    )
 
 
 def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
@@ -605,10 +600,10 @@ def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
         },
     }
     return {
-        "schema_version": "tcw.finding-set/v0.3",
+        "schema_version": "tcw.finding-set/v0.5",
         "diagnosis_id": diagnosis_id,
         "subject": _subject_descriptor(subject),
-        "ruleset": RULESET,
+        "ruleset": {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH},
         "summary": summary,
         "findings": findings,
     }
@@ -629,7 +624,10 @@ def validate_finding_set(value: dict[str, Any]) -> None:
             item["rule_id"]: rules.get(item["rule_id"], 0) for item in V03_RULES
         },
     }
-    if value["summary"] != expected_summary or value["ruleset"] != RULESET:
+    if value["summary"] != expected_summary or value["ruleset"] != {
+        **RULESET,
+        "parameter_sha256": RULESET_PARAMETER_HASH,
+    }:
         raise IntegrityError("finding summary or ruleset is inconsistent")
     for finding in findings:
         expected_id = _hash(
@@ -652,7 +650,7 @@ def validate_finding_set(value: dict[str, Any]) -> None:
             key: finding.get(key)
             for key in ("rule_version", "severity", "summary")
         } != V03_FINDING_METADATA.get(finding["rule_id"]):
-            raise IntegrityError("v0.3 finding metadata is inconsistent")
+            raise IntegrityError("v0.5 finding metadata is inconsistent")
         evidence = finding["evidence"]
         offsets_name = (
             "code_point_offsets"
@@ -681,7 +679,7 @@ def validate_finding_set(value: dict[str, Any]) -> None:
             or evidence.get("occurrence_count") != len(offsets)
             or len(finding["document_refs"]) != 1
         ):
-            raise IntegrityError("v0.3 finding evidence is inconsistent")
+            raise IntegrityError("v0.5 finding evidence is inconsistent")
 
 
 def _diagnosis_report(findings: dict[str, Any]) -> bytes:
@@ -698,7 +696,7 @@ def _diagnosis_report(findings: dict[str, Any]) -> bytes:
         "",
     ]
     if not findings["findings"]:
-        lines.extend(["No fixed v0.3 rule produced a finding.", ""])
+        lines.extend(["No fixed v0.5 rule produced a finding.", ""])
     for finding in findings["findings"]:
         lines.extend(
             [
@@ -720,6 +718,7 @@ def _diagnosis_report(findings: dict[str, Any]) -> bytes:
 
 
 def diagnose(root: Path, output_root: Path) -> Path:
+    build_provenance = active_build_provenance(command_id="tcw.diagnose")
     subject = load_subject(root)
     findings = make_finding_set(subject)
     validate_finding_set(findings)
@@ -745,26 +744,41 @@ def diagnose(root: Path, output_root: Path) -> Path:
             _artifact(staging / "findings.json", staging, "diagnostic-findings", "application/json"),
             _artifact(staging / "report.md", staging, "diagnostic-report", "text/markdown"),
         ]
-        runtime = active_locked_runtime()
         manifest = {
-            "schema_version": "tcw.diagnosis-manifest/v0.3",
-            "milestone": "v0.3",
+            "schema_version": "tcw.diagnosis-manifest/v0.5",
             "run_id": run_id,
             "diagnosis_id": findings["diagnosis_id"],
             "created_at": now.isoformat().replace("+00:00", "Z"),
             "status": "FINDINGS" if findings["summary"]["total"] else "NO_FINDINGS",
             "source": subject["source"],
-            "subject": findings["subject"],
-            "subject_manifest_size": len(subject["manifest_bytes"]),
-            "subject_manifest_sha256": _hash(subject["manifest_bytes"]),
-            "runtime": runtime,
+            "subject": _manifest_subject_descriptor(subject),
             "ruleset": {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH},
             "summary": findings["summary"],
             "artifacts": artifacts,
+            "build_provenance": build_provenance,
         }
         (staging / "diagnosis-manifest.json").write_bytes(canonical_json(manifest))
-        _validate("finding-set-v0.3.schema.json", findings)
-        _validate("diagnosis-manifest-v0.3.schema.json", manifest)
+        _validate("tcw.finding-set/v0.5", findings)
+        _validate("tcw.diagnosis-manifest/v0.5", manifest)
+        staged_files, staged_directories, staged_issues = _inventory(staging)
+        if (
+            staged_issues
+            or staged_directories
+            or staged_files
+            != {
+                "diagnosis-manifest.json",
+                "findings.json",
+                "report.md",
+            }
+        ):
+            raise IntegrityError("staged diagnosis inventory is invalid")
+        if (
+            (staging / "findings.json").read_bytes() != findings_bytes
+            or (staging / "report.md").read_bytes() != report_bytes
+            or (staging / "diagnosis-manifest.json").read_bytes()
+            != canonical_json(manifest)
+        ):
+            raise IntegrityError("staged diagnosis bytes changed")
         if snapshot_tree(root) != subject["before"]:
             raise IntegrityError("diagnosis subject changed during diagnosis")
         return _publish_directory(staging, destination)
@@ -781,10 +795,18 @@ def _load_diagnosis(root: Path) -> tuple[tuple[Any, ...], dict[str, Any], dict[s
         root / "diagnosis-manifest.json", "diagnosis manifest"
     )
     _, findings = _load_json_regular(root / "findings.json", "finding set")
-    if manifest.get("schema_version") != "tcw.diagnosis-manifest/v0.3":
-        raise InputError("refinement requires a v0.3 diagnosis")
-    _validate("diagnosis-manifest-v0.3.schema.json", manifest)
-    _validate("finding-set-v0.3.schema.json", findings)
+    if manifest.get("schema_version") != "tcw.diagnosis-manifest/v0.5":
+        raise InputError("refinement requires a v0.5 diagnosis")
+    _validate("tcw.diagnosis-manifest/v0.5", manifest)
+    _validate("tcw.finding-set/v0.5", findings)
+    try:
+        validate_recorded_provenance(
+            manifest["build_provenance"], command_id="tcw.diagnose"
+        )
+    except ValueError as error:
+        if str(error) == RECORDED_PROVENANCE_ERROR:
+            raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
+        raise IntegrityError("diagnosis build provenance is malformed") from error
     if verify_diagnosis(root)["artifact_integrity"]["status"] != "VERIFIED":
         raise InputError("diagnosis integrity is not verified")
     return before, manifest, findings
@@ -828,7 +850,7 @@ def _proposal(
         raise InputError("finding is absent from the diagnosis")
     refiner = REFINERS.get(finding["rule_id"])
     if refiner is None:
-        raise InputError("finding has no v0.3 refiner")
+        raise InputError("finding has no v0.5 refiner")
     edits = []
     if finding["rule_id"] in {"TCW-D009", "TCW-D010"}:
         target = _target(
@@ -925,12 +947,17 @@ def draft_refinement(
     diagnosis_before = snapshot_tree(diagnosis_root)
     base_before = snapshot_tree(base_root)
     proposal, _ = _proposal(diagnosis_root, finding_id, base_root)
+    build_provenance = active_build_provenance(
+        command_id="tcw.draft-refinement"
+    )
+    proposal["draft_id"] = _draft_identity(proposal, build_provenance)
     draft = {
-        "schema_version": "tcw.refinement-draft/v0.3",
+        "schema_version": "tcw.refinement-draft/v0.5",
         "proposal": proposal,
         "decision": {"state": "PENDING", "decided_by": None, "note": None},
+        "build_provenance": build_provenance,
     }
-    _validate("refinement-draft-v0.3.schema.json", draft)
+    _validate("tcw.refinement-draft/v0.5", draft)
     _ensure_outside([diagnosis_root, base_root], output)
     if snapshot_tree(diagnosis_root) != diagnosis_before or snapshot_tree(base_root) != base_before:
         raise IntegrityError("refinement input changed during drafting")
@@ -1026,8 +1053,12 @@ def _apply_edits(payload: dict[str, Any], edits: list[dict[str, Any]]) -> dict[s
     return value
 
 
-def _draft_identity(proposal: dict[str, Any]) -> str:
+def _draft_identity(
+    proposal: dict[str, Any],
+    build_provenance: dict[str, Any],
+) -> str:
     identity = {key: value for key, value in proposal.items() if key != "draft_id"}
+    identity["build_provenance"] = build_provenance
     return _hash(canonical_json(identity).rstrip(b"\n"))
 
 
@@ -1131,7 +1162,17 @@ def resolve_refinement(
     diagnosis_before = snapshot_tree(diagnosis_root)
     base_before = snapshot_tree(base_root)
     _, draft = _load_json_regular(decision_file, "decision file")
-    _validate("refinement-draft-v0.3.schema.json", draft)
+    if draft.get("schema_version") != "tcw.refinement-draft/v0.5":
+        raise InputError("resolution requires a v0.5 refinement draft")
+    _validate("tcw.refinement-draft/v0.5", draft)
+    try:
+        validate_recorded_provenance(
+            draft["build_provenance"], command_id="tcw.draft-refinement"
+        )
+    except ValueError as error:
+        if str(error) == RECORDED_PROVENANCE_ERROR:
+            raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
+        raise IntegrityError("draft build provenance is malformed") from error
     state = draft["decision"]["state"]
     if state not in {"APPROVED", "REJECTED"}:
         raise InputError("decision must be APPROVED or REJECTED")
@@ -1139,6 +1180,9 @@ def resolve_refinement(
         raise InputError("decided_by is required for a resolved decision")
     expected, base = _proposal(
         diagnosis_root, draft["proposal"]["finding"]["finding_id"], base_root
+    )
+    expected["draft_id"] = _draft_identity(
+        expected, draft["build_provenance"]
     )
     if draft["proposal"] != expected:
         raise IntegrityError("draft proposal was modified or is stale")
@@ -1152,6 +1196,12 @@ def resolve_refinement(
     destination = publication_parent / run_id
     staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=destination.parent))
     try:
+        diagnosis_manifest_bytes, diagnosis_manifest = _load_json_regular(
+            diagnosis_root / "diagnosis-manifest.json", "diagnosis manifest"
+        )
+        findings_bytes, _ = _load_json_regular(
+            diagnosis_root / "findings.json", "finding set"
+        )
         finalized = copy.deepcopy(draft)
         (staging / "decision.json").write_bytes(canonical_json(finalized))
         artifacts = []
@@ -1183,6 +1233,7 @@ def resolve_refinement(
                 _hash(document_bytes),
             )
             transformation = {
+                "schema_version": "tcw.transformation/v0.5",
                 "transformation_id": _transformation_identity(
                     revision_id, expected["draft_id"], expected["refiner"]
                 ),
@@ -1203,21 +1254,30 @@ def resolve_refinement(
                 "prepared_document_sha256": _hash(document_bytes),
             }
             history = {
-                "schema_version": "tcw.transformation-history/v0.3",
+                "schema_version": "tcw.transformation-history/v0.5",
                 "origin_observation_id": base["origin_observation_id"],
                 "revision_id": revision_id,
-                "transformations": [*base["history"], transformation],
+                "transformations": [
+                    *base["history"],
+                    {
+                        key: value
+                        for key, value in transformation.items()
+                        if key != "schema_version"
+                    },
+                ],
             }
             (staging / "prepared").mkdir()
             (staging / "prepared/document.json").write_bytes(document_bytes)
             (staging / "prepared/document.md").write_bytes(markdown_bytes)
             (staging / "transformation.json").write_bytes(canonical_json(transformation))
             (staging / "history.json").write_bytes(canonical_json(history))
-            _validate("transformation-history-v0.3.schema.json", history)
-        runtime = active_locked_runtime()
+            _validate("tcw.transformation/v0.5", transformation)
+            _validate("tcw.transformation-history/v0.5", history)
+        base_kind = (
+            "OBSERVATION" if base["kind"] == "OBSERVATION" else "REFINEMENT"
+        )
         manifest = {
-            "schema_version": "tcw.refinement-manifest/v0.3",
-            "milestone": "v0.3",
+            "schema_version": "tcw.refinement-manifest/v0.5",
             "run_id": run_id,
             "created_at": now.isoformat().replace("+00:00", "Z"),
             "status": "APPLIED" if state == "APPROVED" else "REJECTED",
@@ -1226,16 +1286,38 @@ def resolve_refinement(
             "origin_observation_run_id": base["origin_observation_run_id"],
             "source": base["source"],
             "base": {
-                "kind": base["kind"],
-                "subject_id": base["subject_id"],
-                "canonical_document_path": base["document_path"],
-                "canonical_document_size": len(base["document_bytes"]),
+                "kind": base_kind,
+                "identity_type": (
+                    "observation_id"
+                    if base_kind == "OBSERVATION"
+                    else "revision_id"
+                ),
+                "identity_value": base["subject_id"],
+                "run_id": base["manifest"]["run_id"],
+                "base_manifest_sha256": _hash(base["manifest_bytes"]),
                 "canonical_document_sha256": _hash(base["document_bytes"]),
             },
-            "diagnosis_id": expected["diagnosis_id"],
             "draft_id": expected["draft_id"],
-            "runtime": runtime,
             "artifacts": [],
+            "diagnosis": {
+                "diagnosis_id": expected["diagnosis_id"],
+                "run_id": diagnosis_manifest["run_id"],
+                "diagnosis_manifest_sha256": _hash(diagnosis_manifest_bytes),
+                "findings_artifact_sha256": _hash(findings_bytes),
+            },
+            "parent": (
+                {
+                    "revision_id": base["subject_id"],
+                    "run_id": base["manifest"]["run_id"],
+                    "refinement_manifest_sha256": _hash(base["manifest_bytes"]),
+                    "prepared_document_sha256": _hash(base["document_bytes"]),
+                }
+                if state == "APPROVED" and base_kind == "REFINEMENT"
+                else None
+            ),
+            "build_provenance": active_build_provenance(
+                command_id="tcw.resolve-refinement"
+            ),
         }
         (staging / "report.md").write_bytes(_render_refinement(manifest, finalized))
         for relative, (role, media_type) in REFINEMENT_ARTIFACTS.items():
@@ -1244,7 +1326,7 @@ def resolve_refinement(
                 artifacts.append(_artifact(path, staging, role, media_type))
         manifest["artifacts"] = artifacts
         (staging / "refinement-manifest.json").write_bytes(canonical_json(manifest))
-        _validate("refinement-manifest-v0.3.schema.json", manifest)
+        _validate("tcw.refinement-manifest/v0.5", manifest)
         if snapshot_tree(diagnosis_root) != diagnosis_before or snapshot_tree(base_root) != base_before or _file_identity(decision_file) != decision_before:
             raise IntegrityError("refinement input changed during resolution")
         return _publish_directory(staging, destination)
@@ -1284,13 +1366,20 @@ def _validate_refinement_semantics(
     status = manifest["status"]
     proposal = decision["proposal"]
     decision_value = decision["decision"]
-    if proposal["draft_id"] != _draft_identity(proposal):
+    if proposal["draft_id"] != _draft_identity(
+        proposal, decision["build_provenance"]
+    ):
         raise IntegrityError("draft identity is inconsistent")
     if (
         manifest["draft_id"] != proposal["draft_id"]
-        or manifest["diagnosis_id"] != proposal["diagnosis_id"]
-        or manifest["base"]["kind"] != proposal["base"]["kind"]
-        or manifest["base"]["subject_id"] != proposal["base"]["subject_id"]
+        or manifest["diagnosis"]["diagnosis_id"] != proposal["diagnosis_id"]
+        or manifest["base"]["kind"]
+        != (
+            "OBSERVATION"
+            if proposal["base"]["kind"] == "OBSERVATION"
+            else "REFINEMENT"
+        )
+        or manifest["base"]["identity_value"] != proposal["base"]["subject_id"]
         or manifest["base"]["canonical_document_sha256"]
         != proposal["base"]["canonical_document_sha256"]
         or manifest["origin_observation_id"]
@@ -1332,19 +1421,42 @@ def _validate_refinement_semantics(
         or history is None
     ):
         raise IntegrityError("applied refinement contract differs")
-    _validate("transformation-history-v0.3.schema.json", history)
+    if manifest["base"]["kind"] == "REFINEMENT":
+        parent = manifest["parent"]
+        if (
+            parent is None
+            or parent["revision_id"] != manifest["base"]["identity_value"]
+            or parent["run_id"] != manifest["base"]["run_id"]
+            or parent["refinement_manifest_sha256"]
+            != manifest["base"]["base_manifest_sha256"]
+            or parent["prepared_document_sha256"]
+            != manifest["base"]["canonical_document_sha256"]
+        ):
+            raise IntegrityError(
+                "refinement parent and base references differ"
+            )
+    elif manifest["parent"] is not None:
+        raise IntegrityError("observation-based refinement has a parent")
+    _validate("tcw.transformation/v0.5", transformation)
+    _validate("tcw.transformation-history/v0.5", history)
     if (root / "transformation.json").read_bytes() != canonical_json(transformation):
         raise IntegrityError("transformation is not canonical")
     if (root / "history.json").read_bytes() != canonical_json(history):
         raise IntegrityError("history is not canonical")
-    if not history["transformations"] or history["transformations"][-1] != transformation:
+    transformation_history_value = {
+        key: value for key, value in transformation.items() if key != "schema_version"
+    }
+    if (
+        not history["transformations"]
+        or history["transformations"][-1] != transformation_history_value
+    ):
         raise IntegrityError("transformation is not the history tail")
     if (
         history["origin_observation_id"] != manifest["origin_observation_id"]
         or history["revision_id"] != manifest["revision_id"]
         or transformation["revision_id"] != manifest["revision_id"]
-        or transformation["parent"]["kind"] != manifest["base"]["kind"]
-        or transformation["parent"]["subject_id"] != manifest["base"]["subject_id"]
+        or transformation["parent"]["kind"] != proposal["base"]["kind"]
+        or transformation["parent"]["subject_id"] != manifest["base"]["identity_value"]
         or transformation["parent"]["canonical_document_sha256"]
         != manifest["base"]["canonical_document_sha256"]
         or transformation["finding_id"] != proposal["finding"]["finding_id"]
@@ -1398,7 +1510,7 @@ def _validate_refinement_semantics(
         raise IntegrityError("prepared document is not canonical")
     prepared_sha256 = _hash(prepared_bytes)
     expected_revision_id = _revision_identity(
-        manifest["base"]["subject_id"],
+        manifest["base"]["identity_value"],
         manifest["base"]["canonical_document_sha256"],
         manifest["draft_id"],
         prepared_sha256,
@@ -1411,7 +1523,9 @@ def _validate_refinement_semantics(
 
 
 def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, Any]:
-    active_locked_runtime()
+    build_provenance = active_build_provenance(
+        command_id="tcw.verify-diagnosis"
+    )
     files, directories, issues = _inventory(root)
     expected = {"diagnosis-manifest.json", "findings.json", "report.md"}
     for path in sorted(expected - files):
@@ -1426,11 +1540,19 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
             root / "diagnosis-manifest.json", "manifest"
         )
         _, findings = _load_json_regular(root / "findings.json", "findings")
-        _validate("diagnosis-manifest-v0.3.schema.json", manifest)
-        _validate("finding-set-v0.3.schema.json", findings)
+        if manifest.get("schema_version") != "tcw.diagnosis-manifest/v0.5":
+            raise InputError("verification requires a v0.5 diagnosis")
+        _validate("tcw.diagnosis-manifest/v0.5", manifest)
+        _validate("tcw.finding-set/v0.5", findings)
+        try:
+            validate_recorded_provenance(
+                manifest["build_provenance"], command_id="tcw.diagnose"
+            )
+        except ValueError as error:
+            if str(error) == RECORDED_PROVENANCE_ERROR:
+                raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
+            raise IntegrityError("diagnosis build provenance is malformed") from error
         validate_finding_set(findings)
-        if not is_v03_compatible_runtime(manifest["runtime"]):
-            raise IntegrityError("diagnosis runtime provenance differs")
         expected_diagnosis_id = _diagnosis_identity(
             findings["subject"], findings["ruleset"]
         )
@@ -1439,7 +1561,16 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
         if findings["diagnosis_id"] != expected_diagnosis_id:
             raise IntegrityError("diagnosis identity is inconsistent")
         if (
-            manifest["subject"] != findings["subject"]
+            manifest["subject"]["identity_value"]
+            != findings["subject"]["subject_id"]
+            or manifest["subject"]["canonical_document_sha256"]
+            != findings["subject"]["canonical_document_sha256"]
+            or manifest["subject"]["kind"]
+            != (
+                "OBSERVATION"
+                if findings["subject"]["kind"] == "OBSERVATION"
+                else "REFINEMENT"
+            )
             or manifest["summary"] != findings["summary"]
             or manifest["ruleset"] != {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH}
             or manifest["status"]
@@ -1468,6 +1599,8 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
             path = root / descriptor["path"]
             if path.stat().st_size != descriptor["size"] or sha256_file(path) != descriptor["sha256"]:
                 issues.append({"code": "HASH_MISMATCH", "path": descriptor["path"], "message": "descriptor differs"})
+    except RuntimeContractError:
+        raise
     except (InputError, IntegrityError, OSError, KeyError, TypeError):
         issues.append({"code": "MANIFEST_INVALID", "path": "diagnosis-manifest.json", "message": "diagnosis contract is invalid"})
     subject_state = {"status": "NOT_CHECKED"}
@@ -1484,12 +1617,8 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
                     else "refinement-manifest.json"
                 )
                 matches = (
-                    _subject_descriptor(subject) == manifest["subject"]
+                    _manifest_subject_descriptor(subject) == manifest["subject"]
                     and subject["manifest_path"] == canonical_manifest_path
-                    and len(subject["manifest_bytes"])
-                    == manifest["subject_manifest_size"]
-                    and _hash(subject["manifest_bytes"])
-                    == manifest["subject_manifest_sha256"]
                     and subject["source"] == manifest["source"]
                 )
                 subject_state = {"status": "MATCH" if matches else "CHANGED"}
@@ -1502,13 +1631,14 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
                 subject_state = {"status": "ERROR"}
     status = "VERIFIED" if not issues else ("BROKEN" if any(item["code"] == "MANIFEST_INVALID" for item in issues) else "INTEGRITY_MISMATCH")
     result = {
-        "schema_version": "tcw.diagnosis-verification-result/v0.3",
+        "schema_version": "tcw.diagnosis-verification-result/v0.5",
         "diagnosis_directory": str(root.resolve()),
         "artifact_integrity": {"status": status, "issues": issues},
         "subject_state": subject_state,
         "derivation_state": derivation_state,
+        "build_provenance": build_provenance,
     }
-    _validate("diagnosis-verification-result-v0.3.schema.json", result)
+    _validate("tcw.diagnosis-verification-result/v0.5", result)
     return result
 
 
@@ -1517,10 +1647,22 @@ def verify_diagnosis_command(root: Path, subject_root: Path | None) -> int:
         print("DIAGNOSIS_DIRECTORY must be one local non-symlink directory", file=sys.stderr)
         return 2
     try:
+        _, candidate = _load_json_regular(
+            root / "diagnosis-manifest.json", "diagnosis manifest"
+        )
+        if candidate.get("schema_version") != "tcw.diagnosis-manifest/v0.5":
+            print("verification requires a v0.5 diagnosis", file=sys.stderr)
+            return 2
         report = verify_diagnosis(root, subject_root)
+    except InputError as error:
+        print(sanitize_message(error), file=sys.stderr)
+        return 2
     except RuntimeContractError as error:
         print(sanitize_message(error), file=sys.stderr)
         return 6
+    except IntegrityError as error:
+        print(sanitize_message(error), file=sys.stderr)
+        return 5
     except Exception as error:
         print(f"internal diagnosis verifier failure: {sanitize_message(error)}", file=sys.stderr)
         return 1
@@ -1533,16 +1675,31 @@ def verify_refinement(
     diagnosis_root: Path | None = None,
     base_root: Path | None = None,
 ) -> dict[str, Any]:
-    active_locked_runtime()
+    build_provenance = active_build_provenance(
+        command_id="tcw.verify-refinement"
+    )
     files, directories, issues = _inventory(root)
     manifest = decision = transformation = history = None
     try:
         _, manifest = _load_json_regular(root / "refinement-manifest.json", "manifest")
         _, decision = _load_json_regular(root / "decision.json", "decision")
-        _validate("refinement-manifest-v0.3.schema.json", manifest)
-        _validate("refinement-draft-v0.3.schema.json", decision)
-        if not is_v03_compatible_runtime(manifest["runtime"]):
-            raise IntegrityError("refinement runtime provenance differs")
+        if manifest.get("schema_version") != "tcw.refinement-manifest/v0.5":
+            raise InputError("verification requires a v0.5 refinement")
+        _validate("tcw.refinement-manifest/v0.5", manifest)
+        _validate("tcw.refinement-draft/v0.5", decision)
+        try:
+            validate_recorded_provenance(
+                manifest["build_provenance"],
+                command_id="tcw.resolve-refinement",
+            )
+            validate_recorded_provenance(
+                decision["build_provenance"],
+                command_id="tcw.draft-refinement",
+            )
+        except ValueError as error:
+            if str(error) == RECORDED_PROVENANCE_ERROR:
+                raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
+            raise IntegrityError("refinement build provenance is malformed") from error
         if manifest["status"] == "APPLIED":
             _, transformation = _load_json_regular(
                 root / "transformation.json", "transformation"
@@ -1568,56 +1725,143 @@ def verify_refinement(
         _validate_refinement_semantics(
             root, manifest, decision, transformation, history
         )
+    except RuntimeContractError:
+        raise
     except (InputError, IntegrityError, OSError, KeyError, TypeError):
         issues.append({"code": "MANIFEST_INVALID", "path": "refinement-manifest.json", "message": "refinement contract is invalid"})
     diagnosis_state = {"status": "NOT_CHECKED"}
     base_state = {"status": "NOT_CHECKED"}
     derivation = {"status": "NOT_APPLICABLE" if manifest and manifest.get("status") == "REJECTED" else "NOT_CHECKED"}
     reversibility = dict(derivation)
+    diagnosis_matches = False
     if diagnosis_root is not None and manifest is not None:
-        try:
-            _, diagnosis_manifest = _load_json_regular(diagnosis_root / "diagnosis-manifest.json", "diagnosis")
-            diagnosis_report = verify_diagnosis(diagnosis_root)
-            matches = (
-                diagnosis_report["artifact_integrity"]["status"] == "VERIFIED"
-                and diagnosis_manifest["diagnosis_id"] == manifest["diagnosis_id"]
-            )
-            diagnosis_state = {"status": "MATCH" if matches else "CHANGED"}
-        except Exception:
-            diagnosis_state = {"status": "MISSING" if not diagnosis_root.exists() else "ERROR"}
+        if not diagnosis_root.exists():
+            diagnosis_state = {"status": "MISSING"}
+        else:
+            try:
+                _, diagnosis_manifest = _load_json_regular(
+                    diagnosis_root / "diagnosis-manifest.json",
+                    "diagnosis",
+                )
+                _, finding_set = _load_json_regular(
+                    diagnosis_root / "findings.json",
+                    "finding set",
+                )
+                diagnosis_report = verify_diagnosis(diagnosis_root)
+                if (
+                    diagnosis_report["artifact_integrity"]["status"]
+                    != "VERIFIED"
+                ):
+                    raise IntegrityError(
+                        "supplied diagnosis integrity is not verified"
+                    )
+                proposal_finding = decision["proposal"]["finding"]
+                exact_findings = [
+                    finding
+                    for finding in finding_set["findings"]
+                    if finding["finding_id"] == proposal_finding["finding_id"]
+                    and finding == proposal_finding
+                ]
+                diagnosis_matches = (
+                    diagnosis_manifest["diagnosis_id"]
+                    == manifest["diagnosis"]["diagnosis_id"]
+                    == decision["proposal"]["diagnosis_id"]
+                    and diagnosis_manifest["run_id"]
+                    == manifest["diagnosis"]["run_id"]
+                    and _hash(
+                        (
+                            diagnosis_root / "diagnosis-manifest.json"
+                        ).read_bytes()
+                    )
+                    == manifest["diagnosis"]["diagnosis_manifest_sha256"]
+                    and _hash((diagnosis_root / "findings.json").read_bytes())
+                    == manifest["diagnosis"]["findings_artifact_sha256"]
+                    and finding_set["diagnosis_id"]
+                    == decision["proposal"]["diagnosis_id"]
+                    and len(exact_findings) == 1
+                )
+                diagnosis_state = {
+                    "status": "MATCH" if diagnosis_matches else "CHANGED"
+                }
+            except RuntimeContractError:
+                raise
+            except IntegrityError:
+                raise
+            except Exception as error:
+                raise IntegrityError(
+                    "supplied diagnosis is malformed or unavailable"
+                ) from error
+    base_matches = False
+    base = None
     if base_root is not None and manifest is not None:
-        try:
-            base = load_subject(base_root)
-            matches = (
-                manifest["base"]
-                == {
-                    "kind": base["kind"],
-                    "subject_id": base["subject_id"],
-                    "canonical_document_path": base["document_path"],
-                    "canonical_document_size": len(base["document_bytes"]),
+        if not base_root.exists():
+            base_state = {"status": "MISSING"}
+        else:
+            try:
+                base = load_subject(base_root)
+                expected_base = {
+                    "kind": (
+                        "OBSERVATION"
+                        if base["kind"] == "OBSERVATION"
+                        else "REFINEMENT"
+                    ),
+                    "identity_type": (
+                        "observation_id"
+                        if base["kind"] == "OBSERVATION"
+                        else "revision_id"
+                    ),
+                    "identity_value": base["subject_id"],
+                    "run_id": base["manifest"]["run_id"],
+                    "base_manifest_sha256": _hash(base["manifest_bytes"]),
                     "canonical_document_sha256": _hash(base["document_bytes"]),
                 }
-                and manifest["origin_observation_id"]
-                == base["origin_observation_id"]
-                and manifest["origin_observation_run_id"]
-                == base["origin_observation_run_id"]
-                and manifest["source"] == base["source"]
-            )
-            if (
-                matches
-                and manifest["status"] == "APPLIED"
-                and history is not None
-                and base["history"] != history["transformations"][:-1]
-            ):
-                matches = False
-            base_state = {"status": "MATCH" if matches else "CHANGED"}
-        except RuntimeContractError:
-            raise
-        except Exception:
-            base_state = {"status": "ERROR"}
-            base = None
-            matches = False
-        if matches and manifest["status"] == "APPLIED" and transformation is not None:
+                expected_parent = (
+                    {
+                        "revision_id": base["subject_id"],
+                        "run_id": base["manifest"]["run_id"],
+                        "refinement_manifest_sha256": _hash(
+                            base["manifest_bytes"]
+                        ),
+                        "prepared_document_sha256": _hash(
+                            base["document_bytes"]
+                        ),
+                    }
+                    if base["kind"] == "REVISION"
+                    and manifest["status"] == "APPLIED"
+                    else None
+                )
+                base_matches = (
+                    manifest["base"] == expected_base
+                    and manifest["parent"] == expected_parent
+                    and manifest["origin_observation_id"]
+                    == base["origin_observation_id"]
+                    and manifest["origin_observation_run_id"]
+                    == base["origin_observation_run_id"]
+                    and manifest["source"] == base["source"]
+                )
+                if (
+                    base_matches
+                    and manifest["status"] == "APPLIED"
+                    and history is not None
+                    and base["history"] != history["transformations"][:-1]
+                ):
+                    base_matches = False
+                base_state = {
+                    "status": "MATCH" if base_matches else "CHANGED"
+                }
+            except RuntimeContractError:
+                raise
+            except Exception as error:
+                raise IntegrityError(
+                    "supplied base is malformed or unavailable"
+                ) from error
+        if (
+            diagnosis_matches
+            and base_matches
+            and manifest["status"] == "APPLIED"
+            and transformation is not None
+            and base is not None
+        ):
             try:
                 forward = _apply_edits(base["payload"], transformation["forward_edits"])
                 forward_bytes, _ = _prepared_bytes(forward)
@@ -1656,15 +1900,16 @@ def verify_refinement(
                 reversibility = {"status": "ERROR"}
     status = "VERIFIED" if not issues else ("BROKEN" if any(item["code"] == "MANIFEST_INVALID" for item in issues) else "INTEGRITY_MISMATCH")
     result = {
-        "schema_version": "tcw.refinement-verification-result/v0.3",
+        "schema_version": "tcw.refinement-verification-result/v0.5",
         "refinement_directory": str(root.resolve()),
         "artifact_integrity": {"status": status, "issues": issues},
         "diagnosis_state": diagnosis_state,
         "base_state": base_state,
         "derivation_state": derivation,
         "reversibility_state": reversibility,
+        "build_provenance": build_provenance,
     }
-    _validate("refinement-verification-result-v0.3.schema.json", result)
+    _validate("tcw.refinement-verification-result/v0.5", result)
     return result
 
 
@@ -1675,10 +1920,22 @@ def verify_refinement_command(
         print("REFINEMENT_DIRECTORY must be one local non-symlink directory", file=sys.stderr)
         return 2
     try:
+        _, candidate = _load_json_regular(
+            root / "refinement-manifest.json", "refinement manifest"
+        )
+        if candidate.get("schema_version") != "tcw.refinement-manifest/v0.5":
+            print("verification requires a v0.5 refinement", file=sys.stderr)
+            return 2
         report = verify_refinement(root, diagnosis_root, base_root)
+    except InputError as error:
+        print(sanitize_message(error), file=sys.stderr)
+        return 2
     except RuntimeContractError as error:
         print(sanitize_message(error), file=sys.stderr)
         return 6
+    except IntegrityError as error:
+        print(sanitize_message(error), file=sys.stderr)
+        return 5
     except Exception as error:
         print(f"internal refinement verifier failure: {sanitize_message(error)}", file=sys.stderr)
         return 1

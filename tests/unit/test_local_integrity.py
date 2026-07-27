@@ -129,10 +129,18 @@ class LocalIntegrityTests(unittest.TestCase):
             self.assertGreaterEqual(calls, 2)
 
     def test_broken_import_or_adapter_api_fails_before_capture(self) -> None:
+        build_provenance = cli._active_build_provenance(
+            command_id="tcw.observe",
+            extracting=True,
+        )
         for failure in (ImportError("broken import"), RuntimeError("broken API")):
             with self.subTest(failure=type(failure).__name__), mock.patch.object(
                 SourceSnapshot, "capture", autospec=True
-            ) as capture:
+            ) as capture, mock.patch.object(
+                cli,
+                "_active_build_provenance",
+                return_value=build_provenance,
+            ):
                 if isinstance(failure, ImportError):
                     patcher = mock.patch(
                         "tiny_corpus_workbench.cli.importlib.import_module",
@@ -170,11 +178,11 @@ class LocalIntegrityTests(unittest.TestCase):
     def test_non_cpython_or_non_312_runtime_fails_before_capture(self) -> None:
         cases = (
             mock.patch(
-                "tiny_corpus_workbench.cli.platform.python_implementation",
+                "tiny_corpus_workbench.runtime.platform.python_implementation",
                 return_value="PyPy",
             ),
             mock.patch(
-                "tiny_corpus_workbench.cli.sys.version_info", (3, 13, 0)
+                "tiny_corpus_workbench.runtime.sys.version_info", (3, 13, 0)
             ),
         )
         for index, runtime_patch in enumerate(cases):
@@ -186,7 +194,10 @@ class LocalIntegrityTests(unittest.TestCase):
                 )
                 self.assertEqual(code, 6)
                 self.assertEqual(stdout, "")
-                self.assertIn("CPython 3.12", stderr)
+                self.assertEqual(
+                    stderr,
+                    "active runtime does not match this package provenance registry\n",
+                )
                 capture.assert_not_called()
 
     def test_pdf_model_changes_between_inventories_fail(self) -> None:

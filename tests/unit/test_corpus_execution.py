@@ -15,6 +15,7 @@ from tiny_corpus_workbench.corpus import (
     load_corpus_spec,
 )
 from tiny_corpus_workbench.corpus_execution import (
+    _expected_member_error_code,
     execute_corpus,
     recheck_corpus_inputs,
 )
@@ -80,7 +81,7 @@ def _write_spec(root: Path, members: list[dict[str, object]]) -> Path:
     path.write_text(
         json.dumps(
             {
-                "schema_version": "tcw.corpus-spec/v0.4",
+                "schema_version": "tcw.corpus-spec/v0.5",
                 "corpus_id": "unit-corpus",
                 "title": "Unit corpus",
                 "members": members,
@@ -300,6 +301,7 @@ def _admitted_with_revisions(admitted: AdmittedCorpusSpec) -> AdmittedCorpusSpec
             "affected_refs": ["#/texts/0"],
             "affected_reference_count": 1,
             "prepared_document_sha256": HASH_B,
+            "refinement_manifest_sha256": HASH_C,
             "bundle_paths": {
                 "refinement": "refinement",
                 "diagnosis": "diagnosis",
@@ -322,6 +324,214 @@ def _admitted_with_revisions(admitted: AdmittedCorpusSpec) -> AdmittedCorpusSpec
 
 
 class CorpusExecutionTests(unittest.TestCase):
+    def test_member_error_codes_cover_every_stage_status_tuple(self) -> None:
+        descriptor = {"path": "nested/manifest.json"}
+
+        def observation(
+            status: str,
+            *,
+            published: bool,
+            docling: bool,
+            markitdown: bool,
+        ) -> tuple[dict[str, object], dict[str, object] | None]:
+            stage = {
+                "status": status,
+                "observation_id": HASH_A if published else None,
+                "run_id": "observation-run" if published else None,
+                "manifest": descriptor if published else None,
+                "canonical_document_sha256": HASH_B if docling else None,
+            }
+            evidence = (
+                {
+                    "extractors": [
+                        {
+                            "name": "docling",
+                            "status": "SUCCESS" if docling else "FAILED",
+                            "error": (
+                                None
+                                if docling
+                                else {
+                                    "code": "DOCLING_CONVERSION_FAILED",
+                                    "message": "failed",
+                                }
+                            ),
+                        },
+                        {
+                            "name": "markitdown",
+                            "status": "SUCCESS" if markitdown else "FAILED",
+                            "error": (
+                                None
+                                if markitdown
+                                else {
+                                    "code": "MARKITDOWN_CONVERSION_FAILED",
+                                    "message": "failed",
+                                }
+                            ),
+                        },
+                    ]
+                }
+                if published
+                else None
+            )
+            return stage, evidence
+
+        diagnosis_complete = {
+            "status": "NO_FINDINGS",
+            "diagnosis_id": HASH_A,
+            "run_id": "diagnosis-run",
+            "manifest": descriptor,
+            "findings_sha256": HASH_B,
+        }
+        diagnosis_failed = {
+            "status": "FAILED",
+            "diagnosis_id": None,
+            "run_id": None,
+            "manifest": None,
+            "findings_sha256": None,
+        }
+        diagnosis_not_run = {
+            **diagnosis_failed,
+            "status": "NOT_RUN",
+        }
+        cases = (
+            (
+                "successful observation and completed diagnosis",
+                "COMPLETE",
+                observation(
+                    "SUCCESS", published=True, docling=True, markitdown=True
+                ),
+                diagnosis_complete,
+                True,
+                True,
+                True,
+                None,
+            ),
+            (
+                "partial observation and completed diagnosis",
+                "PARTIAL",
+                observation(
+                    "PARTIAL_SUCCESS",
+                    published=True,
+                    docling=True,
+                    markitdown=False,
+                ),
+                diagnosis_complete,
+                True,
+                False,
+                True,
+                "MARKITDOWN_CONVERSION_FAILED",
+            ),
+            (
+                "published failed observation",
+                "FAILED",
+                observation(
+                    "FAILED",
+                    published=True,
+                    docling=False,
+                    markitdown=False,
+                ),
+                diagnosis_not_run,
+                False,
+                False,
+                False,
+                "DOCLING_CONVERSION_FAILED",
+            ),
+            (
+                "pre-publication failed observation",
+                "FAILED",
+                observation(
+                    "FAILED",
+                    published=False,
+                    docling=False,
+                    markitdown=False,
+                ),
+                diagnosis_not_run,
+                False,
+                False,
+                False,
+                "OBSERVATION_FAILED",
+            ),
+            (
+                "observation not run",
+                "FAILED",
+                observation(
+                    "NOT_RUN",
+                    published=False,
+                    docling=False,
+                    markitdown=False,
+                ),
+                diagnosis_not_run,
+                False,
+                False,
+                False,
+                "MEMBER_INCOMPLETE",
+            ),
+            (
+                "failed diagnosis",
+                "PARTIAL",
+                observation(
+                    "SUCCESS", published=True, docling=True, markitdown=True
+                ),
+                diagnosis_failed,
+                True,
+                True,
+                False,
+                "DIAGNOSIS_FAILED",
+            ),
+            (
+                "diagnosis not run after successful observation",
+                "PARTIAL",
+                observation(
+                    "SUCCESS", published=True, docling=True, markitdown=True
+                ),
+                diagnosis_not_run,
+                True,
+                True,
+                False,
+                "MEMBER_INCOMPLETE",
+            ),
+            (
+                "diagnosis not run because canonical extraction failed",
+                "PARTIAL",
+                observation(
+                    "PARTIAL_SUCCESS",
+                    published=True,
+                    docling=False,
+                    markitdown=True,
+                ),
+                diagnosis_not_run,
+                False,
+                True,
+                False,
+                "DOCLING_CONVERSION_FAILED",
+            ),
+        )
+        for (
+            name,
+            status,
+            (observation_stage, evidence),
+            diagnosis_stage,
+            docling_available,
+            markitdown_available,
+            completed,
+            expected,
+        ) in cases:
+            with self.subTest(name=name):
+                self.assertEqual(
+                    _expected_member_error_code(
+                        {
+                            "status": status,
+                            "observation": observation_stage,
+                            "diagnosis": diagnosis_stage,
+                        },
+                        evidence,
+                        docling_available=docling_available,
+                        markitdown_available=markitdown_available,
+                        diagnosis_complete=completed,
+                    ),
+                    expected,
+                )
+
     def _admit(self, root: Path, *, include_pdf: bool = False) -> AdmittedCorpusSpec:
         (root / "z.md").write_text("# Z\n", "utf-8")
         (root / "a.md").write_text("# A\n", "utf-8")

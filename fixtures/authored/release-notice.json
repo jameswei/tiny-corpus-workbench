@@ -1,5 +1,5 @@
 {
-  "schema_version": "tcw.authored-fixture/v0.1",
+  "schema_version": "tcw.authored-fixture/v0.5",
   "family": "release-notice",
   "document_id": "RN-2.4.0",
   "title": "Northstar 2.4.0 Release Notice",

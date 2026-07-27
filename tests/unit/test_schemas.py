@@ -10,7 +10,15 @@ from unittest import mock
 from jsonschema import Draft202012Validator, ValidationError
 
 from tiny_corpus_workbench.cli import observe
-from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
+from tiny_corpus_workbench.runtime import PROVENANCE_DEPENDENCIES
+from tiny_corpus_workbench.schema_catalog import (
+    COMMON_DEFINITIONS,
+    validator as schema_validator,
+)
+from tiny_corpus_workbench.supported_provenance import (
+    build_provenance,
+    load_registry,
+)
 
 
 SCHEMAS = Path("src/tiny_corpus_workbench/schemas")
@@ -79,22 +87,22 @@ class SchemaTests(unittest.TestCase):
                 Draft202012Validator.check_schema(json.loads(path.read_text("utf-8")))
 
     def test_fixture_registry_conforms_and_unknown_field_is_rejected(self) -> None:
-        schema = json.loads((SCHEMAS / "fixture-registry-v0.1.schema.json").read_text("utf-8"))
+        validator = schema_validator("tcw.fixture-registry/v0.5")
         registry = json.loads(Path("fixtures/golden/fixtures.json").read_text("utf-8"))
-        Draft202012Validator(schema).validate(registry)
+        validator.validate(registry)
         registry["unknown"] = True
         with self.assertRaises(ValidationError):
-            Draft202012Validator(schema).validate(registry)
+            validator.validate(registry)
 
     def test_fixture_registry_nested_objects_are_closed_and_required(self) -> None:
-        schema = json.loads(
-            (SCHEMAS / "fixture-registry-v0.1.schema.json").read_text("utf-8")
-        )
-        validator = Draft202012Validator(schema)
+        validator = schema_validator("tcw.fixture-registry/v0.5")
         registry = json.loads(Path("fixtures/golden/fixtures.json").read_text("utf-8"))
         validator.validate(registry)
         cases = (
             ((), "schema_version"),
+            (("build_provenance",), "provenance_id"),
+            (("build_provenance", "python"), "major_minor"),
+            (("build_provenance", "dependencies"), "jsonschema"),
             (("generator",), "name"),
             (("fixtures", 0), "id"),
             (("fixtures", 0, "authored_source"), "id"),
@@ -106,14 +114,18 @@ class SchemaTests(unittest.TestCase):
                 self.assert_closed_object_contract(validator, registry, path, required)
 
     def test_empty_manifest_and_comparison_are_rejected(self) -> None:
-        for name in ("preparation-manifest-v0.1.schema.json", "comparison-summary-v0.1.schema.json"):
-            schema = json.loads((SCHEMAS / name).read_text("utf-8"))
-            with self.subTest(schema=name), self.assertRaises(ValidationError):
-                Draft202012Validator(schema).validate({})
+        for schema_version in (
+            "tcw.preparation-manifest/v0.5",
+            "tcw.comparison-summary/v0.5",
+        ):
+            with self.subTest(schema=schema_version), self.assertRaises(
+                ValidationError
+            ):
+                schema_validator(schema_version).validate({})
 
-    def test_v03_table_coordinates_are_an_all_or_nothing_pair(self) -> None:
+    def test_table_coordinates_are_an_all_or_nothing_pair(self) -> None:
         draft_schema = json.loads(
-            (SCHEMAS / "refinement-draft-v0.3.schema.json").read_text("utf-8")
+            (SCHEMAS / "refinement-draft-v0.5.schema.json").read_text("utf-8")
         )
         target_validator = Draft202012Validator(draft_schema["$defs"]["target"])
         target_validator.validate(
@@ -130,24 +142,30 @@ class SchemaTests(unittest.TestCase):
                 target_validator.validate(incomplete)
 
         finding_schema = json.loads(
-            (SCHEMAS / "finding-set-v0.3.schema.json").read_text("utf-8")
+            (SCHEMAS / "finding-set-v0.5.schema.json").read_text("utf-8")
         )
-        evidence_schema = finding_schema["$defs"]["finding"]["properties"][
-            "evidence"
-        ]
+        d003 = next(
+            branch
+            for branch in finding_schema["$defs"]["finding"]["oneOf"]
+            if branch["properties"]["rule_id"].get("const") == "TCW-D003"
+        )
+        evidence_schema = d003["properties"]["evidence"]
         evidence_validator = Draft202012Validator(evidence_schema)
-        evidence_validator.validate({"row": 0, "column": 0})
-        for incomplete in ({"row": 0}, {"column": 0}):
+        base_evidence = {"code_point_offsets": [0], "occurrence_count": 1}
+        evidence_validator.validate(
+            {**base_evidence, "row": 0, "column": 0}
+        )
+        for incomplete in (
+            {**base_evidence, "row": 0},
+            {**base_evidence, "column": 0},
+        ):
             with self.subTest(evidence=incomplete), self.assertRaises(
                 ValidationError
             ):
                 evidence_validator.validate(incomplete)
 
     def test_manifest_requires_one_ordered_result_per_extractor(self) -> None:
-        schema = json.loads(
-            (SCHEMAS / "preparation-manifest-v0.1.schema.json").read_text("utf-8")
-        )
-        validator = Draft202012Validator(schema)
+        validator = schema_validator("tcw.preparation-manifest/v0.5")
         manifest, _ = real_observation_documents()
 
         self.assertEqual(
@@ -184,43 +202,66 @@ class SchemaTests(unittest.TestCase):
                     validator.validate(invalid)
 
     def test_manifest_dependency_schema_matches_runtime_contract(self) -> None:
-        schema = json.loads(
-            (SCHEMAS / "preparation-manifest-v0.1.schema.json").read_text("utf-8")
-        )
-        dependency_schema = schema["$defs"]["runtime"]["properties"][
-            "dependencies"
-        ]
+        dependency_schema = COMMON_DEFINITIONS["dependencies"]
         manifest, _ = real_observation_documents()
+        entry = load_registry()["entries"][0]
 
         self.assertFalse(dependency_schema["additionalProperties"])
         self.assertEqual(
-            dependency_schema["required"], list(RUNTIME_DEPENDENCIES)
+            dependency_schema["required"], list(PROVENANCE_DEPENDENCIES)
         )
         self.assertEqual(
-            {
-                name: contract["const"]
-                for name, contract in dependency_schema["properties"].items()
-            },
-            dict(RUNTIME_DEPENDENCIES),
+            set(dependency_schema["properties"]),
+            set(PROVENANCE_DEPENDENCIES),
         )
         self.assertEqual(
-            manifest["runtime"]["dependencies"], dict(RUNTIME_DEPENDENCIES)
+            manifest["build_provenance"]["dependencies"],
+            dict(PROVENANCE_DEPENDENCIES),
+        )
+        self.assertEqual(
+            manifest["build_provenance"]["dependencies"],
+            entry["dependencies"],
+        )
+        self.assertEqual(
+            manifest["build_provenance"],
+            build_provenance(
+                entry,
+                command_id="tcw.observe",
+                extracting=True,
+            ),
+        )
+        fixture_registry = json.loads(
+            Path("fixtures/golden/fixtures.json").read_text("utf-8")
+        )
+        self.assertEqual(
+            fixture_registry["build_provenance"],
+            build_provenance(
+                entry,
+                generator_id="tools.generate_fixtures",
+            ),
         )
 
     def test_manifest_nested_objects_are_closed_and_required(self) -> None:
-        schema = json.loads(
-            (SCHEMAS / "preparation-manifest-v0.1.schema.json").read_text("utf-8")
-        )
-        validator = Draft202012Validator(schema)
+        validator = schema_validator("tcw.preparation-manifest/v0.5")
         manifest, _ = real_observation_documents()
         validator.validate(manifest)
 
         cases = (
             (manifest, (), "schema_version"),
             (manifest, ("source",), "sha256"),
-            (manifest, ("runtime",), "python"),
-            (manifest, ("runtime", "lockfile"), "sha256"),
-            (manifest, ("runtime", "dependencies"), "docling"),
+            (manifest, ("build_provenance",), "provenance_id"),
+            (manifest, ("build_provenance", "python"), "major_minor"),
+            (manifest, ("build_provenance", "dependencies"), "jsonschema"),
+            (
+                manifest,
+                ("build_provenance", "extractor_contract"),
+                "docling",
+            ),
+            (
+                manifest,
+                ("build_provenance", "extractor_contract", "docling"),
+                "document_schema_version",
+            ),
             (manifest, ("configurations",), "docling"),
             (manifest, ("configurations", "docling"), "accelerator"),
             (manifest, ("configurations", "markitdown"), "convert_method"),
@@ -260,17 +301,16 @@ class SchemaTests(unittest.TestCase):
                 )
 
     def test_comparison_nested_objects_are_closed_and_required(self) -> None:
-        schema = json.loads(
-            (SCHEMAS / "comparison-summary-v0.1.schema.json").read_text("utf-8")
-        )
-        validator = Draft202012Validator(schema)
+        validator = schema_validator("tcw.comparison-summary/v0.5")
         _, comparison = real_observation_documents()
         validator.validate(comparison)
         cases = (
             ((), "schema_version"),
             (("source",), "sha256"),
+            (("anchors", 0), "name"),
             (("views",), "docling"),
             (("views", "docling"), "artifact_sha256"),
+            (("views", "docling", "anchors", 0), "present"),
             (("views", "markitdown"), "artifact_sha256"),
             (("deltas",), "normalized_equal"),
         )

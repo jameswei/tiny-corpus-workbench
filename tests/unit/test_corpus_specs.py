@@ -20,19 +20,41 @@ from tiny_corpus_workbench.domain import InputError, IntegrityError
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMAS = ROOT / "src/tiny_corpus_workbench/schemas"
-CORPUS_FIXTURES = ROOT / "fixtures/corpus/v0.4"
+CORPUS_FIXTURES = ROOT / "fixtures/corpus/v0.5"
 SCHEMA_NAMES = (
-    "corpus-spec-v0.4.schema.json",
-    "corpus-manifest-v0.4.schema.json",
-    "corpus-summary-v0.4.schema.json",
-    "corpus-verification-result-v0.4.schema.json",
+    "corpus-spec-v0.5.schema.json",
+    "corpus-manifest-v0.5.schema.json",
+    "corpus-summary-v0.5.schema.json",
+    "corpus-verification-result-v0.5.schema.json",
 )
 HASH = "a" * 64
 
 
+def _build_provenance(command_id: str, *, extracting: bool = False) -> dict:
+    entry = json.loads(
+        (ROOT / "src/tiny_corpus_workbench/supported-provenance-v0.5.json").read_text(
+            "utf-8"
+        )
+    )["entries"][0]
+    value = {
+        key: entry[key]
+        for key in (
+            "provenance_id",
+            "package_version",
+            "lockfile_sha256",
+            "python",
+            "dependencies",
+        )
+    }
+    value["command_id"] = command_id
+    if extracting:
+        value["extractor_contract"] = entry["extractor_contract"]
+    return value
+
+
 def _write_spec(root: Path, members: list[dict], **updates: object) -> Path:
     value: dict[str, object] = {
-        "schema_version": "tcw.corpus-spec/v0.4",
+        "schema_version": "tcw.corpus-spec/v0.5",
         "corpus_id": "test-corpus",
         "title": "Test corpus",
         "members": members,
@@ -100,8 +122,7 @@ def _valid_manifest() -> dict:
     }
     descriptor = {"path": "members/sample/manifest.json", "size": 10, "sha256": HASH}
     return {
-        "schema_version": "tcw.corpus-manifest/v0.4",
-        "milestone": "v0.4",
+        "schema_version": "tcw.corpus-manifest/v0.5",
         "corpus_id": "sample",
         "snapshot_id": HASH,
         "run_id": "run",
@@ -113,15 +134,6 @@ def _valid_manifest() -> dict:
             "normalized_sha256": HASH,
         },
         "runtime": {
-            "python": "3.12.11",
-            "implementation": "CPython",
-            "package_version": "0.4.0",
-            "lockfile_sha256": HASH,
-            "dependencies": {
-                "docling": "2.113.0",
-                "docling-core": "2.87.1",
-                "markitdown": "0.1.6",
-            },
             "ruleset_id": HASH,
             "configurations": {
                 "docling": {
@@ -160,12 +172,14 @@ def _valid_manifest() -> dict:
                     "observation_id": HASH,
                     "run_id": "observation-run",
                     "manifest": descriptor,
+                    "canonical_document_sha256": HASH,
                 },
                 "diagnosis": {
                     "status": "NO_FINDINGS",
                     "diagnosis_id": HASH,
                     "run_id": "diagnosis-run",
                     "manifest": descriptor,
+                    "findings_sha256": HASH,
                 },
                 "error": None,
             }
@@ -197,6 +211,7 @@ def _valid_manifest() -> dict:
                 },
                 "affected_reference_count": 1,
                 "prepared_document_sha256": HASH,
+                "refinement_manifest_sha256": HASH,
                 "bundle_paths": {
                     "refinement": "../../revision",
                     "diagnosis": "../../diagnosis",
@@ -225,6 +240,9 @@ def _valid_manifest() -> dict:
                 ("report/styles.css", "corpus-stylesheet", "text/css"),
             )
         ],
+        "build_provenance": _build_provenance(
+            "tcw.inspect-corpus", extracting=True
+        ),
     }
 
 
@@ -250,7 +268,7 @@ def _valid_summary() -> dict:
     deltas: dict[str, object] = _metrics(0)
     deltas["normalized_equal"] = True
     return {
-        "schema_version": "tcw.corpus-summary/v0.4",
+        "schema_version": "tcw.corpus-summary/v0.5",
         "corpus_id": "sample",
         "snapshot_id": HASH,
         "run_id": "run",
@@ -315,7 +333,11 @@ def _valid_summary() -> dict:
                 "chain_length": 1,
                 "finding_id": HASH,
                 "finding_rule": "TCW-D009",
-                "refiner_id": "TCW-R001",
+                "refiner": {
+                    "refiner_id": "TCW-R001",
+                    "name": "WHITESPACE_NORMALIZATION",
+                    "version": "1",
+                },
                 "affected_reference_count": 1,
                 "before_document_sha256": HASH,
                 "after_document_sha256": HASH,
@@ -335,7 +357,7 @@ def _valid_summary() -> dict:
 
 def _valid_verification() -> dict:
     return {
-        "schema_version": "tcw.corpus-verification-result/v0.4",
+        "schema_version": "tcw.corpus-verification-result/v0.5",
         "corpus_directory": "/corpus",
         "artifact_integrity": {"status": "VERIFIED", "issues": []},
         "specification_state": {"status": "MATCH"},
@@ -352,16 +374,17 @@ def _valid_verification() -> dict:
                 "base_state": {"status": "MISSING"},
             }
         ],
+        "build_provenance": _build_provenance("tcw.verify-corpus"),
     }
 
 
 class CorpusSchemaTests(unittest.TestCase):
     def test_four_schemas_are_draft_2020_12_closed_and_have_exact_versions(self) -> None:
         expected = {
-            "corpus-spec-v0.4.schema.json": "tcw.corpus-spec/v0.4",
-            "corpus-manifest-v0.4.schema.json": "tcw.corpus-manifest/v0.4",
-            "corpus-summary-v0.4.schema.json": "tcw.corpus-summary/v0.4",
-            "corpus-verification-result-v0.4.schema.json": "tcw.corpus-verification-result/v0.4",
+            "corpus-spec-v0.5.schema.json": "tcw.corpus-spec/v0.5",
+            "corpus-manifest-v0.5.schema.json": "tcw.corpus-manifest/v0.5",
+            "corpus-summary-v0.5.schema.json": "tcw.corpus-summary/v0.5",
+            "corpus-verification-result-v0.5.schema.json": "tcw.corpus-verification-result/v0.5",
         }
         for name in SCHEMA_NAMES:
             with self.subTest(name=name):
@@ -378,11 +401,11 @@ class CorpusSchemaTests(unittest.TestCase):
 
     def test_corpus_spec_schema_rejects_extra_properties_at_each_level(self) -> None:
         schema = json.loads(
-            (SCHEMAS / "corpus-spec-v0.4.schema.json").read_text("utf-8")
+            (SCHEMAS / "corpus-spec-v0.5.schema.json").read_text("utf-8")
         )
         validator = Draft202012Validator(schema)
         valid = {
-            "schema_version": "tcw.corpus-spec/v0.4",
+            "schema_version": "tcw.corpus-spec/v0.5",
             "corpus_id": "sample",
             "title": "Sample",
             "members": [
@@ -424,7 +447,7 @@ class CorpusSchemaTests(unittest.TestCase):
                 )
 
     def test_manifest_requires_separate_record_and_revision_identities(self) -> None:
-        validator = _validator("corpus-manifest-v0.4.schema.json")
+        validator = _validator("corpus-manifest-v0.5.schema.json")
         valid = _valid_manifest()
         validator.validate(valid)
         mutations = (
@@ -441,8 +464,65 @@ class CorpusSchemaTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 validator.validate(changed)
 
+    def test_manifest_rejects_wrong_enum_valid_stage_error_codes(self) -> None:
+        validator = _validator("corpus-manifest-v0.5.schema.json")
+        null_diagnosis = {
+            "status": "NOT_RUN",
+            "diagnosis_id": None,
+            "run_id": None,
+            "manifest": None,
+            "findings_sha256": None,
+        }
+        cases = (
+            (
+                {
+                    "status": "FAILED",
+                    "observation_id": None,
+                    "run_id": None,
+                    "manifest": None,
+                    "canonical_document_sha256": None,
+                },
+                null_diagnosis,
+                "OBSERVATION_FAILED",
+                "MEMBER_INCOMPLETE",
+            ),
+            (
+                {
+                    "status": "NOT_RUN",
+                    "observation_id": None,
+                    "run_id": None,
+                    "manifest": None,
+                    "canonical_document_sha256": None,
+                },
+                null_diagnosis,
+                "MEMBER_INCOMPLETE",
+                "OBSERVATION_FAILED",
+            ),
+            (
+                _valid_manifest()["members"][0]["observation"],
+                {
+                    **null_diagnosis,
+                    "status": "FAILED",
+                },
+                "DIAGNOSIS_FAILED",
+                "OBSERVATION_INCOMPLETE",
+            ),
+        )
+        for observation, diagnosis, expected, wrong in cases:
+            with self.subTest(expected=expected):
+                valid = _valid_manifest()
+                member = valid["members"][0]
+                member["status"] = "FAILED"
+                member["observation"] = deepcopy(observation)
+                member["diagnosis"] = deepcopy(diagnosis)
+                member["error"] = {"code": expected, "message": "expected"}
+                validator.validate(valid)
+                member["error"]["code"] = wrong
+                with self.assertRaises(ValidationError):
+                    validator.validate(valid)
+
     def test_summary_requires_all_metrics_groups_and_revision_details(self) -> None:
-        validator = _validator("corpus-summary-v0.4.schema.json")
+        validator = _validator("corpus-summary-v0.5.schema.json")
         valid = _valid_summary()
         validator.validate(valid)
         mutations = (
@@ -461,7 +541,7 @@ class CorpusSchemaTests(unittest.TestCase):
                 validator.validate(changed)
 
     def test_verification_advisories_are_attributed_per_input(self) -> None:
-        validator = _validator("corpus-verification-result-v0.4.schema.json")
+        validator = _validator("corpus-verification-result-v0.5.schema.json")
         valid = _valid_verification()
         validator.validate(valid)
         mutations = (
@@ -524,7 +604,7 @@ class CorpusAdmissionTests(unittest.TestCase):
                             spec.write_text(
                                 json.dumps(
                                     {
-                                        "schema_version": "tcw.corpus-spec/v0.4",
+                                        "schema_version": "tcw.corpus-spec/v0.5",
                                         "corpus_id": "replacement",
                                         "title": "Replacement",
                                         "members": [
@@ -760,10 +840,12 @@ class CorpusAdmissionTests(unittest.TestCase):
                 "status": "APPLIED",
                 "revision_id": "a" * 64,
                 "run_id": "run",
-                "diagnosis_id": "b" * 64,
+                "diagnosis": {
+                    "diagnosis_id": "b" * 64,
+                },
                 "base": {
                     "kind": "OBSERVATION",
-                    "subject_id": "c" * 64,
+                    "identity_value": "c" * 64,
                     "canonical_document_sha256": "f" * 64,
                 },
                 "source": {

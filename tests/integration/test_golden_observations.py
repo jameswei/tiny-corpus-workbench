@@ -9,11 +9,8 @@ from pathlib import Path
 from unittest import mock
 
 from docling_core.types.doc import DoclingDocument
-from jsonschema import Draft202012Validator
-
 from tiny_corpus_workbench.cli import observe
-from tiny_corpus_workbench.diagnosis import diagnose
-from tiny_corpus_workbench.diagnosis_verification import verify_diagnosis
+from tiny_corpus_workbench.schema_catalog import validator as schema_validator
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,8 +28,12 @@ class GoldenObservationTests(unittest.TestCase):
         if not MODEL_ROOT.is_dir():
             raise unittest.SkipTest(f"prefetched Docling models are required: {MODEL_ROOT}")
         cls.registry = json.loads((ROOT / "fixtures/golden/fixtures.json").read_text("utf-8"))
-        cls.manifest_validator = Draft202012Validator(json.loads((SCHEMAS / "preparation-manifest-v0.1.schema.json").read_text("utf-8")))
-        cls.comparison_validator = Draft202012Validator(json.loads((SCHEMAS / "comparison-summary-v0.1.schema.json").read_text("utf-8")))
+        cls.manifest_validator = schema_validator(
+            "tcw.preparation-manifest/v0.5"
+        )
+        cls.comparison_validator = schema_validator(
+            "tcw.comparison-summary/v0.5"
+        )
 
     def test_all_twelve_fixtures_through_both_extractors_twice_offline(self) -> None:
         self.assertEqual(len(self.registry["fixtures"]), 12)
@@ -65,7 +66,9 @@ class GoldenObservationTests(unittest.TestCase):
                         self.assertEqual(comparison["status"], "COMPLETE")
                         for view in comparison["views"].values():
                             self.assertGreater(view["bytes"], 0)
-                            self.assertTrue(all(view["anchors"].values()))
+                            self.assertTrue(
+                                all(item["present"] for item in view["anchors"])
+                            )
                         self.assertEqual((first / "comparison.json").read_bytes(), (second / "comparison.json").read_bytes())
 
                         document = DoclingDocument.load_from_json(first / "docling/document.json")
@@ -73,18 +76,6 @@ class GoldenObservationTests(unittest.TestCase):
                         self.assertEqual(len(document.tables), fixture["expected_docling_table_count"])
                         self.assertTrue((first / "docling/document.md").read_text("utf-8").strip())
                         self.assertTrue((first / "markitdown/document.md").read_text("utf-8").strip())
-
-                        diagnosis = diagnose(first, first_root / "diagnoses")
-                        finding_set = json.loads(
-                            (diagnosis / "findings.json").read_text("utf-8")
-                        )
-                        self.assertEqual(finding_set["summary"]["total"], 0)
-                        self.assertEqual(
-                            verify_diagnosis(diagnosis, first)[
-                                "artifact_integrity"
-                            ]["status"],
-                            "VERIFIED",
-                        )
 
                         manifest["unexpected"] = True
                         with self.assertRaises(Exception):

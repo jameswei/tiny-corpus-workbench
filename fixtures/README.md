@@ -12,18 +12,18 @@ The repository's MIT license applies to code. The separate CC0 declaration in
 `LICENSE-CC0-1.0.txt` applies to the authored specifications, generated golden
 documents, versioned diagnosis corpus, and versioned refinement fixtures.
 
-The separate `diagnosis/v0.2/` corpus exercises fixed diagnosis rules. It
+The separate `diagnosis/v0.5/` corpus exercises fixed diagnosis rules. It
 contains two Markdown sources and one deterministic three-page PDF. Generate
 or check it with `tools/generate_diagnosis_fixtures.py`. Its registry records
 expected rule identifiers, file sizes, hashes, and the CC0-1.0 license.
 
-The `refinement/v0.3/` directory is a mixed-format fixture set. It contains a
+The `refinement/v0.5/` directory is a mixed-format fixture set. It contains a
 deterministic Markdown source for whitespace normalization and a deterministic
 DOCX source for line-end dehyphenation. Check their registry with
 `tools/generate_refinement_fixtures.py --check`. The repeated-margin refiner
-reuses `diagnosis/v0.2/repeated-margin.pdf`.
+reuses `diagnosis/v0.5/repeated-margin.pdf`.
 
-The `corpus/v0.4/` directory contains two corpus specifications. It adds no raw
+The `corpus/v0.5/` directory contains two corpus specifications. It adds no raw
 document:
 
 - `golden-matrix.json` lists all 12 registered golden fixtures. It contains

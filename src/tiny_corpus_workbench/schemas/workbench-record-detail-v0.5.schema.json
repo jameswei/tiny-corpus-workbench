@@ -1,0 +1,1336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/workbench-record-detail-v0.5.schema.json",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "record_key",
+        "kind",
+        "artifact_integrity",
+        "manifest",
+        "artifacts",
+        "relationships",
+        "detail"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "tcw.workbench-record-detail/v0.5"
+        },
+        "record_key": {
+          "$ref": "common-v0.5.schema.json#/$defs/hash"
+        },
+        "kind": {
+          "const": "OBSERVATION"
+        },
+        "artifact_integrity": {
+          "const": "VERIFIED"
+        },
+        "manifest": {
+          "$ref": "workbench-projection-v0.5.schema.json#/$defs/descriptor"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "workbench-projection-v0.5.schema.json#/$defs/descriptor"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "$ref": "workbench-projection-v0.5.schema.json#/$defs/edge"
+          }
+        },
+        "detail": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "docling_document_schema",
+            "extractors",
+            "comparison"
+          ],
+          "properties": {
+            "source": {
+              "$ref": "preparation-manifest-v0.5.schema.json#/$defs/source"
+            },
+            "docling_document_schema": {
+              "$ref": "preparation-manifest-v0.5.schema.json#/$defs/documentSchema"
+            },
+            "extractors": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "name",
+                    "version",
+                    "status",
+                    "upstream_status",
+                    "artifact_keys",
+                    "error"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "docling"
+                    },
+                    "version": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "enum": [
+                        "SUCCESS",
+                        "PARTIAL_SUCCESS",
+                        "FAILED"
+                      ]
+                    },
+                    "upstream_status": {
+                      "enum": [
+                        "success",
+                        "partial_success",
+                        null
+                      ]
+                    },
+                    "artifact_keys": {
+                      "type": "array",
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "common-v0.5.schema.json#/$defs/hash"
+                      }
+                    },
+                    "error": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "code",
+                            "message"
+                          ],
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "MODEL_ARTIFACTS_MISSING",
+                                "MODEL_ARTIFACTS_INVALID",
+                                "DOCLING_SERIALIZATION_FAILED",
+                                "DOCLING_CONVERSION_FAILED",
+                                "MARKITDOWN_CONVERSION_FAILED"
+                              ]
+                            },
+                            "message": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "name",
+                    "version",
+                    "status",
+                    "upstream_status",
+                    "artifact_keys",
+                    "error"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "markitdown"
+                    },
+                    "version": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "enum": [
+                        "SUCCESS",
+                        "FAILED"
+                      ]
+                    },
+                    "upstream_status": {
+                      "type": "null"
+                    },
+                    "artifact_keys": {
+                      "type": "array",
+                      "uniqueItems": true,
+                      "items": {
+                        "$ref": "common-v0.5.schema.json#/$defs/hash"
+                      }
+                    },
+                    "error": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "code",
+                            "message"
+                          ],
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "MODEL_ARTIFACTS_MISSING",
+                                "MODEL_ARTIFACTS_INVALID",
+                                "DOCLING_SERIALIZATION_FAILED",
+                                "DOCLING_CONVERSION_FAILED",
+                                "MARKITDOWN_CONVERSION_FAILED"
+                              ]
+                            },
+                            "message": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "items": false
+            },
+            "comparison": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "normalization_algorithm",
+                "views",
+                "docling_minus_markitdown"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "COMPLETE",
+                    "INCOMPLETE",
+                    "NOT_AVAILABLE"
+                  ]
+                },
+                "normalization_algorithm": {
+                  "const": "tcw-markdown-normalize-v1"
+                },
+                "views": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "docling",
+                    "markitdown"
+                  ],
+                  "properties": {
+                    "docling": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "artifact_sha256",
+                            "normalized_sha256",
+                            "anchors",
+                            "bytes",
+                            "characters",
+                            "non_whitespace_characters",
+                            "lines",
+                            "non_empty_lines",
+                            "atx_headings",
+                            "unordered_list_items",
+                            "ordered_list_items",
+                            "pipe_table_rows",
+                            "visible_urls"
+                          ],
+                          "properties": {
+                            "artifact_sha256": {
+                              "$ref": "common-v0.5.schema.json#/$defs/hash"
+                            },
+                            "normalized_sha256": {
+                              "$ref": "common-v0.5.schema.json#/$defs/hash"
+                            },
+                            "anchors": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "name",
+                                  "present"
+                                ],
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "present": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              }
+                            },
+                            "bytes": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "characters": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "non_whitespace_characters": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "lines": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "non_empty_lines": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "atx_headings": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "unordered_list_items": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "ordered_list_items": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "pipe_table_rows": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "visible_urls": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "markitdown": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "artifact_sha256",
+                            "normalized_sha256",
+                            "anchors",
+                            "bytes",
+                            "characters",
+                            "non_whitespace_characters",
+                            "lines",
+                            "non_empty_lines",
+                            "atx_headings",
+                            "unordered_list_items",
+                            "ordered_list_items",
+                            "pipe_table_rows",
+                            "visible_urls"
+                          ],
+                          "properties": {
+                            "artifact_sha256": {
+                              "$ref": "common-v0.5.schema.json#/$defs/hash"
+                            },
+                            "normalized_sha256": {
+                              "$ref": "common-v0.5.schema.json#/$defs/hash"
+                            },
+                            "anchors": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "name",
+                                  "present"
+                                ],
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "present": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              }
+                            },
+                            "bytes": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "characters": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "non_whitespace_characters": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "lines": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "non_empty_lines": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "atx_headings": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "unordered_list_items": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "ordered_list_items": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "pipe_table_rows": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "visible_urls": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "docling_minus_markitdown": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "normalized_equal",
+                        "bytes",
+                        "characters",
+                        "non_whitespace_characters",
+                        "lines",
+                        "non_empty_lines",
+                        "atx_headings",
+                        "unordered_list_items",
+                        "ordered_list_items",
+                        "pipe_table_rows",
+                        "visible_urls"
+                      ],
+                      "properties": {
+                        "normalized_equal": {
+                          "type": "boolean"
+                        },
+                        "bytes": {
+                          "type": "integer"
+                        },
+                        "characters": {
+                          "type": "integer"
+                        },
+                        "non_whitespace_characters": {
+                          "type": "integer"
+                        },
+                        "lines": {
+                          "type": "integer"
+                        },
+                        "non_empty_lines": {
+                          "type": "integer"
+                        },
+                        "atx_headings": {
+                          "type": "integer"
+                        },
+                        "unordered_list_items": {
+                          "type": "integer"
+                        },
+                        "ordered_list_items": {
+                          "type": "integer"
+                        },
+                        "pipe_table_rows": {
+                          "type": "integer"
+                        },
+                        "visible_urls": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "status": {
+                        "const": "COMPLETE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "views": {
+                        "properties": {
+                          "docling": {
+                            "not": {
+                              "type": "null"
+                            }
+                          },
+                          "markitdown": {
+                            "not": {
+                              "type": "null"
+                            }
+                          }
+                        }
+                      },
+                      "docling_minus_markitdown": {
+                        "not": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "status": {
+                        "const": "INCOMPLETE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "docling_minus_markitdown": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "status": {
+                        "const": "NOT_AVAILABLE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "views": {
+                        "properties": {
+                          "docling": {
+                            "type": "null"
+                          },
+                          "markitdown": {
+                            "type": "null"
+                          }
+                        }
+                      },
+                      "docling_minus_markitdown": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "record_key",
+        "kind",
+        "artifact_integrity",
+        "manifest",
+        "artifacts",
+        "relationships",
+        "detail"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "tcw.workbench-record-detail/v0.5"
+        },
+        "record_key": {
+          "$ref": "common-v0.5.schema.json#/$defs/hash"
+        },
+        "kind": {
+          "const": "DIAGNOSIS"
+        },
+        "artifact_integrity": {
+          "const": "VERIFIED"
+        },
+        "manifest": {
+          "$ref": "workbench-projection-v0.5.schema.json#/$defs/descriptor"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "workbench-projection-v0.5.schema.json#/$defs/descriptor"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "$ref": "workbench-projection-v0.5.schema.json#/$defs/edge"
+          }
+        },
+        "detail": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "subject",
+            "subject_state",
+            "derivation_state",
+            "ruleset",
+            "summary",
+            "findings"
+          ],
+          "properties": {
+            "source": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key",
+                "media_type",
+                "size",
+                "sha256"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "media_type": {
+                  "enum": [
+                    "application/pdf",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "text/markdown",
+                    "text/plain"
+                  ]
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "sha256": {
+                  "$ref": "common-v0.5.schema.json#/$defs/hash"
+                }
+              }
+            },
+            "subject": {
+              "$ref": "workbench-projection-v0.5.schema.json#/$defs/expected_target"
+            },
+            "subject_state": {
+              "enum": [
+                "MATCH",
+                "NOT_CHECKED"
+              ]
+            },
+            "derivation_state": {
+              "enum": [
+                "MATCH",
+                "NOT_CHECKED"
+              ]
+            },
+            "ruleset": {
+              "$ref": "finding-set-v0.5.schema.json#/$defs/ruleset"
+            },
+            "summary": {
+              "$ref": "finding-set-v0.5.schema.json#/$defs/summary"
+            },
+            "findings": {
+              "type": "array",
+              "items": {
+                "$ref": "finding-set-v0.5.schema.json#/$defs/finding"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "record_key",
+        "kind",
+        "artifact_integrity",
+        "manifest",
+        "artifacts",
+        "relationships",
+        "detail"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "tcw.workbench-record-detail/v0.5"
+        },
+        "record_key": {
+          "$ref": "common-v0.5.schema.json#/$defs/hash"
+        },
+        "kind": {
+          "const": "REFINEMENT"
+        },
+        "artifact_integrity": {
+          "const": "VERIFIED"
+        },
+        "manifest": {
+          "$ref": "workbench-projection-v0.5.schema.json#/$defs/descriptor"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "workbench-projection-v0.5.schema.json#/$defs/descriptor"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "$ref": "workbench-projection-v0.5.schema.json#/$defs/edge"
+          }
+        },
+        "detail": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "diagnosis_target",
+            "base_target",
+            "parent_target",
+            "decision",
+            "diagnosis_state",
+            "base_state",
+            "derivation_state",
+            "reversibility_state",
+            "transformations",
+            "revision_chain"
+          ],
+          "properties": {
+            "source": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key",
+                "media_type",
+                "size",
+                "sha256"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "media_type": {
+                  "enum": [
+                    "application/pdf",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "text/markdown",
+                    "text/plain"
+                  ]
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "sha256": {
+                  "$ref": "common-v0.5.schema.json#/$defs/hash"
+                }
+              }
+            },
+            "diagnosis_target": {
+              "$ref": "workbench-projection-v0.5.schema.json#/$defs/expected_target"
+            },
+            "base_target": {
+              "$ref": "workbench-projection-v0.5.schema.json#/$defs/expected_target"
+            },
+            "parent_target": {
+              "oneOf": [
+                {
+                  "$ref": "workbench-projection-v0.5.schema.json#/$defs/expected_target"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "decision": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "draft_id",
+                "state",
+                "decided_by",
+                "note"
+              ],
+              "properties": {
+                "draft_id": {
+                  "$ref": "common-v0.5.schema.json#/$defs/hash"
+                },
+                "state": {
+                  "enum": [
+                    "APPROVED",
+                    "REJECTED"
+                  ]
+                },
+                "decided_by": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500
+                }
+              }
+            },
+            "diagnosis_state": {
+              "enum": [
+                "MATCH",
+                "NOT_CHECKED"
+              ]
+            },
+            "base_state": {
+              "enum": [
+                "MATCH",
+                "NOT_CHECKED"
+              ]
+            },
+            "derivation_state": {
+              "enum": [
+                "MATCH",
+                "NOT_CHECKED",
+                "NOT_APPLICABLE"
+              ]
+            },
+            "reversibility_state": {
+              "enum": [
+                "MATCH",
+                "NOT_CHECKED",
+                "NOT_APPLICABLE"
+              ]
+            },
+            "transformations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "ordinal",
+                  "refiner",
+                  "before_sha256",
+                  "after_sha256",
+                  "affected_reference_count"
+                ],
+                "properties": {
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "refiner": {
+                    "$ref": "refinement-draft-v0.5.schema.json#/$defs/refiner"
+                  },
+                  "before_sha256": {
+                    "$ref": "common-v0.5.schema.json#/$defs/hash"
+                  },
+                  "after_sha256": {
+                    "$ref": "common-v0.5.schema.json#/$defs/hash"
+                  },
+                  "affected_reference_count": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            },
+            "revision_chain": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "revision_id",
+                  "parent_revision_id",
+                  "refiner",
+                  "before_sha256",
+                  "after_sha256"
+                ],
+                "properties": {
+                  "revision_id": {
+                    "$ref": "common-v0.5.schema.json#/$defs/hash"
+                  },
+                  "parent_revision_id": {
+                    "oneOf": [
+                      {
+                        "$ref": "common-v0.5.schema.json#/$defs/hash"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "refiner": {
+                    "$ref": "refinement-draft-v0.5.schema.json#/$defs/refiner"
+                  },
+                  "before_sha256": {
+                    "$ref": "common-v0.5.schema.json#/$defs/hash"
+                  },
+                  "after_sha256": {
+                    "$ref": "common-v0.5.schema.json#/$defs/hash"
+                  }
+                }
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "decision": {
+                    "properties": {
+                      "state": {
+                        "const": "REJECTED"
+                      }
+                    }
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "parent_target": {
+                    "type": "null"
+                  },
+                  "derivation_state": {
+                    "const": "NOT_APPLICABLE"
+                  },
+                  "reversibility_state": {
+                    "const": "NOT_APPLICABLE"
+                  },
+                  "transformations": {
+                    "maxItems": 0
+                  },
+                  "revision_chain": {
+                    "maxItems": 0
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "transformations": {
+                    "minItems": 1
+                  },
+                  "revision_chain": {
+                    "minItems": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "record_key",
+        "kind",
+        "artifact_integrity",
+        "manifest",
+        "artifacts",
+        "relationships",
+        "detail"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "tcw.workbench-record-detail/v0.5"
+        },
+        "record_key": {
+          "$ref": "common-v0.5.schema.json#/$defs/hash"
+        },
+        "kind": {
+          "const": "CORPUS"
+        },
+        "artifact_integrity": {
+          "const": "VERIFIED"
+        },
+        "manifest": {
+          "$ref": "workbench-projection-v0.5.schema.json#/$defs/descriptor"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "workbench-projection-v0.5.schema.json#/$defs/descriptor"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "$ref": "workbench-projection-v0.5.schema.json#/$defs/edge"
+          }
+        },
+        "detail": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "corpus_id",
+            "snapshot_id",
+            "summary",
+            "contained_record_keys",
+            "matrix",
+            "aggregates",
+            "external_revisions"
+          ],
+          "properties": {
+            "corpus_id": {
+              "$ref": "common-v0.5.schema.json#/$defs/identifier"
+            },
+            "snapshot_id": {
+              "$ref": "common-v0.5.schema.json#/$defs/hash"
+            },
+            "summary": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "totals"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "COMPLETE",
+                    "PARTIAL",
+                    "FAILED"
+                  ]
+                },
+                "totals": {
+                  "$ref": "corpus-summary-v0.5.schema.json#/$defs/totals"
+                }
+              }
+            },
+            "contained_record_keys": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "common-v0.5.schema.json#/$defs/hash"
+              }
+            },
+            "matrix": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "member_id",
+                  "family",
+                  "format",
+                  "status",
+                  "source",
+                  "observation_record_key",
+                  "diagnosis_record_key",
+                  "error"
+                ],
+                "properties": {
+                  "member_id": {
+                    "$ref": "common-v0.5.schema.json#/$defs/identifier"
+                  },
+                  "family": {
+                    "$ref": "common-v0.5.schema.json#/$defs/identifier"
+                  },
+                  "format": {
+                    "enum": [
+                      "pdf",
+                      "docx",
+                      "md",
+                      "txt"
+                    ]
+                  },
+                  "status": {
+                    "enum": [
+                      "COMPLETE",
+                      "PARTIAL",
+                      "FAILED"
+                    ]
+                  },
+                  "source": {
+                    "$ref": "corpus-manifest-v0.5.schema.json#/$defs/source"
+                  },
+                  "observation_record_key": {
+                    "oneOf": [
+                      {
+                        "$ref": "common-v0.5.schema.json#/$defs/hash"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "diagnosis_record_key": {
+                    "oneOf": [
+                      {
+                        "$ref": "common-v0.5.schema.json#/$defs/hash"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "error": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "code",
+                          "message"
+                        ],
+                        "properties": {
+                          "code": {
+                            "enum": [
+                              "MODEL_ARTIFACTS_MISSING",
+                              "MODEL_ARTIFACTS_INVALID",
+                              "DOCLING_SERIALIZATION_FAILED",
+                              "DOCLING_CONVERSION_FAILED",
+                              "MARKITDOWN_CONVERSION_FAILED",
+                              "OBSERVATION_FAILED",
+                              "OBSERVATION_INCOMPLETE",
+                              "CANONICAL_UNAVAILABLE",
+                              "DIAGNOSIS_FAILED",
+                              "MEMBER_INCOMPLETE"
+                            ]
+                          },
+                          "message": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "const": "COMPLETE"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "observation_record_key": {
+                          "type": "string"
+                        },
+                        "diagnosis_record_key": {
+                          "type": "string"
+                        },
+                        "error": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "status": {
+                          "enum": [
+                            "PARTIAL",
+                            "FAILED"
+                          ]
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "error": {
+                          "not": {
+                            "type": "null"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "aggregates": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "by_family",
+                "by_format",
+                "extractors",
+                "comparisons",
+                "findings",
+                "revision_groups",
+                "revisions"
+              ],
+              "properties": {
+                "by_family": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/namedCounts"
+                  }
+                },
+                "by_format": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/namedCounts"
+                  }
+                },
+                "extractors": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/extractorCounts"
+                  }
+                },
+                "comparisons": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/comparison"
+                  }
+                },
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/findingGroup"
+                  }
+                },
+                "revision_groups": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/revisionGroup"
+                  }
+                },
+                "revisions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/revisionDetail"
+                  }
+                }
+              }
+            },
+            "external_revisions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "member_id",
+                  "revision",
+                  "refinement_run_id",
+                  "refinement_manifest_sha256",
+                  "prepared_document_sha256",
+                  "relationship_state",
+                  "record_key"
+                ],
+                "properties": {
+                  "member_id": {
+                    "$ref": "common-v0.5.schema.json#/$defs/identifier"
+                  },
+                  "revision": {
+                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/revisionDetail"
+                  },
+                  "refinement_run_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "refinement_manifest_sha256": {
+                    "$ref": "common-v0.5.schema.json#/$defs/hash"
+                  },
+                  "prepared_document_sha256": {
+                    "$ref": "common-v0.5.schema.json#/$defs/hash"
+                  },
+                  "relationship_state": {
+                    "enum": [
+                      "MATCH",
+                      "MISSING"
+                    ]
+                  },
+                  "record_key": {
+                    "oneOf": [
+                      {
+                        "$ref": "common-v0.5.schema.json#/$defs/hash"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "relationship_state": {
+                          "const": "MATCH"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "record_key": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "record_key": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

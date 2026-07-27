@@ -1,5 +1,5 @@
 {
-  "schema_version": "tcw.authored-fixture/v0.1",
+  "schema_version": "tcw.authored-fixture/v0.5",
   "family": "policy-memo",
   "document_id": "PM-2026-04",
   "title": "Remote Equipment Return Policy",
