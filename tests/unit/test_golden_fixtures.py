@@ -39,6 +39,35 @@ class GoldenFixtureRuntimeTests(unittest.TestCase):
 
 
 class FixtureVerifierFailureTests(unittest.TestCase):
+    def registry_with_nested_value(
+        self, field: str, value: object
+    ) -> tuple[dict[str, object], tuple[str, ...]]:
+        entries = []
+        names = []
+        for family in ("meeting-minutes", "policy-memo", "release-notice"):
+            for format_name in ("docx", "md", "pdf", "txt"):
+                fixture_id = f"{family}-{format_name}"
+                name = f"{fixture_id}.{format_name}"
+                names.append(name)
+                entry = {
+                    "anchors": {},
+                    "authored_source": {},
+                    "expected_docling_table_count": 0,
+                    "family": family,
+                    "format": format_name,
+                    "id": fixture_id,
+                    "license": "CC0-1.0",
+                    "media_type": "text/plain",
+                    "ownership": "project-authored",
+                    "path": f"fixtures/golden/{name}",
+                    "recipe": "tools/generate_fixtures.py",
+                    "sha256": "0" * 64,
+                    "size": 0,
+                }
+                entry[field] = value
+                entries.append(entry)
+        return {"fixtures": entries}, tuple(names)
+
     def invoke(
         self, value: object, fixture_names: tuple[str, ...] = ()
     ) -> str:
@@ -74,32 +103,20 @@ class FixtureVerifierFailureTests(unittest.TestCase):
                     "fixture registry entries must be objects with string IDs",
                 )
 
-    def test_malformed_nested_entry_exits_cleanly(self) -> None:
-        entries = []
-        names = []
-        for family in ("meeting-minutes", "policy-memo", "release-notice"):
-            for format_name in ("docx", "md", "pdf", "txt"):
-                fixture_id = f"{family}-{format_name}"
-                name = f"{fixture_id}.{format_name}"
-                names.append(name)
-                entries.append(
-                    {
-                        "anchors": {},
-                        "authored_source": None,
-                        "expected_docling_table_count": 0,
-                        "family": family,
-                        "format": format_name,
-                        "id": fixture_id,
-                        "license": "CC0-1.0",
-                        "media_type": "text/plain",
-                        "ownership": "project-authored",
-                        "path": f"fixtures/golden/{name}",
-                        "recipe": "tools/generate_fixtures.py",
-                        "sha256": "0" * 64,
-                        "size": 0,
-                    }
-                )
-        self.assertEqual(
-            self.invoke({"fixtures": entries}, tuple(names)),
-            "fixture registry or fixture files are malformed",
-        )
+    def test_malformed_nested_objects_exit_cleanly(self) -> None:
+        for field, message in (
+            ("anchors", "fixture anchors must be an object"),
+            (
+                "authored_source",
+                "fixture authored source must be an object",
+            ),
+        ):
+            for value in (None, [], "value", 7):
+                with self.subTest(field=field, value=value):
+                    registry, names = self.registry_with_nested_value(
+                        field, value
+                    )
+                    self.assertEqual(
+                        self.invoke(registry, names),
+                        f"{message}: meeting-minutes-docx",
+                    )

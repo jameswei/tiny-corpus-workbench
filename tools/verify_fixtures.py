@@ -64,6 +64,14 @@ def _verify(root: Path, golden: Path) -> None:
             raise SystemExit(f"fixture registry entry has an invalid shape: {item.get('id')}")
         if item["recipe"] != "tools/generate_fixtures.py":
             raise SystemExit(f"fixture recipe mismatch: {item['id']}")
+        if not isinstance(item["anchors"], dict):
+            raise SystemExit(
+                f"fixture anchors must be an object: {item['id']}"
+            )
+        if not isinstance(item["authored_source"], dict):
+            raise SystemExit(
+                f"fixture authored source must be an object: {item['id']}"
+            )
         path = root / item["path"]
         authored = root / item["authored_source"]["path"]
         if path.stat().st_size != item["size"] or digest(path) != item["sha256"]:
