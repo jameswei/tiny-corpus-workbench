@@ -17,8 +17,6 @@ from docx.oxml.ns import qn
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 
-from tiny_corpus_workbench.supported_provenance import active_build_provenance
-
 ROOT = Path(__file__).resolve().parents[1]
 AUTHORED = ROOT / "fixtures/authored"
 GOLDEN = ROOT / "fixtures/golden"
@@ -186,9 +184,6 @@ def write_pdf(spec: dict[str, Any], path: Path) -> None:
 
 def generate_into(output: Path) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
-    build_provenance = active_build_provenance(
-        generator_id="tools.generate_fixtures"
-    )
     fixtures = []
     for authored_path in sorted(AUTHORED.glob("*.json")):
         spec = json.loads(authored_path.read_text("utf-8"))
@@ -213,22 +208,14 @@ def generate_into(output: Path) -> dict[str, Any]:
                 "size": path.stat().st_size,
                 "sha256": digest(path),
                 "authored_source": {"id": family, "path": f"fixtures/authored/{authored_path.name}", "sha256": authored_hash},
-                "generator": {"name": "tools/generate_fixtures.py", "schema": spec["schema_version"]},
+                "recipe": "tools/generate_fixtures.py",
                 "ownership": "project-authored",
                 "license": "CC0-1.0",
                 "anchors": {"document_id": spec["document_id"], "date": spec["date"], "url": spec["url"]},
                 "expected_docling_table_count": 0 if format_name == "txt" else 1,
             })
     fixtures.sort(key=lambda item: item["id"])
-    registry = {
-        "schema_version": "tcw.fixture-registry/v0.5",
-        "generator": {
-            "name": "tools/generate_fixtures.py",
-            "schema": "tcw.authored-fixture/v0.5",
-        },
-        "fixtures": fixtures,
-        "build_provenance": build_provenance,
-    }
+    registry = {"fixtures": fixtures}
     (output / "fixtures.json").write_text(json.dumps(registry, ensure_ascii=False, sort_keys=True, indent=2) + "\n", "utf-8", newline="\n")
     return registry
 

@@ -9,11 +9,14 @@ from pathlib import Path
 from unittest import mock
 
 from tiny_corpus_workbench import cli
-from tiny_corpus_workbench.artifacts import AtomicObservation, canonical_json
+from tiny_corpus_workbench.application import observation as observation_service
+from tiny_corpus_workbench.artifacts import (
+    AtomicObservation,
+    verify_staged_observation,
+)
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.extractors.docling import DoclingSerializationError
 from tiny_corpus_workbench.schema_catalog import validator as schema_validator
-from tiny_corpus_workbench.supported_provenance import load_registry
 
 
 FIXTURE = Path("fixtures/golden/policy-memo.md")
@@ -73,54 +76,26 @@ class CliFailureTests(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertIn("unsupported media type", stderr)
 
-    def test_bundled_registry_failures_are_exact_active_runtime_errors(
-        self,
-    ) -> None:
-        baseline = load_registry()
-        cases = {
-            "missing": None,
-            "invalid-json": b"{",
-            "structurally-invalid": canonical_json(
-                {
-                    "schema_version": (
-                        "tcw.supported-provenance-registry/v0.5"
-                    )
-                }
-            ),
-            "integrity-invalid": canonical_json(
-                {
-                    **baseline,
-                    "entries": [
-                        {
-                            **baseline["entries"][0],
-                            "provenance_id": "0" * 64,
-                        }
-                    ],
-                }
-            ),
-        }
-        commands = (
-            ("observe", str(FIXTURE)),
-            ("verify", "missing-observation"),
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            for label, raw in cases.items():
-                registry_path = root / f"{label}.json"
-                if raw is not None:
-                    registry_path.write_bytes(raw)
-                for command in commands:
-                    with self.subTest(case=label, command=command[0]), mock.patch(
-                        "tiny_corpus_workbench.supported_provenance.REGISTRY_PATH",
-                        registry_path,
-                    ):
-                        code, stdout, stderr = self.invoke(*command)
-                    self.assertEqual(code, 6)
-                    self.assertEqual(stdout, "")
-                    self.assertEqual(
-                        stderr,
-                        "active runtime does not match this package provenance registry\n",
-                    )
+    def test_observe_does_not_read_the_provenance_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.supported_provenance.active_build_provenance",
+            side_effect=AssertionError("registry must not be read"),
+        ), mock.patch(
+            "tiny_corpus_workbench.extractors.docling.convert",
+            wraps=fake_docling,
+        ), mock.patch(
+            "tiny_corpus_workbench.extractors.markitdown.convert",
+            wraps=fake_markitdown,
+        ):
+            code, stdout, stderr = self.invoke(
+                "observe",
+                str(FIXTURE),
+                "--output-root",
+                directory,
+            )
+        self.assertEqual(code, 0)
+        self.assertTrue(stdout)
+        self.assertEqual(stderr, "")
 
     def test_empty_markdown_and_text_publish_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -147,7 +122,7 @@ class CliFailureTests(unittest.TestCase):
             (partial_success_docling, fake_markitdown, 3),
             (RuntimeError("docling failed"), RuntimeError("markitdown failed"), 4),
         )
-        original_validate = cli._validate_staged_schemas
+        original_validate = observation_service.validate_staged_schemas
         original_publish = AtomicObservation.publish
         for docling, markitdown, expected_code in cases:
             with self.subTest(
@@ -176,7 +151,9 @@ class CliFailureTests(unittest.TestCase):
                         None if isinstance(markitdown, Exception) else markitdown
                     ),
                 ), mock.patch.object(
-                    cli, "_validate_staged_schemas", side_effect=validate
+                    observation_service,
+                    "validate_staged_schemas",
+                    side_effect=validate,
                 ), mock.patch.object(
                     AtomicObservation,
                     "publish",
@@ -201,8 +178,8 @@ class CliFailureTests(unittest.TestCase):
             "tiny_corpus_workbench.extractors.markitdown.convert",
             wraps=fake_markitdown,
         ), mock.patch.object(
-            cli,
-            "_validate_staged_schemas",
+            observation_service,
+            "validate_staged_schemas",
             side_effect=IntegrityError("staged manifest.json is invalid"),
         ), mock.patch.object(
             AtomicObservation, "publish", autospec=True
@@ -347,7 +324,7 @@ class CliFailureTests(unittest.TestCase):
             manifest_path = Path(summary["manifest"])
             self.assertTrue(manifest_path.is_file())
             manifest = json.loads(manifest_path.read_text("utf-8"))
-            schema_validator("tcw.preparation-manifest/v0.5").validate(
+            schema_validator("observation-manifest").validate(
                 manifest
             )
             error = manifest["extractors"][0]["error"]
@@ -392,16 +369,13 @@ class CliFailureTests(unittest.TestCase):
 
     def test_unavailable_dependency_metadata_is_runtime_exit(self) -> None:
         with mock.patch(
-            "tiny_corpus_workbench.runtime.importlib.metadata.version",
+            "tiny_corpus_workbench.application.observation.importlib.metadata.version",
             side_effect=RuntimeError("metadata unavailable"),
         ):
             code, stdout, stderr = self.invoke("observe", str(FIXTURE))
         self.assertEqual(code, 6)
         self.assertEqual(stdout, "")
-        self.assertEqual(
-            stderr,
-            "active runtime does not match this package provenance registry\n",
-        )
+        self.assertEqual(stderr, "extractor runtime preflight failed\n")
 
     def test_publication_races_are_integrity_exit_without_replacement(self) -> None:
         original_publish = AtomicObservation.publish
@@ -498,7 +472,7 @@ class CliFailureTests(unittest.TestCase):
                 "tiny_corpus_workbench.extractors.markitdown.convert",
                 wraps=fake_markitdown,
             ), mock.patch(
-                "tiny_corpus_workbench.cli._fixture_anchors",
+                "tiny_corpus_workbench.application.observation._fixture_anchors",
                 side_effect=RuntimeError("unexpected\x01\x80 test\nfailure"),
             ):
                 code, stdout, stderr = self.invoke(
@@ -514,7 +488,7 @@ class CliFailureTests(unittest.TestCase):
             self.assertEqual(list(output.glob("*/.staging-*")), [])
 
     def test_staged_inventory_failures_abort_without_changing_prior_runs(self) -> None:
-        original_verify = cli.verify_staged_observation
+        original_verify = verify_staged_observation
         for operation in ("mutate", "missing", "replaced", "symlink", "unexpected"):
             with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
                 output = Path(directory) / "output"
@@ -559,7 +533,7 @@ class CliFailureTests(unittest.TestCase):
                     "tiny_corpus_workbench.extractors.markitdown.convert",
                     wraps=fake_markitdown,
                 ), mock.patch(
-                    "tiny_corpus_workbench.cli.verify_staged_observation",
+                    "tiny_corpus_workbench.application.observation.verify_staged_observation",
                     side_effect=corrupt_then_verify,
                 ):
                     code, stdout, stderr = self.invoke(

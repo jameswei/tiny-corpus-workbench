@@ -18,6 +18,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
 from docling_core.types.doc import DoclingDocument
+
+from tiny_corpus_workbench.application.records import require_record_header
 from tiny_corpus_workbench.artifacts import _rename_exclusive, canonical_json
 from tiny_corpus_workbench.diagnosis_rules import (
     RULESET as V02_RULES,
@@ -264,6 +266,7 @@ def _file_identity(path: Path) -> tuple[Any, ...]:
 def _observation_subject(root: Path) -> dict[str, Any]:
     before = snapshot_tree(root)
     manifest_bytes, manifest = _load_json_regular(root / "manifest.json", "observation")
+    require_record_header(manifest, "observation")
     try:
         docling = manifest["extractors"][0]
         descriptor = next(
@@ -282,8 +285,7 @@ def _observation_subject(root: Path) -> dict[str, Any]:
     if not (root / descriptor["path"]).is_file():
         raise CanonicalUnavailableError("canonical Docling artifact is unavailable")
     if (
-        manifest.get("schema_version") != "tcw.preparation-manifest/v0.5"
-        or verify_observation(root)["artifact_integrity"]["status"] != "VERIFIED"
+        verify_observation(root)["artifact_integrity"]["status"] != "VERIFIED"
     ):
         raise InputError("observation integrity is not verified")
     try:
@@ -1625,6 +1627,10 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
                 if matches:
                     expected_findings = make_finding_set(subject)
                     derivation_state = {"status": "MATCH" if expected_findings == findings else "MISMATCH"}
+            except InputError as error:
+                if str(error).startswith("observation record format is unsupported"):
+                    raise
+                subject_state = {"status": "ERROR"}
             except RuntimeContractError:
                 raise
             except Exception:
@@ -1849,6 +1855,12 @@ def verify_refinement(
                 base_state = {
                     "status": "MATCH" if base_matches else "CHANGED"
                 }
+            except InputError as error:
+                if str(error).startswith("observation record format is unsupported"):
+                    raise
+                raise IntegrityError(
+                    "supplied base is malformed or unavailable"
+                ) from error
             except RuntimeContractError:
                 raise
             except Exception as error:

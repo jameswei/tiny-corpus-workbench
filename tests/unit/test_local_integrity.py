@@ -175,7 +175,7 @@ class LocalIntegrityTests(unittest.TestCase):
                 self.assertIn("preflight", stderr)
                 capture.assert_not_called()
 
-    def test_non_cpython_or_non_312_runtime_fails_before_capture(self) -> None:
+    def test_python_runtime_metadata_does_not_gate_observation(self) -> None:
         cases = (
             mock.patch(
                 "tiny_corpus_workbench.runtime.platform.python_implementation",
@@ -186,19 +186,23 @@ class LocalIntegrityTests(unittest.TestCase):
             ),
         )
         for index, runtime_patch in enumerate(cases):
-            with self.subTest(index=index), runtime_patch, mock.patch.object(
-                SourceSnapshot, "capture", autospec=True
-            ) as capture:
-                code, stdout, stderr = self.invoke(
-                    "observe", str(MARKDOWN_FIXTURE)
-                )
-                self.assertEqual(code, 6)
-                self.assertEqual(stdout, "")
-                self.assertEqual(
-                    stderr,
-                    "active runtime does not match this package provenance registry\n",
-                )
-                capture.assert_not_called()
+            with tempfile.TemporaryDirectory() as directory:
+                docling_patch, markitdown_patch = self.adapters()
+                with (
+                    self.subTest(index=index),
+                    runtime_patch,
+                    docling_patch,
+                    markitdown_patch,
+                ):
+                    code, stdout, stderr = self.invoke(
+                        "observe",
+                        str(MARKDOWN_FIXTURE),
+                        "--output-root",
+                        directory,
+                    )
+                self.assertEqual(code, 0)
+                self.assertNotEqual(stdout, "")
+                self.assertEqual(stderr, "")
 
     def test_pdf_model_changes_between_inventories_fail(self) -> None:
         operations = ("add", "remove", "bytes", "replace", "symlink")
@@ -252,7 +256,6 @@ class LocalIntegrityTests(unittest.TestCase):
             calls.append(required)
             return {
                 "required": False,
-                "path": str(root.absolute()),
                 "inventory_hash": None,
                 "files": [],
             }
@@ -260,10 +263,10 @@ class LocalIntegrityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             docling_patch, markitdown_patch = self.adapters()
             with docling_patch, markitdown_patch, mock.patch(
-                "tiny_corpus_workbench.cli.inventory_models",
+                "tiny_corpus_workbench.application.observation.inventory_models",
                 side_effect=record_inventory,
             ), mock.patch(
-                "tiny_corpus_workbench.cli.model_filesystem_identity"
+                "tiny_corpus_workbench.application.observation.model_filesystem_identity"
             ) as filesystem_identity:
                 code, _, _ = self.invoke(
                     "observe",
@@ -293,7 +296,7 @@ class LocalIntegrityTests(unittest.TestCase):
             create_models(models)
             docling_patch, markitdown_patch = self.adapters()
             with docling_patch, markitdown_patch, mock.patch(
-                "tiny_corpus_workbench.cli.inventory_models",
+                "tiny_corpus_workbench.application.observation.inventory_models",
                 side_effect=unreadable_on_second_inventory,
             ):
                 code, stdout, stderr = self.invoke(

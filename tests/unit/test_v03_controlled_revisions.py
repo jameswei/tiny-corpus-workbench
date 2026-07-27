@@ -1019,15 +1019,16 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             base_manifest = unsupported_base / "manifest.json"
             value = json.loads(base_manifest.read_text("utf-8"))
-            value["build_provenance"]["provenance_id"] = "0" * 64
+            value["format_version"] = 99
             base_manifest.write_bytes(canonical_json(value))
             cases.append(
                 (
-                    "base-unsupported",
+                    "base-unknown-format",
                     diagnosis,
                     unsupported_base,
-                    6,
-                    "recorded provenance is unsupported by this v0.5 package\n",
+                    2,
+                    "observation record format is unsupported; "
+                    "regenerate the record with the current project\n",
                 )
             )
 
@@ -1036,15 +1037,16 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             base_manifest = malformed_base / "manifest.json"
             value = json.loads(base_manifest.read_text("utf-8"))
-            del value["build_provenance"]["command_id"]
+            del value["record_type"]
             base_manifest.write_bytes(canonical_json(value))
             cases.append(
                 (
-                    "base-malformed",
+                    "base-missing-header",
                     diagnosis,
                     malformed_base,
-                    5,
-                    "supplied base is malformed or unavailable\n",
+                    2,
+                    "observation record format is unsupported; "
+                    "regenerate the record with the current project\n",
                 )
             )
 

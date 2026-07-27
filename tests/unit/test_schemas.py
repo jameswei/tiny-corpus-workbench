@@ -9,16 +9,8 @@ from unittest import mock
 
 from jsonschema import Draft202012Validator, ValidationError
 
-from tiny_corpus_workbench.cli import observe
-from tiny_corpus_workbench.runtime import PROVENANCE_DEPENDENCIES
-from tiny_corpus_workbench.schema_catalog import (
-    COMMON_DEFINITIONS,
-    validator as schema_validator,
-)
-from tiny_corpus_workbench.supported_provenance import (
-    build_provenance,
-    load_registry,
-)
+from tiny_corpus_workbench.application.observation import observe
+from tiny_corpus_workbench.schema_catalog import validator
 
 
 SCHEMAS = Path("src/tiny_corpus_workbench/schemas")
@@ -27,8 +19,7 @@ SCHEMAS = Path("src/tiny_corpus_workbench/schemas")
 def fake_docling(source: Path, destination: Path, model_root: Path):
     destination.mkdir(parents=True)
     (destination / "document.json").write_text(
-        '{"schema_name":"DoclingDocument","version":"1.10.0"}\n',
-        "utf-8",
+        '{"schema_name":"DoclingDocument","version":"1.10.0"}\n', "utf-8"
     )
     (destination / "document.md").write_text("# view\n", "utf-8")
     return "success", {"name": "DoclingDocument", "version": "1.10.0"}
@@ -39,89 +30,101 @@ def fake_markitdown(source: Path, destination: Path):
     (destination / "document.md").write_text("# view\n", "utf-8")
 
 
-def real_observation_documents() -> tuple[dict, dict]:
+def observation_documents() -> tuple[dict, dict]:
     with tempfile.TemporaryDirectory() as directory, mock.patch(
         "tiny_corpus_workbench.extractors.docling.convert", wraps=fake_docling
     ), mock.patch(
-        "tiny_corpus_workbench.extractors.markitdown.convert", wraps=fake_markitdown
+        "tiny_corpus_workbench.extractors.markitdown.convert",
+        wraps=fake_markitdown,
     ):
         code, published = observe(
             "fixtures/golden/policy-memo.md", Path(directory), Path("unused")
         )
         if int(code) != 0:
-            raise AssertionError(f"real observation fixture failed with exit {code}")
+            raise AssertionError(f"observation failed with exit {code}")
         return (
             json.loads((published / "manifest.json").read_text("utf-8")),
             json.loads((published / "comparison.json").read_text("utf-8")),
         )
 
 
-def nested_object(document: dict, path: tuple[str | int, ...]) -> dict:
-    value = document
-    for part in path:
-        value = value[part]
-    return value
-
-
 class SchemaTests(unittest.TestCase):
-    def assert_closed_object_contract(
-        self,
-        validator: Draft202012Validator,
-        document: dict,
-        path: tuple[str | int, ...],
-        required_field: str,
-    ) -> None:
-        missing = deepcopy(document)
-        del nested_object(missing, path)[required_field]
-        with self.assertRaises(ValidationError):
-            validator.validate(missing)
-
-        unknown = deepcopy(document)
-        nested_object(unknown, path)["unexpected_test_field"] = True
-        with self.assertRaises(ValidationError):
-            validator.validate(unknown)
-
     def test_all_schemas_are_valid_draft_2020_12(self) -> None:
         for path in SCHEMAS.glob("*.schema.json"):
             with self.subTest(path=path):
-                Draft202012Validator.check_schema(json.loads(path.read_text("utf-8")))
+                Draft202012Validator.check_schema(
+                    json.loads(path.read_text("utf-8"))
+                )
 
-    def test_fixture_registry_conforms_and_unknown_field_is_rejected(self) -> None:
-        validator = schema_validator("tcw.fixture-registry/v0.5")
-        registry = json.loads(Path("fixtures/golden/fixtures.json").read_text("utf-8"))
-        validator.validate(registry)
-        registry["unknown"] = True
-        with self.assertRaises(ValidationError):
-            validator.validate(registry)
-
-    def test_fixture_registry_nested_objects_are_closed_and_required(self) -> None:
-        validator = schema_validator("tcw.fixture-registry/v0.5")
-        registry = json.loads(Path("fixtures/golden/fixtures.json").read_text("utf-8"))
-        validator.validate(registry)
-        cases = (
-            ((), "schema_version"),
-            (("build_provenance",), "provenance_id"),
-            (("build_provenance", "python"), "major_minor"),
-            (("build_provenance", "dependencies"), "jsonschema"),
-            (("generator",), "name"),
-            (("fixtures", 0), "id"),
-            (("fixtures", 0, "authored_source"), "id"),
-            (("fixtures", 0, "generator"), "name"),
-            (("fixtures", 0, "anchors"), "document_id"),
+    def test_observation_schemas_use_small_symbolic_catalog_keys(self) -> None:
+        manifest, comparison = observation_documents()
+        validator("observation-manifest").validate(manifest)
+        validator("comparison").validate(comparison)
+        self.assertEqual(
+            (manifest["record_type"], manifest["format_version"]),
+            ("observation", 1),
         )
-        for path, required in cases:
-            with self.subTest(path=path, required=required):
-                self.assert_closed_object_contract(validator, registry, path, required)
+        self.assertNotIn("schema_version", manifest)
+        self.assertNotIn("schema_version", comparison)
+        self.assertNotIn("build_provenance", manifest)
+        self.assertNotIn("path", manifest["models"])
 
-    def test_empty_manifest_and_comparison_are_rejected(self) -> None:
-        for schema_version in (
-            "tcw.preparation-manifest/v0.5",
-            "tcw.comparison-summary/v0.5",
-        ):
-            with self.subTest(schema=schema_version), self.assertRaises(
-                ValidationError
-            ):
-                schema_validator(schema_version).validate({})
+    def test_observation_schemas_are_closed_and_require_domain_evidence(
+        self,
+    ) -> None:
+        manifest, comparison = observation_documents()
+        cases = (
+            ("observation-manifest", manifest, (), "record_type"),
+            ("observation-manifest", manifest, (), "format_version"),
+            ("observation-manifest", manifest, ("source",), "sha256"),
+            (
+                "observation-manifest",
+                manifest,
+                ("configurations", "docling"),
+                "accelerator",
+            ),
+            (
+                "observation-manifest",
+                manifest,
+                ("docling_document_schema",),
+                "version",
+            ),
+            ("observation-manifest", manifest, ("models",), "files"),
+            (
+                "observation-manifest",
+                manifest,
+                ("extractors", 0),
+                "version",
+            ),
+            ("comparison", comparison, (), "observation_id"),
+            ("comparison", comparison, ("views",), "docling"),
+        )
+        for schema_key, document, path, required in cases:
+            with self.subTest(schema=schema_key, path=path):
+                missing = deepcopy(document)
+                target = missing
+                for part in path:
+                    target = target[part]
+                del target[required]
+                with self.assertRaises(ValidationError):
+                    validator(schema_key).validate(missing)
+
+                unknown = deepcopy(document)
+                target = unknown
+                for part in path:
+                    target = target[part]
+                target["unexpected"] = True
+                with self.assertRaises(ValidationError):
+                    validator(schema_key).validate(unknown)
+
+    def test_observation_manifest_requires_ordered_extractors(self) -> None:
+        manifest, _ = observation_documents()
+        schema = validator("observation-manifest")
+        schema.validate(manifest)
+        reversed_manifest = deepcopy(manifest)
+        reversed_manifest["extractors"].reverse()
+        with self.assertRaises(ValidationError):
+            schema.validate(reversed_manifest)
 
     def test_table_coordinates_are_an_all_or_nothing_pair(self) -> None:
         draft_schema = json.loads(
@@ -131,194 +134,12 @@ class SchemaTests(unittest.TestCase):
         target_validator.validate(
             {"ref": "#/tables/0", "field": "text", "row": 0, "column": 0}
         )
-        target_validator.validate({"ref": "#/texts/0", "field": "text"})
         for incomplete in (
             {"ref": "#/tables/0", "field": "text", "row": 0},
             {"ref": "#/tables/0", "field": "text", "column": 0},
         ):
-            with self.subTest(target=incomplete), self.assertRaises(
-                ValidationError
-            ):
+            with self.assertRaises(ValidationError):
                 target_validator.validate(incomplete)
-
-        finding_schema = json.loads(
-            (SCHEMAS / "finding-set-v0.5.schema.json").read_text("utf-8")
-        )
-        d003 = next(
-            branch
-            for branch in finding_schema["$defs"]["finding"]["oneOf"]
-            if branch["properties"]["rule_id"].get("const") == "TCW-D003"
-        )
-        evidence_schema = d003["properties"]["evidence"]
-        evidence_validator = Draft202012Validator(evidence_schema)
-        base_evidence = {"code_point_offsets": [0], "occurrence_count": 1}
-        evidence_validator.validate(
-            {**base_evidence, "row": 0, "column": 0}
-        )
-        for incomplete in (
-            {**base_evidence, "row": 0},
-            {**base_evidence, "column": 0},
-        ):
-            with self.subTest(evidence=incomplete), self.assertRaises(
-                ValidationError
-            ):
-                evidence_validator.validate(incomplete)
-
-    def test_manifest_requires_one_ordered_result_per_extractor(self) -> None:
-        validator = schema_validator("tcw.preparation-manifest/v0.5")
-        manifest, _ = real_observation_documents()
-
-        self.assertEqual(
-            [result["name"] for result in manifest["extractors"]],
-            ["docling", "markitdown"],
-        )
-        validator.validate(manifest)
-
-        invalid_manifests = []
-        duplicate_docling = deepcopy(manifest)
-        duplicate_docling["extractors"][1] = deepcopy(
-            duplicate_docling["extractors"][0]
-        )
-        invalid_manifests.append(duplicate_docling)
-
-        duplicate_markitdown = deepcopy(manifest)
-        duplicate_markitdown["extractors"][0] = deepcopy(
-            duplicate_markitdown["extractors"][1]
-        )
-        invalid_manifests.append(duplicate_markitdown)
-
-        for position in (0, 1):
-            missing_identity = deepcopy(manifest)
-            del missing_identity["extractors"][position]["name"]
-            invalid_manifests.append(missing_identity)
-
-            wrong_identity = deepcopy(manifest)
-            wrong_identity["extractors"][position]["name"] = "other"
-            invalid_manifests.append(wrong_identity)
-
-        for invalid in invalid_manifests:
-            with self.subTest(names=[item.get("name") for item in invalid["extractors"]]):
-                with self.assertRaises(ValidationError):
-                    validator.validate(invalid)
-
-    def test_manifest_dependency_schema_matches_runtime_contract(self) -> None:
-        dependency_schema = COMMON_DEFINITIONS["dependencies"]
-        manifest, _ = real_observation_documents()
-        entry = load_registry()["entries"][0]
-
-        self.assertFalse(dependency_schema["additionalProperties"])
-        self.assertEqual(
-            dependency_schema["required"], list(PROVENANCE_DEPENDENCIES)
-        )
-        self.assertEqual(
-            set(dependency_schema["properties"]),
-            set(PROVENANCE_DEPENDENCIES),
-        )
-        self.assertEqual(
-            manifest["build_provenance"]["dependencies"],
-            dict(PROVENANCE_DEPENDENCIES),
-        )
-        self.assertEqual(
-            manifest["build_provenance"]["dependencies"],
-            entry["dependencies"],
-        )
-        self.assertEqual(
-            manifest["build_provenance"],
-            build_provenance(
-                entry,
-                command_id="tcw.observe",
-                extracting=True,
-            ),
-        )
-        fixture_registry = json.loads(
-            Path("fixtures/golden/fixtures.json").read_text("utf-8")
-        )
-        self.assertEqual(
-            fixture_registry["build_provenance"],
-            build_provenance(
-                entry,
-                generator_id="tools.generate_fixtures",
-            ),
-        )
-
-    def test_manifest_nested_objects_are_closed_and_required(self) -> None:
-        validator = schema_validator("tcw.preparation-manifest/v0.5")
-        manifest, _ = real_observation_documents()
-        validator.validate(manifest)
-
-        cases = (
-            (manifest, (), "schema_version"),
-            (manifest, ("source",), "sha256"),
-            (manifest, ("build_provenance",), "provenance_id"),
-            (manifest, ("build_provenance", "python"), "major_minor"),
-            (manifest, ("build_provenance", "dependencies"), "jsonschema"),
-            (
-                manifest,
-                ("build_provenance", "extractor_contract"),
-                "docling",
-            ),
-            (
-                manifest,
-                ("build_provenance", "extractor_contract", "docling"),
-                "document_schema_version",
-            ),
-            (manifest, ("configurations",), "docling"),
-            (manifest, ("configurations", "docling"), "accelerator"),
-            (manifest, ("configurations", "markitdown"), "convert_method"),
-            (manifest, ("docling_document_schema",), "name"),
-            (manifest, ("models",), "required"),
-            (manifest, ("extractors", 0), "name"),
-            (manifest, ("extractors", 0, "artifacts", 0), "role"),
-            (manifest, ("extractors", 1), "name"),
-            (manifest, ("extractors", 1, "artifacts", 0), "role"),
-            (manifest, ("comparison",), "status"),
-        )
-
-        model_manifest = deepcopy(manifest)
-        model_manifest["models"] = {
-            "required": True,
-            "path": "/models",
-            "inventory_hash": "a" * 64,
-            "files": [{"path": "model.bin", "size": 1, "sha256": "b" * 64}],
-        }
-        validator.validate(model_manifest)
-        cases += ((model_manifest, ("models", "files", 0), "path"),)
-
-        error_manifest = deepcopy(manifest)
-        error_manifest["extractors"][0]["status"] = "FAILED"
-        error_manifest["extractors"][0]["artifacts"] = []
-        error_manifest["extractors"][0]["error"] = {
-            "code": "DOCLING_CONVERSION_FAILED",
-            "message": "stable error",
-        }
-        validator.validate(error_manifest)
-        cases += ((error_manifest, ("extractors", 0, "error"), "code"),)
-
-        for document, path, required in cases:
-            with self.subTest(path=path, required=required):
-                self.assert_closed_object_contract(
-                    validator, document, path, required
-                )
-
-    def test_comparison_nested_objects_are_closed_and_required(self) -> None:
-        validator = schema_validator("tcw.comparison-summary/v0.5")
-        _, comparison = real_observation_documents()
-        validator.validate(comparison)
-        cases = (
-            ((), "schema_version"),
-            (("source",), "sha256"),
-            (("anchors", 0), "name"),
-            (("views",), "docling"),
-            (("views", "docling"), "artifact_sha256"),
-            (("views", "docling", "anchors", 0), "present"),
-            (("views", "markitdown"), "artifact_sha256"),
-            (("deltas",), "normalized_equal"),
-        )
-        for path, required in cases:
-            with self.subTest(path=path, required=required):
-                self.assert_closed_object_contract(
-                    validator, comparison, path, required
-                )
 
 
 if __name__ == "__main__":

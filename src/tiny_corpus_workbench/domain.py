@@ -5,9 +5,6 @@ from enum import IntEnum
 from typing import Any
 
 
-DOCLING_DOCUMENT_COMPATIBILITY = (
-    "reloadable only with the exact uv.lock environment that created this artifact"
-)
 _MESSAGE_SEPARATOR_TRANSLATION = str.maketrans(
     {
         codepoint: " "

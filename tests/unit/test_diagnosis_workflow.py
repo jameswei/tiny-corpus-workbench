@@ -239,6 +239,26 @@ class DiagnosisWorkflowTests(unittest.TestCase):
         self.assertEqual(stderr, "")
         return Path(json.loads(stdout)["manifest"]).parent
 
+    def test_unknown_observation_header_is_input_error_with_guidance(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            manifest_path = observation / "manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["format_version"] = 99
+            manifest_path.write_bytes(canonical_json(manifest))
+            code, stdout, stderr = self.invoke(
+                "diagnose",
+                str(observation),
+                "--output-root",
+                str(root / "diagnoses"),
+            )
+            self.assertEqual(code, 2)
+            self.assertEqual(stdout, "")
+            self.assertIn("regenerate", stderr)
+
     def test_observe_diagnose_verify_is_v05_deterministic_and_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

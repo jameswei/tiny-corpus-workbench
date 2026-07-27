@@ -4,9 +4,6 @@ import hashlib
 import json
 from pathlib import Path
 
-from tiny_corpus_workbench.schema_catalog import validator
-from tiny_corpus_workbench.supported_provenance import validate_recorded_provenance
-
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = ROOT / "fixtures/golden"
 
@@ -17,11 +14,10 @@ def digest(path: Path) -> str:
 
 def main() -> int:
     registry = json.loads((GOLDEN / "fixtures.json").read_text("utf-8"))
-    validator("tcw.fixture-registry/v0.5").validate(registry)
-    validate_recorded_provenance(
-        registry["build_provenance"],
-        generator_id="tools.generate_fixtures",
-    )
+    if set(registry) != {"fixtures"} or not isinstance(
+        registry["fixtures"], list
+    ):
+        raise SystemExit("fixture registry must contain only a fixture list")
     fixtures = registry["fixtures"]
     ids = [item["id"] for item in fixtures]
     if ids != sorted(ids) or len(ids) != len(set(ids)) or len(ids) != 12:
@@ -37,6 +33,24 @@ def main() -> int:
     }:
         raise SystemExit("fixture registry is not the exact 3 x 4 matrix")
     for item in fixtures:
+        if set(item) != {
+            "anchors",
+            "authored_source",
+            "expected_docling_table_count",
+            "family",
+            "format",
+            "id",
+            "license",
+            "media_type",
+            "ownership",
+            "path",
+            "recipe",
+            "sha256",
+            "size",
+        }:
+            raise SystemExit(f"fixture registry entry has an invalid shape: {item.get('id')}")
+        if item["recipe"] != "tools/generate_fixtures.py":
+            raise SystemExit(f"fixture recipe mismatch: {item['id']}")
         path = ROOT / item["path"]
         authored = ROOT / item["authored_source"]["path"]
         if path.stat().st_size != item["size"] or digest(path) != item["sha256"]:

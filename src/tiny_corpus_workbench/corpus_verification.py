@@ -1034,7 +1034,10 @@ def _verify_runtime_and_snapshot(
     specification: dict[str, Any],
     issues: list[dict[str, Any]],
 ) -> None:
-    from tiny_corpus_workbench.cli import DOCLING_CONFIG, MARKITDOWN_CONFIG
+    from tiny_corpus_workbench.application.observation import (
+        DOCLING_CONFIG,
+        MARKITDOWN_CONFIG,
+    )
     from tiny_corpus_workbench.v03 import RULESET, RULESET_PARAMETER_HASH
 
     try:
