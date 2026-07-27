@@ -15,6 +15,8 @@ def _fixtures() -> tuple[Path, list[dict[str, Any]]]:
     registry_path = _registry_path()
     try:
         registry = json.loads(registry_path.read_text("utf-8"))
+        if not isinstance(registry, dict):
+            return registry_path, []
         fixtures = registry.get("fixtures")
         if not isinstance(fixtures, list):
             return registry_path, []
