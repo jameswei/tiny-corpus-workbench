@@ -75,14 +75,14 @@
           <span>Patterns across mixed formats</span>
         </li>
       </ol>
-      <p class="workflow-note">The runnable local path covers source capture, extraction observation, evidence-based diagnosis, explicit decisions, reversible transformations, prepared revisions, corpus inspection, and read-only verification. The local visual workbench remains future work.</p>
+      <p class="workflow-note">The runnable local path covers source capture, extraction observation, evidence-based diagnosis, explicit decisions, reversible transformations, prepared revisions, corpus inspection, read-only verification, and a loopback-only visual workbench.</p>
     </section>
 
     <section id="capabilities" class="section" aria-labelledby="capabilities-title">
       <div class="section-heading">
         <p class="kicker">One inspectable history</p>
         <h2 id="capabilities-title">Build every capability on evidence.</h2>
-        <p>Extraction, diagnosis, controlled revisions, and static corpus comparison establish one inspectable trail. The future visual workbench can build on the same evidence.</p>
+        <p>Extraction, diagnosis, controlled revisions, static corpus comparison, and the local visual workbench use one inspectable evidence trail.</p>
       </div>
       <div class="grid capability-grid">
         <article class="card">
@@ -104,6 +104,11 @@
           <p class="card-number">04 · Available</p>
           <h3>Compare</h3>
           <p>Inspect a mixed-format corpus through a static offline report with evidence links, grouped findings, extractor deltas, and revision histories.</p>
+        </article>
+        <article class="card">
+          <p class="card-number">05 · Available</p>
+          <h3>Explore locally</h3>
+          <p>Inspect explicit verified records in a read-only browser view that binds only to <code>127.0.0.1</code> and keeps no session state.</p>
         </article>
       </div>
     </section>
@@ -140,7 +145,7 @@
         <p><strong>Diagnosis report · Available</strong><span>Deterministic portable evidence</span></p>
         <p><strong>Prepared revision · Available</strong><span>Reversible, attributable transformation history</span></p>
         <p><strong>Static corpus report · Available</strong><span>Offline navigation across explicit local members</span></p>
-        <p><strong>Visual workbench · Product direction</strong><span>Local exploration on the same evidence trail</span></p>
+        <p><strong>Visual workbench · Available</strong><span>Read-only local exploration of explicit v0.5 records</span></p>
       </div>
       <pre class="command-block"><code>uv sync --frozen --python 3.12
 uv run --frozen docling-tools models download layout tableformer --output-dir .cache/docling/models
@@ -151,10 +156,12 @@ uv run --frozen tcw draft-refinement DIAGNOSIS_DIRECTORY --finding FINDING_ID --
 uv run --frozen tcw resolve-refinement decision.json --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
 uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
 uv run --frozen tcw inspect-corpus fixtures/corpus/v0.5/golden-matrix.json
-uv run --frozen tcw verify-corpus CORPUS_DIRECTORY --spec fixtures/corpus/v0.5/golden-matrix.json</code></pre>
+uv run --frozen tcw verify-corpus CORPUS_DIRECTORY --spec fixtures/corpus/v0.5/golden-matrix.json
+uv run --frozen tcw workbench RECORD_DIRECTORY --no-open</code></pre>
       <div class="resource-links">
         <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/learning/README.md">Explore all learning materials</a>
         <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/docs/corpus-inspection-comparison.md">Read the corpus guide</a>
+        <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/docs/local-visual-workbench.md">Read the workbench guide</a>
       </div>
     </section>
 

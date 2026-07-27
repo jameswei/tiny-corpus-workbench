@@ -10,6 +10,11 @@ document revision. RAG is a typical downstream consumer of prepared documents,
 but chunking, indexing, retrieval, generation, and related integration remain
 outside this roadmap through v1.0.
 
+Starting with v0.5, all active artifact families use one unified schema
+baseline. Schema versions remain separate from package and build provenance.
+Unsupported schema generations fail deterministically instead of receiving an
+implicit migration.
+
 ## Milestone overview
 
 | Version | Milestone | Primary outcome |

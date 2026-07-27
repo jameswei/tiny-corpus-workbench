@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import html
 import json
 import re
 import subprocess
@@ -22,6 +23,9 @@ INVENTORY_PATH = "tests/fixtures/v05-schema-evidence-inventory.json"
 INVENTORY_SHA256 = (
     "cd00a20765e668d3e29b2fd6e6a93497694f32725c6700f190a2b2fbf816f0c4"
 )
+APPROVED_PROPOSAL_SHA256 = (
+    "5393dad4b8426f96949cb9801ef6b61a1aff7ac380ddb0f626374190536e61d5"
+)
 OLD_SCHEMA = re.compile(r"tcw\.[A-Za-z0-9-]+/v0\.[1-4]\b")
 OLD_SCHEMA_FILE = re.compile(r"-v0\.[1-4]\.schema\.json\b")
 
@@ -37,6 +41,72 @@ USER_DOCUMENTS = (
     "learning/v0.2-evidence-based-diagnosis.md",
     "learning/v0.3-controlled-revisions.md",
     "learning/v0.4-corpus-inspection-comparison.md",
+    "site/index.html",
+)
+
+V05_8_DOCUMENT_CLASSES = {
+    "CURRENT.md": "maintainer-release-candidate-handoff",
+    "docs/local-visual-workbench.md": "current-user-guide",
+    "docs/releases/v0.5.0.md": "release-compatibility-disclosure",
+    "docs/roadmap.md": "technical-roadmap-direction",
+    "learning/v0.5-local-visual-workbench.md": "current-learning-lesson",
+    "site/index.html": "current-site-feature-presentation",
+}
+
+V05_8_REQUIRED_CLAIMS = {
+    "CURRENT.md": (
+        "The complete schema/reset verdict is settled:",
+        "all 25 active JSON schemas",
+        "v0.1 through v0.4 artifacts are unsupported",
+        "users must regenerate old milestone artifacts with v0.5",
+        "ready for fresh independent review",
+    ),
+    "docs/local-visual-workbench.md": (
+        "binds only to\n`127.0.0.1`",
+        "writes no session\nstate",
+        "Old v0.1 through v0.4 artifacts are unsupported",
+        "Regenerate them with v0.5",
+        "The workbench is read-only",
+    ),
+    "docs/releases/v0.5.0.md": (
+        "The current v0.5 release supports only v0.5 schemas.",
+        "Artifacts created by v0.1, v0.2, v0.3, or v0.4 are unsupported.",
+        "Regenerate records with v0.5",
+    ),
+    "docs/roadmap.md": (
+        "all active artifact families use one unified schema\nbaseline",
+        "Schema versions remain separate from package and build provenance.",
+        "Unsupported schema generations fail deterministically",
+    ),
+    "learning/v0.5-local-visual-workbench.md": (
+        "start the read-only local workbench",
+        "An **artifact key** authorizes one admitted artifact response.",
+        "Stop the server with `Ctrl-C`.",
+    ),
+    "site/index.html": (
+        "loopback-only visual workbench",
+        "Visual workbench · Available",
+        "Read-only local exploration of explicit v0.5 records",
+        "tcw workbench RECORD_DIRECTORY --no-open",
+    ),
+}
+
+PUBLIC_CURRENT_NARRATIVE = (
+    "README.md",
+    "docs/local-visual-workbench.md",
+    "learning/README.md",
+    "learning/v0.5-local-visual-workbench.md",
+    "site/index.html",
+)
+
+V05_8_CONTRADICTION_SCOPE = (
+    "README.md",
+    "CURRENT.md",
+    "docs/local-visual-workbench.md",
+    "docs/releases/v0.5.0.md",
+    "docs/roadmap.md",
+    "learning/README.md",
+    "learning/v0.5-local-visual-workbench.md",
     "site/index.html",
 )
 
@@ -703,6 +773,262 @@ def _verify_repository_metadata(root: Path) -> None:
         fail("obsolete diagnosis v0.2 binary attribute remains")
 
 
+def _current_claims(relative: str, text: str) -> tuple[str, ...]:
+    if relative.endswith(".html"):
+        text = html.unescape(re.sub(r"<[^>]+>", "\n", text))
+    blocks: list[str] = []
+    paragraph: list[str] = []
+    section = ""
+
+    def flush() -> None:
+        if paragraph:
+            blocks.append(" ".join(paragraph))
+            paragraph.clear()
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            flush()
+            continue
+        if re.match(r"^#{1,6}\s+", line):
+            flush()
+            blocks.append(line)
+            section = line
+            continue
+        if re.match(r"^(?:[-*+]\s+|\d+\.\s+|\|)", line):
+            flush()
+            blocks.append(f"{section} {line}".strip())
+            continue
+        paragraph.append(line)
+    flush()
+
+    claims: list[str] = []
+    for block in blocks:
+        claims.extend(
+            part.strip()
+            for part in re.split(r"(?<=[.!?])\s+|[;；]\s*", block)
+            if part.strip()
+        )
+    return tuple(claims)
+
+
+def _normalize_claim(claim: str) -> tuple[str, set[str]]:
+    normalized = re.sub(
+        r"[^a-z0-9.]+",
+        " ",
+        claim.casefold().replace("v0 5", "v0.5").replace("v1 0", "v1.0"),
+    )
+    normalized = re.sub(r"(?<!\d)\.|\.(?!\d)", " ", normalized)
+    normalized = f" {' '.join(normalized.split())} "
+    return normalized, set(normalized.split())
+
+
+def _has_safe_context(normalized: str, tokens: set[str]) -> bool:
+    negative_phrases = (
+        " not ",
+        " no ",
+        " never ",
+        " does not ",
+        " do not ",
+        " cannot ",
+        " without ",
+    )
+    return (
+        any(phrase in normalized for phrase in negative_phrases)
+        or bool(tokens & {"deferred", "outside", "unsupported"})
+    )
+
+
+def _policy_clauses(claim: str) -> tuple[str, ...]:
+    independent_subject = (
+        r"(?:the|this|that|these|those|a|an|it|they|documentation|"
+        r"v\d+(?:\.\d+)?|old)\b"
+    )
+    boundary = re.compile(
+        rf"""
+        \s*(?:,\s*)?(?:but|yet|however|whereas|while|although)\s+
+        |,\s*(?:and|or)\s+(?={independent_subject})
+        |,\s*(?={independent_subject})
+        |\s+and\s+(?={independent_subject})
+        """,
+        re.IGNORECASE | re.VERBOSE,
+    )
+    raw_clauses = [
+        part.strip() for part in boundary.split(claim) if part.strip()
+    ]
+    clauses: list[str] = []
+    index = 0
+    while index < len(raw_clauses):
+        clause = raw_clauses[index]
+        _, tokens = _normalize_claim(clause)
+        if (
+            index + 1 < len(raw_clauses)
+            and tokens
+            and tokens <= {"earlier", "historical", "historically"}
+        ):
+            clause = f"{clause} {raw_clauses[index + 1]}"
+            index += 1
+        clauses.append(clause)
+        index += 1
+    return tuple(clauses)
+
+
+def _clause_policy_issue(
+    clause: str,
+    *,
+    claim_tokens: set[str],
+) -> str | None:
+    normalized, tokens = _normalize_claim(clause)
+    safe = _has_safe_context(normalized, tokens)
+
+    hosted_subject = bool(
+        tokens & {"workbench", "service", "services", "access"}
+    ) or ("it" in tokens and bool(
+        claim_tokens & {"workbench", "service", "services", "access"}
+    ))
+    if "hosted" in tokens and hosted_subject:
+        if not safe:
+            return "hosted workbench or service claim lacks local-not-hosted context"
+
+    if "v1.0" in tokens and tokens & {"active", "current"}:
+        v1_safe = safe or bool(
+            tokens & {"roadmap", "future", "planned", "planning"}
+        )
+        if not v1_safe:
+            return "v1.0 current or active claim lacks roadmap-not-active context"
+
+    availability = bool(
+        tokens & {"available", "availability", "released", "ga"}
+    ) or " generally available " in normalized
+    if ("v0.5" in tokens or "v0.5.0" in tokens) and availability:
+        resource_listing = (
+            "|" in clause
+            and "learning" in tokens
+            and "path" in tokens
+        )
+        v05_safe = safe or bool(
+            tokens & {"candidate", "rc", "prepublication"}
+        ) or resource_listing
+        if not v05_safe:
+            return "v0.5 availability claim lacks release-candidate context"
+
+    old_versions = {f"v0.{number}" for number in range(1, 5)}
+    continued_capability = tokens & {
+        "accept",
+        "accepts",
+        "admit",
+        "admits",
+        "compatible",
+        "compatibility",
+        "read",
+        "reads",
+        "support",
+        "supported",
+        "supports",
+        "verify",
+        "verifies",
+        "work",
+        "working",
+        "works",
+    }
+    if tokens & old_versions and continued_capability:
+        old_safe = safe or bool(
+            tokens
+            & {
+                "earlier",
+                "historical",
+                "historically",
+                "history",
+                "regenerate",
+            }
+        ) or " only v0.5 " in normalized or " not migrated " in normalized
+        if not old_safe:
+            return "old-schema capability claim lacks unsupported-reset context"
+
+    return None
+
+
+def _claim_policy_issue(claim: str) -> str | None:
+    _, claim_tokens = _normalize_claim(claim)
+    for clause in _policy_clauses(claim):
+        if issue := _clause_policy_issue(
+            clause,
+            claim_tokens=claim_tokens,
+        ):
+            return issue
+    return None
+
+
+def _verify_v05_8_documents(
+    root: Path,
+) -> None:
+    expected_classes = {
+        "current-user-guide",
+        "current-learning-lesson",
+        "current-site-feature-presentation",
+        "technical-roadmap-direction",
+        "release-compatibility-disclosure",
+        "maintainer-release-candidate-handoff",
+    }
+    if set(V05_8_DOCUMENT_CLASSES.values()) != expected_classes:
+        fail("V05-8 document classifications are incomplete or stale")
+    if set(V05_8_REQUIRED_CLAIMS) != set(V05_8_DOCUMENT_CLASSES):
+        fail("V05-8 document claim scope differs from its classifications")
+    for relative, classification in V05_8_DOCUMENT_CLASSES.items():
+        path = root / relative
+        if not path.is_file():
+            fail(f"classified V05-8 document is missing: {relative}")
+        text = path.read_text("utf-8")
+        for claim in V05_8_REQUIRED_CLAIMS[relative]:
+            if claim not in text:
+                fail(
+                    f"V05-8 {classification} claim is missing in {relative}: "
+                    f"{claim}"
+                )
+
+    for relative in PUBLIC_CURRENT_NARRATIVE:
+        folded = (root / relative).read_text("utf-8").casefold()
+        for phrase in ("first public baseline", "schema reset"):
+            if phrase in folded:
+                fail(
+                    f"historical-specialness marketing remains in {relative}: "
+                    f"{phrase}"
+                )
+
+    if set(V05_8_CONTRADICTION_SCOPE) != {
+        "README.md",
+        *V05_8_DOCUMENT_CLASSES,
+        "learning/README.md",
+    }:
+        fail("V05-8 contradiction scope is incomplete or stale")
+    for relative in V05_8_CONTRADICTION_SCOPE:
+        text = (root / relative).read_text("utf-8")
+        if relative == "CURRENT.md":
+            current_status = text.split("## Status", 1)[1].split(
+                "- Milestone v0.1", 1
+            )[0]
+            active_milestone = text.split("## Active milestone", 1)[1].split(
+                "## Latest completed milestone", 1
+            )[0]
+            text = f"{current_status}\n{active_milestone}"
+        for claim in _current_claims(relative, text):
+            if issue := _claim_policy_issue(claim):
+                fail(f"{issue}: {relative}")
+
+    readme = (root / "README.md").read_text("utf-8")
+    released_section = readme.split("## Released milestones", 1)[1].split(
+        "## Why this project", 1
+    )[0]
+    if "v0.5" in released_section:
+        fail("v0.5 appears in pre-publication released-version markers")
+
+    proposal_sha256 = hashlib.sha256(
+        (root / "docs/proposal.md").read_bytes()
+    ).hexdigest()
+    if proposal_sha256 != APPROVED_PROPOSAL_SHA256:
+        fail("docs/proposal.md differs from the approved milestone base")
+
+
 def verify(
     root: Path = ROOT,
     *,
@@ -810,7 +1136,10 @@ def verify(
         "`diagnosis/v0.2/",
         "`refinement/v0.3/",
     )
-    for relative in USER_DOCUMENTS:
+    audited_documents = tuple(
+        dict.fromkeys((*USER_DOCUMENTS, *V05_8_DOCUMENT_CLASSES))
+    )
+    for relative in audited_documents:
         text = (root / relative).read_text("utf-8")
         if any(value in text for value in forbidden_paths):
             fail(f"old active fixture path remains in {relative}")
@@ -818,13 +1147,14 @@ def verify(
             fail(f"old active schema instruction remains in {relative}")
 
     _verify_repository_metadata(root)
+    _verify_v05_8_documents(root)
     print(
         "verified v0.5-only schema baseline: "
         f"{len(actual_schema_paths)} schemas, "
         f"{len(inventory['schema_emission_sources'])} executable files, "
         f"{len(inventory['tests'])} test files, "
         f"{len(FIXTURE_FILES)} fixture files, "
-        f"{len(USER_DOCUMENTS)} user documents, "
+        f"{len(audited_documents)} user documents, "
         f"{len(REPOSITORY_METADATA)} repository metadata files"
     )
 

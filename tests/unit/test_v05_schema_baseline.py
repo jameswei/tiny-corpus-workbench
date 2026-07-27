@@ -10,6 +10,7 @@ from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 
+import yaml
 from jsonschema import Draft202012Validator, ValidationError
 
 from tiny_corpus_workbench.canonical_json import canonical_json
@@ -28,7 +29,10 @@ from tiny_corpus_workbench.schema_catalog import (
 )
 from tiny_corpus_workbench.semantic_validation import SemanticValidationError
 from tiny_corpus_workbench.supported_provenance import load_registry
-from tools.verify_v05_schema_baseline import AuditError, verify as verify_reset_audit
+from tools.verify_v05_schema_baseline import (
+    AuditError,
+    verify as verify_reset_audit,
+)
 
 
 API_FIXTURES = Path("tests/fixtures/workbench-api")
@@ -2790,6 +2794,276 @@ class V05SchemaBaselineTests(unittest.TestCase):
                     encoding="utf-8",
                 ),
             ),
+            (
+                "missing release compatibility disclosure",
+                "release-compatibility-disclosure claim is missing",
+                lambda root: (
+                    root / "docs/releases/v0.5.0.md"
+                ).write_text(
+                    (
+                        root / "docs/releases/v0.5.0.md"
+                    ).read_text("utf-8").replace(
+                        "The current v0.5 release supports only v0.5 schemas.",
+                        "Compatibility is documented elsewhere.",
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "premature released marker",
+                "v0.5 availability claim lacks",
+                lambda root: (root / "README.md").write_text(
+                    (root / "README.md").read_text("utf-8").replace(
+                        "| [v0.4.0]",
+                        "| v0.5 | Local Visual Workbench |\n| [v0.4.0]",
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "proposal rewrite",
+                "docs/proposal.md differs from the approved milestone base",
+                lambda root: (root / "docs/proposal.md").write_text(
+                    (root / "docs/proposal.md").read_text("utf-8")
+                    + "\nChanged during V05-8.\n",
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "hosted workbench claim",
+                "hosted workbench or service claim lacks",
+                lambda root: (root / "site/index.html").write_text(
+                    (root / "site/index.html").read_text("utf-8").replace(
+                        "</main>",
+                        "<p>The workbench is a hosted service.</p></main>",
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "v1 active claim",
+                "v1.0 current or active claim lacks",
+                lambda root: (root / "CURRENT.md").write_text(
+                    (root / "CURRENT.md").read_text("utf-8").replace(
+                        "## Status",
+                        "## Status\n\nMilestone v1.0, Stable Workbench, is active.",
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "released v05 site marker",
+                "v0.5 availability claim lacks",
+                lambda root: (root / "site/index.html").write_text(
+                    (root / "site/index.html").read_text("utf-8").replace(
+                        "Visual workbench · Available",
+                        "Visual workbench · Available — v0.5 is released",
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "old compatibility claim",
+                "old-schema capability claim lacks",
+                lambda root: (
+                    root / "learning/v0.5-local-visual-workbench.md"
+                ).write_text(
+                    (
+                        root / "learning/v0.5-local-visual-workbench.md"
+                    ).read_text("utf-8")
+                    + "\nThe current release supports v0.4 artifacts.\n",
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "reviewer exact hosted variant",
+                "hosted workbench or service claim lacks",
+                lambda root: (
+                    root / "docs/local-visual-workbench.md"
+                ).write_text(
+                    (
+                        root / "docs/local-visual-workbench.md"
+                    ).read_text("utf-8")
+                    + "\nThe workbench is hosted.\n",
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "reviewer exact current milestone variant",
+                "v1.0 current or active claim lacks",
+                lambda root: (root / "CURRENT.md").write_text(
+                    (root / "CURRENT.md").read_text("utf-8").replace(
+                        "## Status",
+                        "## Status\n\nThe current milestone is v1.0.",
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "reviewer exact general availability variant",
+                "v0.5 availability claim lacks",
+                lambda root: (root / "site/index.html").write_text(
+                    (root / "site/index.html").read_text("utf-8").replace(
+                        "</main>",
+                        "<p>v0.5 is generally available.</p></main>",
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "reviewer exact continued-work variant",
+                "old-schema capability claim lacks",
+                lambda root: (
+                    root / "learning/v0.5-local-visual-workbench.md"
+                ).write_text(
+                    (
+                        root / "learning/v0.5-local-visual-workbench.md"
+                    ).read_text("utf-8")
+                    + "\nv0.4 artifacts continue to work.\n",
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "broader hosted offering",
+                "hosted workbench or service claim lacks",
+                lambda root: (root / "site/index.html").write_text(
+                    (root / "site/index.html").read_text("utf-8").replace(
+                        "</main>",
+                        "<p>A hosted workbench is offered online.</p></main>",
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "broader old reader support",
+                "old-schema capability claim lacks",
+                lambda root: (
+                    root / "docs/local-visual-workbench.md"
+                ).write_text(
+                    (
+                        root / "docs/local-visual-workbench.md"
+                    ).read_text("utf-8")
+                    + "\nReaders still accept v0.2 records.\n",
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "mixed hosted unrelated negative",
+                "hosted workbench or service claim lacks",
+                lambda root: (
+                    root / "docs/local-visual-workbench.md"
+                ).write_text(
+                    (
+                        root / "docs/local-visual-workbench.md"
+                    ).read_text("utf-8")
+                    + "\nThe guide is not obsolete, and the workbench is hosted.\n",
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "mixed hosted pronoun",
+                "hosted workbench or service claim lacks",
+                lambda root: (
+                    root / "docs/local-visual-workbench.md"
+                ).write_text(
+                    (
+                        root / "docs/local-visual-workbench.md"
+                    ).read_text("utf-8")
+                    + (
+                        "\nThe workbench does not persist session state, "
+                        "but it is hosted.\n"
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "mixed v1 unrelated future",
+                "v1.0 current or active claim lacks",
+                lambda root: (root / "CURRENT.md").write_text(
+                    (root / "CURRENT.md").read_text("utf-8").replace(
+                        "## Status",
+                        (
+                            "## Status\n\nThis future note is informational, "
+                            "but v1.0 is current."
+                        ),
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "mixed v1 unrelated negative",
+                "v1.0 current or active claim lacks",
+                lambda root: (root / "CURRENT.md").write_text(
+                    (root / "CURRENT.md").read_text("utf-8").replace(
+                        "## Status",
+                        (
+                            "## Status\n\nThis guide is not final, and "
+                            "v1.0 is active."
+                        ),
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "mixed v05 unrelated non-public server",
+                "v0.5 availability claim lacks",
+                lambda root: (root / "site/index.html").write_text(
+                    (root / "site/index.html").read_text("utf-8").replace(
+                        "</main>",
+                        (
+                            "<p>The server is not public, but v0.5 is "
+                            "generally available.</p></main>"
+                        ),
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "mixed v05 unrelated unfinished documentation",
+                "v0.5 availability claim lacks",
+                lambda root: (root / "site/index.html").write_text(
+                    (root / "site/index.html").read_text("utf-8").replace(
+                        "</main>",
+                        (
+                            "<p>Documentation is not finished, but v0.5 "
+                            "is released.</p></main>"
+                        ),
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "mixed old schema unrelated non-persistence",
+                "old-schema capability claim lacks",
+                lambda root: (
+                    root / "learning/v0.5-local-visual-workbench.md"
+                ).write_text(
+                    (
+                        root / "learning/v0.5-local-visual-workbench.md"
+                    ).read_text("utf-8")
+                    + (
+                        "\nThe service does not persist state, but v0.4 "
+                        "artifacts still work.\n"
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "mixed old schema unrelated regeneration",
+                "old-schema capability claim lacks",
+                lambda root: (
+                    root / "learning/v0.5-local-visual-workbench.md"
+                ).write_text(
+                    (
+                        root / "learning/v0.5-local-visual-workbench.md"
+                    ).read_text("utf-8")
+                    + (
+                        "\nRegenerate backups first, but v0.2 records "
+                        "remain supported.\n"
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
         )
         with tempfile.TemporaryDirectory() as temporary:
             clean = self.copied_repository(Path(temporary))
@@ -2806,6 +3080,104 @@ class V05SchemaBaselineTests(unittest.TestCase):
                         repository,
                         base_repository=base_repository,
                     )
+
+    def test_both_ci_jobs_fetch_history_before_the_schema_audit(self) -> None:
+        workflow = yaml.safe_load(
+            Path(".github/workflows/ci.yml").read_text("utf-8")
+        )
+        jobs = workflow["jobs"]
+        self.assertEqual(set(jobs), {"fast-validation", "full-extraction"})
+        for job_name, job in jobs.items():
+            with self.subTest(job=job_name):
+                checkout = next(
+                    step
+                    for step in job["steps"]
+                    if str(step.get("uses", "")).startswith(
+                        "actions/checkout@"
+                    )
+                )
+                self.assertEqual(checkout["with"]["fetch-depth"], 0)
+                audit_indexes = [
+                    index
+                    for index, step in enumerate(job["steps"])
+                    if "tools/verify_v05_schema_baseline.py"
+                    in str(step.get("run", ""))
+                ]
+                self.assertEqual(len(audit_indexes), 1)
+                self.assertLess(
+                    job["steps"].index(checkout),
+                    audit_indexes[0],
+                )
+
+    def test_reset_audit_accepts_safe_context_and_historical_exclusions(
+        self,
+    ) -> None:
+        base_repository = Path.cwd()
+        cases = (
+            (
+                "local not hosted",
+                "docs/local-visual-workbench.md",
+                "The workbench is local and is not hosted.",
+                False,
+            ),
+            (
+                "v1 roadmap not active",
+                "CURRENT.md",
+                "The v1.0 milestone remains on the roadmap and is not active.",
+                True,
+            ),
+            (
+                "v05 release candidate",
+                "CURRENT.md",
+                "v0.5 is an RC and is not generally available.",
+                True,
+            ),
+            (
+                "old schemas explicitly rejected",
+                "learning/v0.5-local-visual-workbench.md",
+                "The workbench does not read or support v0.4 artifacts.",
+                False,
+            ),
+            (
+                "historical current section",
+                "CURRENT.md",
+                "During v0.4, the workbench read v0.3 artifacts.",
+                False,
+            ),
+            (
+                "historically qualified old support",
+                "learning/v0.5-local-visual-workbench.md",
+                "Historically, v0.4 supported v0.3 artifacts.",
+                False,
+            ),
+            (
+                "frozen plan is not a current claim surface",
+                "docs/plans/v0.5-local-visual-workbench.md",
+                "Planning example: The workbench is hosted.",
+                False,
+            ),
+        )
+        for label, relative, claim, insert_in_status in cases:
+            with (
+                self.subTest(case=label),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                repository = self.copied_repository(Path(temporary))
+                path = repository / relative
+                content = path.read_text("utf-8")
+                if insert_in_status:
+                    content = content.replace(
+                        "## Status",
+                        f"## Status\n\n{claim}",
+                        1,
+                    )
+                else:
+                    content += f"\n{claim}\n"
+                path.write_text(content, "utf-8")
+                verify_reset_audit(
+                    repository,
+                    base_repository=base_repository,
+                )
 
 
 if __name__ == "__main__":

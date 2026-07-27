@@ -1,12 +1,21 @@
 # Handoff Snapshot
 
-**Last updated:** 2026-07-26
+**Last updated:** 2026-07-27
 
 This is an informational handoff, not a required agent workflow or taskboard.
 Future work may use whichever sound engineering practices fit the task.
 
 ## Status
 
+- Milestone v0.5, Local Visual Workbench, is a release candidate awaiting
+  independent V05-8 review. It is not released.
+- V05-1 through V05-7 have fresh reviewer `PASS` checkpoints. V05-8 completes
+  the user guide, learning lesson, release disclosure, site presentation,
+  documentation audit, CI coverage, and clean-export validation.
+- The release candidate provides a read-only, loopback-only, non-persisted
+  browser workbench for explicitly supplied observation, diagnosis, refinement,
+  and corpus records. Existing CLI commands remain the only execution and
+  mutation surface.
 - Milestone v0.1, Extraction Observatory, is released as `v0.1.0` on `main`.
 - The released baseline contains `tcw observe`, `tcw verify`, twelve
   deterministic CC0 fixtures, immutable observation artifacts, tests, user
@@ -166,14 +175,32 @@ supplied observation, diagnosis, refinement, and corpus records. Existing CLI
 commands remain the only execution and mutation surface. The workbench does
 not discover records, follow source paths, or add hosted access.
 
-v0.5 establishes one current public schema baseline. Released v0.5 code will
-write, read, and verify only `/v0.5` artifacts. It will reject v0.1-v0.4
-artifacts without migrating them. Earlier Git tags remain implementation
-history. Current v0.5 provenance support is explicit and monotonic within the
-schema baseline.
+The complete schema/reset verdict is settled:
 
-No product task has passed review yet. V05-1, the unified schema baseline, is
-the first implementation task.
+- all 25 active JSON schemas and every active writer, reader, verifier,
+  registry, fixture, specification, and workbench API use `/v0.5`;
+- no v0.5 schema defines or requires a `milestone` field;
+- schema version is separate from package and build provenance;
+- supported v0.5 provenance tuples are explicit and monotonic;
+- active v0.5 code writes, reads, verifies, and admits only v0.5 artifacts;
+- v0.1 through v0.4 artifacts are unsupported and are not migrated;
+- users must regenerate old milestone artifacts with v0.5;
+- earlier Git tags preserve implementation history, not current compatibility.
+
+V05-1 through V05-7 are accepted. V05-8 has completed its implementation pass
+and is ready for fresh independent review. Before the review corrections, local
+validation passed 321 unit tests and 341 complete tests with the prefetched
+Docling models in offline mode. The correction validation passes every current
+schema, documentation-audit, and CI-history test. Deterministic fixture
+generation, registries, corpus specifications, the 17-document schema audit,
+bundled workbench assets, the static site, compilation, checkout portability,
+and diff hygiene also pass. A clean exported tree runs the model-free
+observation, diagnosis, approved-refinement, corpus, and workbench startup/API
+workflows without changing the export.
+
+Publication still requires V05-8 review, unchanged-delta root validation, the
+stable checkpoint, complete milestone integration review, and explicit owner
+authority.
 
 ## Latest completed milestone
 
@@ -206,7 +233,8 @@ Pull request
 [#11](https://github.com/jameswei/tiny-corpus-workbench/pull/11) delivered the
 milestone as `ae7ce99`. The annotated `v0.4.0` tag targets that commit. Main
 CI, release-target CI, Pages deployment, tagged documentation, and the live
-website all passed final verification. No later milestone is active.
+website all passed final verification. At the v0.4 closeout, no later
+milestone was active.
 
 ## Previous released milestone
 

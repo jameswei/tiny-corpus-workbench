@@ -30,7 +30,7 @@ requires all applicable writing rules and controlled-dictionary checks.
 | v0.2 | [Evidence-Based Diagnosis](v0.2-evidence-based-diagnosis.md) | Available | 45–60 minutes |
 | v0.3 | [Controlled Revisions](v0.3-controlled-revisions.md) | Available | 60 minutes |
 | v0.4 | [Corpus Inspection and Comparison](v0.4-corpus-inspection-comparison.md) | Available | 60–75 minutes |
-| v0.5 | Local Visual Workbench | Planned | — |
+| v0.5 | [Local Visual Workbench](v0.5-local-visual-workbench.md) | Available | 30–45 minutes |
 
 ## How to use a lesson
 
@@ -50,6 +50,8 @@ Use these companion documents when you need more precision:
   refiners, revision lineage, and reversibility
 - [Corpus Inspection and Comparison guide](../docs/corpus-inspection-comparison.md):
   corpus specifications, reports, verification, and privacy limits
+- [Local Visual Workbench guide](../docs/local-visual-workbench.md): explicit
+  record admission, browser views, API limits, and local security
 - [Accepted v0.1 plan](../docs/plans/v0.1-extraction-observatory.md): complete
   implementation and review contract
 - [Accepted v0.2 plan](../docs/plans/v0.2-evidence-based-diagnosis.md): complete
@@ -58,4 +60,6 @@ Use these companion documents when you need more precision:
   controlled-revision implementation and review contract
 - [Accepted v0.4 plan](../docs/plans/v0.4-corpus-inspection-comparison.md):
   complete corpus inspection and comparison contract
+- [Accepted v0.5 plan](../docs/plans/v0.5-local-visual-workbench.md): complete
+  local visual workbench and unified schema contract
 - [Project roadmap](../docs/roadmap.md): milestone sequence and boundaries
