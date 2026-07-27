@@ -20,11 +20,11 @@ from tiny_corpus_workbench.artifacts import (
 from tiny_corpus_workbench.domain import RuntimeContractError
 from tiny_corpus_workbench.runtime import PROVENANCE_DEPENDENCIES
 from tiny_corpus_workbench.schema_catalog import validator as schema_validator
-from tests.unit.test_unsupported_old_schemas import OLD_OBSERVATION_SCHEMA
-
-
 SOURCE = Path("fixtures/golden/policy-memo.md")
 PDF_SOURCE = Path("fixtures/golden/policy-memo.pdf")
+OLD_OBSERVATION_SCHEMA = "tcw.preparation-manifest/v0.1"
+
+
 def fake_docling(source: Path, destination: Path, model_root: Path):
     destination.mkdir(parents=True)
     (destination / "document.json").write_text(

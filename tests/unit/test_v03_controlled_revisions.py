@@ -38,15 +38,11 @@ from tiny_corpus_workbench.v03 import (
     verify_diagnosis,
     verify_refinement,
 )
-from tests.unit.test_unsupported_old_schemas import (
-    OLD_DIAGNOSIS_SCHEMA,
-    OLD_REFINEMENT_DRAFT_SCHEMA,
-    OLD_REFINEMENT_SCHEMA,
-)
-
-
 SOURCE = Path("fixtures/golden/policy-memo.md")
 PDF_SOURCE = Path("fixtures/diagnosis/v0.5/repeated-margin.pdf")
+OLD_DIAGNOSIS_SCHEMA = "tcw.diagnosis-manifest/v0.3"
+OLD_REFINEMENT_DRAFT_SCHEMA = "tcw.refinement-draft/v0.3"
+OLD_REFINEMENT_SCHEMA = "tcw.refinement-manifest/v0.3"
 
 
 def docling_with_refinements(source: Path, destination: Path, model_root: Path):

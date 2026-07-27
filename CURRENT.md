@@ -1,24 +1,24 @@
 # Handoff Snapshot
 
-**Last updated:** 2026-07-27
+**Last updated:** 2026-07-28
 
 This is an informational handoff, not a required agent workflow or taskboard.
 Future work may use whichever sound engineering practices fit the task.
 
 ## Status
 
-- Milestone v0.5, Local Visual Workbench, is a complete local release candidate.
-  Fresh task reviews and the complete milestone integration review returned
-  `PASS`. Milestone PR
-  [#13](https://github.com/jameswei/tiny-corpus-workbench/pull/13) is open and
-  ready for review. v0.5 is not released.
-- V05-1 through V05-8 are accepted with stable checkpoints. V05-8 completes the
-  user guide, learning lesson, release disclosure, site presentation,
-  documentation audit, CI coverage, and clean-export validation.
-- The release candidate provides a read-only, loopback-only, non-persisted
-  browser workbench for explicitly supplied observation, diagnosis, refinement,
-  and corpus records. Existing CLI commands remain the only execution and
-  mutation surface.
+- Milestone pull requests
+  [#13](https://github.com/jameswei/tiny-corpus-workbench/pull/13) and
+  [#17](https://github.com/jameswei/tiny-corpus-workbench/pull/17) are merged.
+  Commit `a500464554bd31b4c7569d50df577d00c6eb71bb` on `main` is the approved
+  correction base.
+- v0.5 is unreleased and paused for a learning-first correction. The merged
+  implementation is not a release candidate.
+- Correction work follows the approved
+  [v0.5 learning-first correction plan](docs/plans/v0.5-learning-first-correction.md)
+  and its
+  [ledger](docs/plans/v0.5-learning-first-correction-ledger.md). No correction
+  task or release is complete.
 - Milestone v0.1, Extraction Observatory, is released as `v0.1.0` on `main`.
 - The released baseline contains `tcw observe`, `tcw verify`, twelve
   deterministic CC0 fixtures, immutable observation artifacts, tests, user
@@ -165,47 +165,25 @@ confirmation.
 
 ## Active milestone
 
-Milestone v0.5, Local Visual Workbench, is active on
-`milestone/v0.5-local-visual-workbench`.
+Milestone v0.5 is active only as the learning-first correction. The correction
+keeps the useful local visual Workbench while simplifying records, internal
+interfaces, tests, and documentation around the document lifecycle.
 
-The project owner accepted the frozen implementation plan on 2026-07-26. The
-accepted contract is `docs/plans/v0.5-local-visual-workbench.md`, based on
-clean `main` at `6545636`. The task ledger is
-`docs/plans/v0.5-local-visual-workbench-ledger.md`.
+The [v0.5 Local Visual Workbench plan](docs/plans/v0.5-local-visual-workbench.md)
+and its
+[ledger](docs/plans/v0.5-local-visual-workbench-ledger.md) are historical
+records of the superseded implementation direction and activity. They do not
+govern current implementation.
 
-The milestone adds a read-only, loopback-only browser workbench over explicitly
-supplied observation, diagnosis, refinement, and corpus records. Existing CLI
-commands remain the only execution and mutation surface. The workbench does
-not discover records, follow source paths, or add hosted access.
+The Workbench remains read-only, loopback-only, and limited to explicitly
+supplied local records. The loopback HTTP server is an internal bridge for the
+bundled browser interface, not a public or stable API. Existing behavior
+remains in place until each correction task changes its owned slice.
 
-The complete schema/reset verdict is settled:
-
-- all 25 active JSON schemas and every active writer, reader, verifier,
-  registry, fixture, specification, and workbench API use `/v0.5`;
-- no v0.5 schema defines or requires a `milestone` field;
-- schema version is separate from package and build provenance;
-- supported v0.5 provenance tuples are explicit and monotonic;
-- active v0.5 code writes, reads, verifies, and admits only v0.5 artifacts;
-- v0.1 through v0.4 artifacts are unsupported and are not migrated;
-- users must regenerate old milestone artifacts with v0.5;
-- earlier Git tags preserve implementation history, not current compatibility.
-
-V05-1 through V05-8 are accepted. The complete milestone integration review and
-the bounded correction review returned `PASS`. After hosted review corrections,
-current release-candidate validation passes 324 unit tests and 344 complete
-tests with the prefetched Docling models in offline mode. Two final audit
-methods cover 27 unsafe
-copied-repository mutations and seven safe or historical contexts, including
-clause-local mixed claims. Deterministic fixture generation, registries, corpus
-specifications, the 17-document schema audit, bundled workbench assets, the
-static site, compilation, checkout portability, branch-range diff hygiene, and
-packaging also pass. A clean exported tree runs the model-free observation,
-diagnosis, approved-refinement, corpus, and workbench startup/API workflows
-without changing the export.
-
-Publication review has started with milestone PR #13. Hosted CI must pass on the
-review-correction commit. Merge, tag, GitHub Release, and post-release website
-publication remain paused pending separate owner authority.
+Implementation follows the current correction plan and ledger linked in the
+Status section. Release, tag, and publication work remain paused until all
+correction tasks, review, CI, the required retrospective, and separate owner
+approval are complete.
 
 ## Latest completed milestone
 
