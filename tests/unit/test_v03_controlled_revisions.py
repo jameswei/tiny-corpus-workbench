@@ -6,6 +6,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import UTC, datetime
@@ -315,6 +316,81 @@ class ControlledRevisionTests(unittest.TestCase):
                 descriptor["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         (record / "refinement-manifest.json").write_bytes(canonical_json(manifest))
 
+    def rewrite_proposal_identity_chain(
+        self,
+        record: Path,
+        mutate,
+    ) -> None:
+        manifest = json.loads(
+            (record / "refinement-manifest.json").read_text("utf-8")
+        )
+        decision = json.loads((record / "decision.json").read_text("utf-8"))
+        transformation = json.loads(
+            (record / "transformation.json").read_text("utf-8")
+        )
+        history = json.loads((record / "history.json").read_text("utf-8"))
+        proposal = decision["proposal"]
+        mutate(proposal)
+        proposal_identity = {
+            key: value for key, value in proposal.items() if key != "draft_id"
+        }
+        draft_id = hashlib.sha256(
+            canonical_json(proposal_identity).rstrip(b"\n")
+        ).hexdigest()
+        proposal["draft_id"] = draft_id
+        manifest["draft_id"] = draft_id
+        prepared_sha256 = hashlib.sha256(
+            (record / "prepared/document.json").read_bytes()
+        ).hexdigest()
+        revision_id = hashlib.sha256(
+            canonical_json(
+                {
+                    "parent": manifest["base"]["identity_value"],
+                    "base_sha256": manifest["base"][
+                        "canonical_document_sha256"
+                    ],
+                    "draft_id": draft_id,
+                    "prepared_sha256": prepared_sha256,
+                }
+            ).rstrip(b"\n")
+        ).hexdigest()
+        transformation.update(
+            {
+                "revision_id": revision_id,
+                "finding_id": proposal["finding"]["finding_id"],
+                "decision_id": draft_id,
+                "refiner": proposal["refiner"],
+                "affected_refs": proposal["affected_refs"],
+                "forward_edits": proposal["forward_edits"],
+                "inverse_edits": proposal["inverse_edits"],
+            }
+        )
+        transformation["transformation_id"] = hashlib.sha256(
+            canonical_json(
+                {
+                    "revision_id": revision_id,
+                    "draft_id": draft_id,
+                    "refiner": transformation["refiner"],
+                }
+            ).rstrip(b"\n")
+        ).hexdigest()
+        manifest["revision_id"] = revision_id
+        history["revision_id"] = revision_id
+        history["transformations"][-1] = transformation
+        for name, value in (
+            ("decision.json", decision),
+            ("transformation.json", transformation),
+            ("history.json", history),
+        ):
+            (record / name).write_bytes(canonical_json(value))
+        self.refresh_descriptors(
+            record,
+            manifest,
+            "decision.json",
+            "transformation.json",
+            "history.json",
+        )
+
     def subject(self) -> dict:
         document = DoclingDocument(name="rules")
         document.add_text(
@@ -497,6 +573,78 @@ class ControlledRevisionTests(unittest.TestCase):
         self.assertEqual(changed["body"]["children"], [])
         self.assertEqual(changed["furniture"]["children"], [{"$ref": "#/texts/0"}])
         self.assertEqual(payload["texts"][0]["content_layer"], "body")
+
+    def test_apply_edits_rejects_noncanonical_target_and_membership_matrix(
+        self,
+    ) -> None:
+        document = DoclingDocument(name="invalid-membership")
+        item = document.add_text(DocItemLabel.TEXT, "Footer")
+        payload = document.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        valid = {
+            "target": {"ref": item.self_ref, "field": "content_layer"},
+            "before": {
+                "content_layer": "body",
+                "body_index": 0,
+                "parent": {"$ref": "#/body"},
+            },
+            "after": {
+                "content_layer": "furniture",
+                "furniture_index": 0,
+                "parent": {"$ref": "#/furniture"},
+            },
+        }
+        cases = {}
+
+        content_coordinates = deepcopy(valid)
+        content_coordinates["target"].update({"row": 0, "column": 0})
+        cases["content-layer-coordinates"] = content_coordinates
+
+        body_with_furniture_index = deepcopy(valid)
+        body_with_furniture_index["before"] = {
+            "content_layer": "body",
+            "furniture_index": 0,
+            "parent": {"$ref": "#/body"},
+        }
+        cases["body-with-furniture-index"] = body_with_furniture_index
+
+        furniture_with_body_index = deepcopy(valid)
+        furniture_with_body_index["after"] = {
+            "content_layer": "furniture",
+            "body_index": 0,
+            "parent": {"$ref": "#/furniture"},
+        }
+        cases["furniture-with-body-index"] = furniture_with_body_index
+
+        mismatched_parent = deepcopy(valid)
+        mismatched_parent["after"]["parent"] = {"$ref": "#/body"}
+        cases["mismatched-parent"] = mismatched_parent
+
+        text_coordinates = {
+            "target": {
+                "ref": item.self_ref,
+                "field": "text",
+                "row": 0,
+                "column": 0,
+            },
+            "before": "Footer",
+            "after": "Changed",
+        }
+        cases["non-table-text-coordinates"] = text_coordinates
+
+        table_without_coordinates = {
+            "target": {"ref": "#/tables/0", "field": "text"},
+            "before": "Footer",
+            "after": "Changed",
+        }
+        cases["table-without-coordinates"] = table_without_coordinates
+
+        baseline = canonical_json(payload)
+        for label, edit in cases.items():
+            with self.subTest(label=label), self.assertRaises(IntegrityError):
+                _apply_edits(payload, [edit])
+            self.assertEqual(canonical_json(payload), baseline)
 
     def test_repeated_boilerplate_inverse_restores_lexical_refs_by_position(
         self,
@@ -773,6 +921,112 @@ class ControlledRevisionTests(unittest.TestCase):
                         "history.json",
                     )
                     assert_broken(copied)
+
+    def test_hash_consistent_finding_and_edit_contract_tampering_exits_five(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, _, text_revision = self.approve_rule(
+                root / "text-base", "TCW-D009"
+            )
+            _, _, membership_revision = self.approve_rule(
+                root / "membership-base",
+                "TCW-D007",
+                converter=docling_with_repeated_margins,
+                source=PDF_SOURCE,
+            )
+
+            def assert_broken(record: Path) -> None:
+                result = verify_refinement(record)
+                self.assertEqual(
+                    result["artifact_integrity"]["status"], "BROKEN"
+                )
+                code, stdout, stderr = self.invoke(
+                    "verify-refinement", str(record)
+                )
+                self.assertEqual(code, 5)
+                self.assertEqual(stderr, "")
+                self.assertEqual(
+                    json.loads(stdout)["artifact_integrity"]["status"],
+                    "BROKEN",
+                )
+
+            def finding_id(proposal: dict) -> str:
+                finding = proposal["finding"]
+                return hashlib.sha256(
+                    canonical_json(
+                        {
+                            "diagnosis_id": proposal["diagnosis_id"],
+                            "rule_id": finding["rule_id"],
+                            "rule_version": finding["rule_version"],
+                            "document_refs": finding["document_refs"],
+                            "evidence": finding["evidence"],
+                        }
+                    ).rstrip(b"\n")
+                ).hexdigest()
+
+            finding_mutations = {
+                "finding-metadata": lambda proposal: proposal["finding"].update(
+                    {"severity": "ERROR"}
+                ),
+                "finding-identity": lambda proposal: proposal["finding"].update(
+                    {"finding_id": "f" * 64}
+                ),
+            }
+
+            def invalidate_evidence(proposal: dict) -> None:
+                proposal["finding"]["evidence"]["occurrence_count"] += 1
+                proposal["finding"]["finding_id"] = finding_id(proposal)
+
+            finding_mutations["finding-evidence"] = invalidate_evidence
+            for label, mutate in finding_mutations.items():
+                with self.subTest(label=label):
+                    copied = self.copy_record(text_revision, root / label)
+                    self.rewrite_proposal_identity_chain(copied, mutate)
+                    assert_broken(copied)
+
+            def add_content_coordinates(proposal: dict) -> None:
+                for collection in ("forward_edits", "inverse_edits"):
+                    for edit in proposal[collection]:
+                        edit["target"].update({"row": 0, "column": 0})
+
+            def contradict_membership(proposal: dict) -> None:
+                invalid = {
+                    "content_layer": "body",
+                    "furniture_index": 0,
+                    "parent": {"$ref": "#/body"},
+                }
+                proposal["forward_edits"][0]["after"] = invalid
+                proposal["inverse_edits"][0]["before"] = invalid
+
+            membership_mutations = {
+                "content-layer-coordinates": add_content_coordinates,
+                "contradictory-membership": contradict_membership,
+            }
+            for label, mutate in membership_mutations.items():
+                with self.subTest(label=label):
+                    copied = self.copy_record(
+                        membership_revision, root / label
+                    )
+                    self.rewrite_proposal_identity_chain(copied, mutate)
+                    assert_broken(copied)
+
+            def make_table_target_without_coordinates(proposal: dict) -> None:
+                for collection in ("forward_edits", "inverse_edits"):
+                    for edit in proposal[collection]:
+                        edit["target"] = {
+                            "ref": "#/tables/0",
+                            "field": "text",
+                        }
+
+            copied = self.copy_record(
+                text_revision, root / "noncanonical-text-target"
+            )
+            self.rewrite_proposal_identity_chain(
+                copied, make_table_target_without_coordinates
+            )
+            assert_broken(copied)
 
     def test_rejected_status_requires_exact_inventory_and_null_revision(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

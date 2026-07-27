@@ -141,6 +141,89 @@ class SchemaTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 target_validator.validate(incomplete)
 
+    def test_refinement_target_and_membership_variants_are_exact(self) -> None:
+        draft = json.loads(
+            (SCHEMAS / "refinement-draft.schema.json").read_text("utf-8")
+        )
+        target_validator = Draft202012Validator(draft["$defs"]["target"])
+        valid_targets = (
+            {"ref": "#/texts/0", "field": "text"},
+            {"ref": "#/field_items/1", "field": "text"},
+            {
+                "ref": "#/tables/2",
+                "field": "text",
+                "row": 0,
+                "column": 1,
+            },
+            {"ref": "#/texts/3", "field": "content_layer"},
+        )
+        for target in valid_targets:
+            target_validator.validate(target)
+        invalid_targets = (
+            {
+                "ref": "#/texts/0",
+                "field": "content_layer",
+                "row": 0,
+                "column": 0,
+            },
+            {"ref": "#/field_items/0", "field": "content_layer"},
+            {"ref": "#/tables/0", "field": "text"},
+            {
+                "ref": "#/texts/0",
+                "field": "text",
+                "row": 0,
+                "column": 0,
+            },
+            {"ref": "#/pictures/0", "field": "text"},
+        )
+        for target in invalid_targets:
+            with self.assertRaises(ValidationError):
+                target_validator.validate(target)
+
+        membership_validator = Draft202012Validator(
+            draft["$defs"]["membership"]
+        )
+        valid_memberships = (
+            {
+                "content_layer": "body",
+                "body_index": 0,
+                "parent": {"$ref": "#/body"},
+            },
+            {
+                "content_layer": "furniture",
+                "furniture_index": 0,
+                "parent": {"$ref": "#/furniture"},
+            },
+        )
+        for membership in valid_memberships:
+            membership_validator.validate(membership)
+        invalid_memberships = (
+            {
+                "content_layer": "body",
+                "furniture_index": 0,
+                "parent": {"$ref": "#/body"},
+            },
+            {
+                "content_layer": "furniture",
+                "body_index": 0,
+                "parent": {"$ref": "#/furniture"},
+            },
+            {
+                "content_layer": "body",
+                "body_index": 0,
+                "parent": {"$ref": "#/furniture"},
+            },
+            {
+                "content_layer": "body",
+                "body_index": 0,
+                "furniture_index": 0,
+                "parent": {"$ref": "#/body"},
+            },
+        )
+        for membership in invalid_memberships:
+            with self.assertRaises(ValidationError):
+                membership_validator.validate(membership)
+
     def test_refinement_relationship_definitions_are_coupled(self) -> None:
         draft = json.loads(
             (SCHEMAS / "refinement-draft.schema.json").read_text("utf-8")

@@ -898,7 +898,85 @@ def draft_refinement(
     return {"draft_id": proposal["draft_id"], "decision": str(output.resolve()), "state": "PENDING"}
 
 
+def _validate_membership_contract(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise IntegrityError("membership edit value is invalid")
+    layer = value.get("content_layer")
+    expected_index = (
+        "body_index"
+        if layer == "body"
+        else "furniture_index"
+        if layer == "furniture"
+        else None
+    )
+    expected_parent = (
+        "#/body"
+        if layer == "body"
+        else "#/furniture"
+        if layer == "furniture"
+        else None
+    )
+    if (
+        expected_index is None
+        or set(value) != {"content_layer", expected_index, "parent"}
+        or type(value[expected_index]) is not int
+        or value[expected_index] < 0
+        or value["parent"] != {"$ref": expected_parent}
+    ):
+        raise IntegrityError("membership edit value is invalid")
+
+
+def _validate_edit_contract(edit: Any) -> None:
+    if not isinstance(edit, dict) or set(edit) != {"target", "before", "after"}:
+        raise IntegrityError("edit contract is invalid")
+    target = edit["target"]
+    if not isinstance(target, dict):
+        raise IntegrityError("edit target is invalid")
+    reference = target.get("ref")
+    field = target.get("field")
+    coordinates = ("row" in target, "column" in target)
+    if field == "text":
+        if not isinstance(edit["before"], str) or not isinstance(edit["after"], str):
+            raise IntegrityError("text edit value is invalid")
+        if coordinates == (False, False):
+            valid_reference = (
+                isinstance(reference, str)
+                and re.fullmatch(r"#/(?:texts|field_items)/[0-9]+", reference)
+                is not None
+            )
+            expected_keys = {"ref", "field"}
+        elif coordinates == (True, True):
+            valid_reference = (
+                isinstance(reference, str)
+                and re.fullmatch(r"#/tables/[0-9]+", reference) is not None
+                and type(target["row"]) is int
+                and target["row"] >= 0
+                and type(target["column"]) is int
+                and target["column"] >= 0
+            )
+            expected_keys = {"ref", "field", "row", "column"}
+        else:
+            valid_reference = False
+            expected_keys = set()
+        if set(target) != expected_keys or not valid_reference:
+            raise IntegrityError("text edit target is invalid")
+        return
+    if (
+        field != "content_layer"
+        or set(target) != {"ref", "field"}
+        or not isinstance(reference, str)
+        or re.fullmatch(r"#/texts/[0-9]+", reference) is None
+    ):
+        raise IntegrityError("membership edit target is invalid")
+    _validate_membership_contract(edit["before"])
+    _validate_membership_contract(edit["after"])
+
+
 def _apply_edits(payload: dict[str, Any], edits: list[dict[str, Any]]) -> dict[str, Any]:
+    if not isinstance(edits, list) or not edits:
+        raise IntegrityError("edit list is invalid")
+    for edit in edits:
+        _validate_edit_contract(edit)
     value = copy.deepcopy(payload)
     initial_index = _index(value)
     initial_body = [
@@ -1273,6 +1351,20 @@ def _validate_refinement_semantics(
     decision_value = decision["decision"]
     if proposal["draft_id"] != _draft_identity(proposal):
         raise IntegrityError("draft identity is inconsistent")
+    validate_finding_contract(proposal["finding"])
+    expected_finding_id = _hash(
+        canonical_json(
+            {
+                "diagnosis_id": proposal["diagnosis_id"],
+                "rule_id": proposal["finding"]["rule_id"],
+                "rule_version": proposal["finding"]["rule_version"],
+                "document_refs": proposal["finding"]["document_refs"],
+                "evidence": proposal["finding"]["evidence"],
+            }
+        ).rstrip(b"\n")
+    )
+    if proposal["finding"]["finding_id"] != expected_finding_id:
+        raise IntegrityError("proposal finding identity is inconsistent")
     expected_refiner = REFINERS.get(proposal["finding"]["rule_id"])
     if (
         expected_refiner is None

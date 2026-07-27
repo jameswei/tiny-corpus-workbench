@@ -159,10 +159,33 @@
         "row": {"type": "integer", "minimum": 0},
         "column": {"type": "integer", "minimum": 0}
       },
-      "dependentRequired": {
-        "row": ["column"],
-        "column": ["row"]
-      }
+      "oneOf": [
+        {
+          "properties": {
+            "ref": {"pattern": "^#/(texts|field_items)/[0-9]+$"},
+            "field": {"const": "text"}
+          },
+          "not": {
+            "anyOf": [{"required": ["row"]}, {"required": ["column"]}]
+          }
+        },
+        {
+          "required": ["row", "column"],
+          "properties": {
+            "ref": {"pattern": "^#/tables/[0-9]+$"},
+            "field": {"const": "text"}
+          }
+        },
+        {
+          "properties": {
+            "ref": {"pattern": "^#/texts/[0-9]+$"},
+            "field": {"const": "content_layer"}
+          },
+          "not": {
+            "anyOf": [{"required": ["row"]}, {"required": ["column"]}]
+          }
+        }
+      ]
     },
     "membership": {
       "type": "object",
@@ -180,8 +203,26 @@
         }
       },
       "oneOf": [
-        {"required": ["body_index"]},
-        {"required": ["furniture_index"]}
+        {
+          "required": ["body_index"],
+          "properties": {
+            "content_layer": {"const": "body"},
+            "parent": {
+              "properties": {"$ref": {"const": "#/body"}}
+            }
+          },
+          "not": {"required": ["furniture_index"]}
+        },
+        {
+          "required": ["furniture_index"],
+          "properties": {
+            "content_layer": {"const": "furniture"},
+            "parent": {
+              "properties": {"$ref": {"const": "#/furniture"}}
+            }
+          },
+          "not": {"required": ["body_index"]}
+        }
       ]
     }
   }
