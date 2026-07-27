@@ -80,6 +80,9 @@ BASE_REGRESSION_INVENTORY = {
     ("tests/unit/test_diagnosis_workflow.py", "test_active_distribution_drift_is_runtime_exit"): ("restored", "test_cli_failures_have_exact_exit_and_stream_contracts"),
     ("tests/unit/test_diagnosis_workflow.py", "test_verifier_rejects_generic_evidence_for_every_rule"): ("moved", "tests.unit.test_diagnosis_rules.DiagnosisRuleTests.test_generic_evidence_is_rejected_for_every_base_rule"),
 }
+BASE_REGRESSION_INVENTORY_SHA256 = (
+    "600b6bc16ea622f0dd825d4137c638a529d785e1a3e402df7d994991f1b5e5bd"
+)
 REVIEWED_TARGET_EQUIVALENCE = {
     (
         "tests/unit/test_v03_diagnosis_workflow.py",
@@ -790,6 +793,22 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             )
 
     def test_base_regression_inventory_is_complete_and_classified(self) -> None:
+        snapshot = [
+            {
+                "classification": classification,
+                "source": source,
+                "target": target,
+                "test": test,
+            }
+            for (source, test), (
+                classification,
+                target,
+            ) in sorted(BASE_REGRESSION_INVENTORY.items())
+        ]
+        self.assertEqual(
+            hashlib.sha256(canonical_json(snapshot)).hexdigest(),
+            BASE_REGRESSION_INVENTORY_SHA256,
+        )
         self.assertEqual(len(BASE_REGRESSION_INVENTORY), 40)
         source_counts = {
             source: sum(

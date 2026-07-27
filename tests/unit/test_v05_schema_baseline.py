@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 import shutil
@@ -41,6 +42,18 @@ from tools.verify_v05_schema_baseline import (
 API_FIXTURES = Path("tests/fixtures/workbench-api")
 INVENTORY = Path("tests/fixtures/v05-schema-evidence-inventory.json")
 PROVENANCE_EXAMPLES = Path("tests/fixtures/v05-provenance-examples.json")
+MIGRATION_EVIDENCE_SHA256 = (
+    "173d48b72d00dde59ce6c90be8cb529e6e1e6762e1c23066040c363e66800315"
+)
+PROCESS_FUNCTIONS = {
+    ("subprocess", "call"),
+    ("subprocess", "check_call"),
+    ("subprocess", "check_output"),
+    ("subprocess", "Popen"),
+    ("subprocess", "run"),
+    ("os", "popen"),
+    ("os", "system"),
+}
 
 PLACEMENT = {
     "tcw.fixture-registry/v0.5": ("BUILD_GENERATOR", "tools.generate_fixtures"),
@@ -130,6 +143,39 @@ def schema_object_nodes(value: object):
     elif isinstance(value, list):
         for child in value:
             yield from schema_object_nodes(child)
+
+
+def process_executable(node: ast.AST) -> str | None:
+    if not isinstance(node, ast.Call):
+        return None
+    function = node.func
+    if not (
+        isinstance(function, ast.Attribute)
+        and isinstance(function.value, ast.Name)
+        and (function.value.id, function.attr) in PROCESS_FUNCTIONS
+    ):
+        return None
+    command = (
+        node.args[0]
+        if node.args
+        else next(
+            (
+                keyword.value
+                for keyword in node.keywords
+                if keyword.arg in {"args", "command", "cmd"}
+            ),
+            None,
+        )
+    )
+    if (
+        isinstance(command, (ast.List, ast.Tuple))
+        and command.elts
+        and isinstance(command.elts[0], ast.Constant)
+    ):
+        return str(command.elts[0].value)
+    if isinstance(command, ast.Constant):
+        return str(command.value).split(maxsplit=1)[0]
+    return None
 
 
 class V05SchemaBaselineTests(unittest.TestCase):
@@ -1934,6 +1980,12 @@ class V05SchemaBaselineTests(unittest.TestCase):
         inventory_raw = INVENTORY.read_bytes()
         inventory = json.loads(inventory_raw)
         self.assertEqual(inventory_raw, canonical_json(inventory) + b"\n")
+        self.assertEqual(
+            hashlib.sha256(
+                canonical_json(inventory["migration_fields"])
+            ).hexdigest(),
+            MIGRATION_EVIDENCE_SHA256,
+        )
 
         for group in ("writers", "verifiers", "identity_inputs"):
             for item in inventory[group]:
@@ -2649,39 +2701,26 @@ class V05SchemaBaselineTests(unittest.TestCase):
                 self.assertTrue(pointer.startswith("#/"))
 
     def test_test_suite_has_no_git_process_dependencies(self) -> None:
-        process_functions = {
-            ("subprocess", "call"),
-            ("subprocess", "check_call"),
-            ("subprocess", "check_output"),
-            ("subprocess", "Popen"),
-            ("subprocess", "run"),
-            ("os", "popen"),
-            ("os", "system"),
+        examples = {
+            'subprocess.run(["git", "status"])',
+            'subprocess.run(args=["git", "status"])',
+            'os.system("git status")',
+            'os.system(command="git status")',
         }
+        for source in examples:
+            with self.subTest(source=source):
+                call = next(
+                    node
+                    for node in ast.walk(ast.parse(source))
+                    if isinstance(node, ast.Call)
+                )
+                self.assertEqual(process_executable(call), "git")
+
         violations: list[str] = []
         for path in Path("tests").rglob("*.py"):
             tree = ast.parse(path.read_text("utf-8"), filename=str(path))
             for node in ast.walk(tree):
-                if not isinstance(node, ast.Call) or not node.args:
-                    continue
-                function = node.func
-                if not (
-                    isinstance(function, ast.Attribute)
-                    and isinstance(function.value, ast.Name)
-                    and (function.value.id, function.attr) in process_functions
-                ):
-                    continue
-                command = node.args[0]
-                executable = None
-                if (
-                    isinstance(command, (ast.List, ast.Tuple))
-                    and command.elts
-                    and isinstance(command.elts[0], ast.Constant)
-                ):
-                    executable = command.elts[0].value
-                elif isinstance(command, ast.Constant):
-                    executable = str(command.value).split(maxsplit=1)[0]
-                if executable == "git":
+                if process_executable(node) == "git":
                     violations.append(f"{path}:{node.lineno}")
         self.assertEqual(violations, [])
 
