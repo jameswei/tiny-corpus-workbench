@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 import stat
@@ -10,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 from tiny_corpus_workbench.domain import IntegrityError, InputError, SourceIdentity
+from tiny_corpus_workbench.golden_fixtures import fixture_id_for_path
 
 
 MEDIA_TYPES = {
@@ -27,20 +27,6 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _fixture_id(path: Path, registry_path: Path = Path("fixtures/golden/fixtures.json")) -> str | None:
-    if not registry_path.is_file():
-        return None
-    try:
-        registry = json.loads(registry_path.read_text("utf-8"))
-        resolved = path.resolve()
-        for fixture in registry.get("fixtures", []):
-            if Path(fixture["path"]).resolve() == resolved:
-                return fixture["id"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    return None
 
 
 def _validate_content(path: Path, suffix: str) -> None:
@@ -84,7 +70,7 @@ def validate_source(value: str | Path) -> SourceIdentity:
         raise InputError("unsupported media type; expected .pdf, .docx, .md, or .txt")
     _validate_content(path, suffix)
     digest = sha256_file(path)
-    fixture_id = _fixture_id(path)
+    fixture_id = fixture_id_for_path(path)
     stem = re.sub(r"[^a-z0-9]+", "-", path.stem.lower()).strip("-") or "source"
     key = fixture_id or f"{stem}-{digest[:12]}"
     return SourceIdentity(
@@ -194,7 +180,7 @@ class SourceSnapshot:
         except Exception:
             self.cleanup()
             raise
-        fixture_id = _fixture_id(self.original)
+        fixture_id = fixture_id_for_path(self.original)
         stem = re.sub(r"[^a-z0-9]+", "-", self.original.stem.lower()).strip("-") or "source"
         key = fixture_id or f"{stem}-{digest[:12]}"
         self.identity = SourceIdentity(

@@ -472,7 +472,7 @@ class CliFailureTests(unittest.TestCase):
                 "tiny_corpus_workbench.extractors.markitdown.convert",
                 wraps=fake_markitdown,
             ), mock.patch(
-                "tiny_corpus_workbench.application.observation._fixture_anchors",
+                "tiny_corpus_workbench.application.observation.fixture_anchors",
                 side_effect=RuntimeError("unexpected\x01\x80 test\nfailure"),
             ):
                 code, stdout, stderr = self.invoke(

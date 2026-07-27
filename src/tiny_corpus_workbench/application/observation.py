@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib
 import importlib.metadata
-import json
 import os
 import shutil
 import time
@@ -28,6 +27,7 @@ from tiny_corpus_workbench.domain import (
     StableError,
     sanitize_message,
 )
+from tiny_corpus_workbench.golden_fixtures import fixture_anchors
 from tiny_corpus_workbench.source import SourceSnapshot, sha256_file
 
 
@@ -79,21 +79,6 @@ def _preflight_extractors() -> tuple[Any, Any]:
     except Exception as error:
         raise RuntimeContractError("extractor runtime preflight failed") from error
     return docling_adapter, markitdown_adapter
-
-
-def _fixture_anchors(fixture_id: str | None) -> dict[str, str]:
-    if fixture_id is None:
-        return {}
-    registry_path = Path(__file__).resolve().parents[3] / "fixtures/golden/fixtures.json"
-    try:
-        registry = json.loads(registry_path.read_text("utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return {}
-    for fixture in registry.get("fixtures", []):
-        if fixture.get("id") == fixture_id:
-            anchors = fixture.get("anchors")
-            return anchors if isinstance(anchors, dict) else {}
-    return {}
 
 
 def _artifact(
@@ -266,7 +251,7 @@ def observe(
             comparison = make_comparison(
                 observation_id,
                 source.to_dict(),
-                _fixture_anchors(source.fixture_id),
+                fixture_anchors(source.fixture_id),
                 docling_view,
                 markitdown_view,
             )

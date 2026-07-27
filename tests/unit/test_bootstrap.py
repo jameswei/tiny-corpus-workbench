@@ -33,6 +33,9 @@ assert "tiny_corpus_workbench.diagnosis_rules" not in sys.modules
 ACTIVE_RUNTIME_ERROR = (
     "active runtime does not match this package provenance registry\n"
 )
+OBSERVATION_SCHEMA_ERROR = (
+    "bundled observation schema validation is unavailable\n"
+)
 
 
 class BootstrapTests(unittest.TestCase):
@@ -106,7 +109,10 @@ raise SystemExit(code)
             output = Path(directory) / "output"
             completed = self.run_fresh(script, str(output))
             self.assertEqual(list(output.glob("*/*")), [])
-        self.assert_runtime_bootstrap_failure(completed)
+        self.assertEqual(completed.returncode, 6)
+        self.assertEqual(completed.stdout, "")
+        self.assertEqual(completed.stderr, OBSERVATION_SCHEMA_ERROR)
+        self.assertNotIn("Traceback", completed.stderr)
 
     def test_fresh_process_without_jsonschema_handles_diagnosis_bootstrap(self) -> None:
         script = BLOCK_JSONSCHEMA + r"""

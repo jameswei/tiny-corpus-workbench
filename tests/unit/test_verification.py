@@ -239,7 +239,9 @@ class VerificationTests(unittest.TestCase):
             original_cwd = Path.cwd()
             absolute_source = SOURCE.resolve()
             try:
-                first_code, first = self.observation(root / "first")
+                first_code, first = self.observation(
+                    root / "first", source=absolute_source
+                )
                 sandbox = root / "different-cwd"
                 sandbox.mkdir()
                 (sandbox / "uv.lock").write_text("changed lock\n", "utf-8")
@@ -266,6 +268,29 @@ class VerificationTests(unittest.TestCase):
             second_manifest = json.loads(
                 (second / "manifest.json").read_text("utf-8")
             )
+            first_comparison = json.loads(
+                (first / "comparison.json").read_text("utf-8")
+            )
+            second_comparison = json.loads(
+                (second / "comparison.json").read_text("utf-8")
+            )
+            self.assertEqual(
+                first_manifest["source"]["fixture_id"],
+                second_manifest["source"]["fixture_id"],
+            )
+            self.assertEqual(
+                first_manifest["source"]["fixture_id"], "policy-memo-md"
+            )
+            self.assertEqual(
+                first_manifest["source"]["key"],
+                second_manifest["source"]["key"],
+            )
+            self.assertEqual(first_manifest["source"]["key"], "policy-memo-md")
+            self.assertEqual(
+                first_comparison["anchors"],
+                second_comparison["anchors"],
+            )
+            self.assertNotEqual(first_comparison["anchors"], [])
             self.assertEqual(
                 first_manifest["observation_id"],
                 second_manifest["observation_id"],

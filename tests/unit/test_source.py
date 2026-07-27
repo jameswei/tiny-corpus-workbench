@@ -18,6 +18,7 @@ class SourceValidationTests(unittest.TestCase):
         self.assertEqual(identity.media_type, "text/plain")
         self.assertRegex(identity.key, r"^hello-world-[0-9a-f]{12}$")
         self.assertEqual(identity.size, 6)
+        self.assertIsNone(identity.fixture_id)
 
     def test_rejects_url_directory_fifo_and_unsupported_suffix(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
