@@ -10,10 +10,10 @@ document revision. RAG is a typical downstream consumer of prepared documents,
 but chunking, indexing, retrieval, generation, and related integration remain
 outside this roadmap through v1.0.
 
-Starting with v0.5, all active artifact families use one unified schema
-baseline. Schema versions remain separate from package and build provenance.
-Unsupported schema generations fail deterministically instead of receiving an
-implicit migration.
+Each milestone keeps the lifecycle inspectable with current, project-owned
+record shapes. These internal shapes can change as the learning tool improves.
+Git tags preserve earlier implementations; the current project does not
+promise cross-version readers or migrations.
 
 ## Milestone overview
 
@@ -25,7 +25,7 @@ implicit migration.
 | v0.3 | Controlled Revisions | Apply approved, reversible refinements without losing history. |
 | v0.4 | Corpus Inspection and Comparison | Inspect patterns across a small mixed-format corpus. |
 | v0.5 | Local Visual Workbench | Explore artifacts and revisions through a local web interface. |
-| v1.0 | Stable Workbench | Stabilize the workbench's local contracts and documentation. |
+| v1.0 | Coherent Workbench | Present the complete learning workflow through clear local interfaces. |
 
 ## v0.0 — Planning Baseline
 
@@ -111,29 +111,28 @@ requiring a long-running service.
 
 ## v0.5 — Local Visual Workbench
 
-Add an interactive local view while retaining the same underlying preparation
-and audit contracts.
+Add an interactive local view over the document-preparation lifecycle.
 
 Deliverables:
 
-- framework-neutral application services shared with the CLI
-- a loopback-only HTTP API
+- application services shared with the CLI
+- an internal loopback HTTP bridge for the bundled interface
 - a local browser interface for sources, extraction artifacts, findings,
   decisions, transformations, revisions, and comparisons
 
 Exit condition: a user can inspect the end-to-end preparation history through
 the browser without exposing the service beyond the local machine.
 
-## v1.0 — Stable Workbench
+## v1.0 — Coherent Workbench
 
-Stabilize the local workbench as a coherent, documented learning tool.
+Complete the local workbench as a coherent, documented learning tool.
 
 Deliverables:
 
-- stable CLI commands and exit behavior
-- stable loopback HTTP API and artifact contracts
-- explicit schema and dependency compatibility handling
-- predictable errors for unsupported or incompatible inputs
+- a clear CLI for the complete document lifecycle
+- a bundled local browser interface over the same application behavior
+- understandable current record roles and integrity checks
+- predictable errors for invalid current inputs
 - end-to-end documentation and continuous integration
 
 Exit condition: the documented workflows and contracts are covered by tests,

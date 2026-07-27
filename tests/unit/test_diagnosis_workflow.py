@@ -33,10 +33,10 @@ from tiny_corpus_workbench.v03 import (
 )
 from tiny_corpus_workbench.v03 import snapshot_tree
 from tiny_corpus_workbench.verification import verify_observation
-from tests.unit.test_unsupported_old_schemas import OLD_DIAGNOSIS_SCHEMA
-
-
 SOURCE = Path("fixtures/golden/policy-memo.md")
+OLD_DIAGNOSIS_SCHEMA = "tcw.diagnosis-manifest/v0.3"
+
+
 # Frozen reviewed inventory for the v0.5 diagnosis migration.
 BASE_REGRESSION_INVENTORY = {
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_v03_diagnosis_is_deterministic_and_read_only"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_observe_diagnose_verify_is_v05_deterministic_and_read_only"),

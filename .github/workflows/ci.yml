@@ -63,8 +63,8 @@ jobs:
           tests.integration.test_v05_workflows
           tests.integration.test_workbench_integration
 
-      - name: Audit the unified v0.5 schema and documentation baseline
-        run: uv run --frozen python tools/verify_v05_schema_baseline.py
+      - name: Verify current document policy
+        run: uv run --frozen python tools/verify_current_document_policy.py
 
       - name: Validate bundled workbench UI assets
         run: >-
@@ -145,8 +145,8 @@ jobs:
           TRANSFORMERS_OFFLINE: "1"
         run: uv run --frozen --group test python -m unittest discover -s tests -v
 
-      - name: Audit the unified v0.5 schema and documentation baseline
-        run: uv run --frozen python tools/verify_v05_schema_baseline.py
+      - name: Verify current document policy
+        run: uv run --frozen python tools/verify_current_document_policy.py
 
       - name: Validate bundled workbench UI assets and static site
         run: |
