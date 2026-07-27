@@ -188,15 +188,15 @@ The complete schema/reset verdict is settled:
 - earlier Git tags preserve implementation history, not current compatibility.
 
 V05-1 through V05-7 are accepted. V05-8 has completed its implementation pass
-and is ready for fresh independent review. Before the review corrections, local
-validation passed 321 unit tests and 341 complete tests with the prefetched
-Docling models in offline mode. The correction validation passes every current
-schema, documentation-audit, and CI-history test. Deterministic fixture
-generation, registries, corpus specifications, the 17-document schema audit,
-bundled workbench assets, the static site, compilation, checkout portability,
-and diff hygiene also pass. A clean exported tree runs the model-free
-observation, diagnosis, approved-refinement, corpus, and workbench startup/API
-workflows without changing the export.
+and is ready for fresh independent review. Current release-candidate validation
+passes 323 unit tests and 343 complete tests with the prefetched Docling models
+in offline mode. Two final audit methods cover 27 unsafe copied-repository
+mutations and seven safe or historical contexts, including clause-local mixed
+claims. Deterministic fixture generation, registries, corpus specifications,
+the 17-document schema audit, bundled workbench assets, the static site,
+compilation, checkout portability, and diff hygiene also pass. A clean exported
+tree runs the model-free observation, diagnosis, approved-refinement, corpus,
+and workbench startup/API workflows without changing the export.
 
 Publication still requires V05-8 review, unchanged-delta root validation, the
 stable checkpoint, complete milestone integration review, and explicit owner
