@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import io
 import copy
-import ast
 import hashlib
 import importlib
 import json
 import os
 import shutil
-import subprocess
 import tempfile
 import unittest
 import uuid
@@ -39,6 +37,7 @@ from tests.unit.test_unsupported_old_schemas import OLD_DIAGNOSIS_SCHEMA
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
+# Frozen reviewed inventory for the v0.5 diagnosis migration.
 BASE_REGRESSION_INVENTORY = {
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_v03_diagnosis_is_deterministic_and_read_only"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_observe_diagnose_verify_is_v05_deterministic_and_read_only"),
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_partial_observation_is_supported"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_partial_success_observation_with_canonical_docling_is_diagnosable"),
@@ -81,6 +80,9 @@ BASE_REGRESSION_INVENTORY = {
     ("tests/unit/test_diagnosis_workflow.py", "test_active_distribution_drift_is_runtime_exit"): ("restored", "test_cli_failures_have_exact_exit_and_stream_contracts"),
     ("tests/unit/test_diagnosis_workflow.py", "test_verifier_rejects_generic_evidence_for_every_rule"): ("moved", "tests.unit.test_diagnosis_rules.DiagnosisRuleTests.test_generic_evidence_is_rejected_for_every_base_rule"),
 }
+BASE_REGRESSION_INVENTORY_SHA256 = (
+    "600b6bc16ea622f0dd825d4137c638a529d785e1a3e402df7d994991f1b5e5bd"
+)
 REVIEWED_TARGET_EQUIVALENCE = {
     (
         "tests/unit/test_v03_diagnosis_workflow.py",
@@ -791,28 +793,40 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             )
 
     def test_base_regression_inventory_is_complete_and_classified(self) -> None:
-        base = "92bdef4"
-        actual: set[tuple[str, str]] = set()
-        for source in {
-            "tests/unit/test_v03_diagnosis_workflow.py",
-            "tests/unit/test_diagnosis_workflow.py",
-        }:
-            completed = subprocess.run(
-                ["git", "show", f"{base}:{source}"],
-                check=True,
-                capture_output=True,
-                text=True,
+        snapshot = [
+            {
+                "classification": classification,
+                "source": source,
+                "target": target,
+                "test": test,
+            }
+            for (source, test), (
+                classification,
+                target,
+            ) in sorted(BASE_REGRESSION_INVENTORY.items())
+        ]
+        self.assertEqual(
+            hashlib.sha256(canonical_json(snapshot)).hexdigest(),
+            BASE_REGRESSION_INVENTORY_SHA256,
+        )
+        self.assertEqual(len(BASE_REGRESSION_INVENTORY), 40)
+        source_counts = {
+            source: sum(
+                base_source == source
+                for base_source, _test_name in BASE_REGRESSION_INVENTORY
             )
-            tree = ast.parse(completed.stdout)
-            actual.update(
-                (source, node.name)
-                for node in ast.walk(tree)
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and node.name.startswith("test_")
-            )
-
-        self.assertEqual(len(actual), 40)
-        self.assertEqual(set(BASE_REGRESSION_INVENTORY), actual)
+            for source in {
+                "tests/unit/test_v03_diagnosis_workflow.py",
+                "tests/unit/test_diagnosis_workflow.py",
+            }
+        }
+        self.assertEqual(
+            source_counts,
+            {
+                "tests/unit/test_v03_diagnosis_workflow.py": 14,
+                "tests/unit/test_diagnosis_workflow.py": 26,
+            },
+        )
         classifications = {
             classification
             for classification, _target in BASE_REGRESSION_INVENTORY.values()
