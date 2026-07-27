@@ -14,10 +14,10 @@
       "type": "string"
     },
     "artifact_integrity": {
-      "$ref": "refinement-verification-result-v0.5.schema.json#/$defs/integrity"
+      "$ref": "refinement-verification-result.schema.json#/$defs/integrity"
     },
     "subject_state": {
-      "$ref": "refinement-verification-result-v0.5.schema.json#/$defs/external"
+      "$ref": "refinement-verification-result.schema.json#/$defs/external"
     },
     "derivation_state": {
       "type": "object",

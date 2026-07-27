@@ -69,7 +69,7 @@ class DiagnosisIntegrationTests(unittest.TestCase):
         self,
     ) -> None:
         registry = json.loads(
-            (ROOT / "fixtures/refinement/v0.5/fixtures.json").read_text("utf-8")
+            (ROOT / "fixtures/refinement/fixtures.json").read_text("utf-8")
         )
 
         def deny(*args, **kwargs):

@@ -16,7 +16,8 @@ from tiny_corpus_workbench.diagnosis_rules import RULESET, RULESET_PARAMETER_HAS
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.schema_catalog import validate_document
 from tiny_corpus_workbench.supported_provenance import active_build_provenance
-from tiny_corpus_workbench.v03 import verify_diagnosis, verify_refinement
+from tiny_corpus_workbench.application.diagnosis import verify_diagnosis
+from tiny_corpus_workbench.application.refinement import verify_refinement
 from tiny_corpus_workbench.workbench_records import (
     MAX_STRUCTURED_RESPONSE,
     AdmittedRecord,

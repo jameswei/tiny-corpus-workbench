@@ -128,7 +128,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_table_coordinates_are_an_all_or_nothing_pair(self) -> None:
         draft_schema = json.loads(
-            (SCHEMAS / "refinement-draft-v0.5.schema.json").read_text("utf-8")
+            (SCHEMAS / "refinement-draft.schema.json").read_text("utf-8")
         )
         target_validator = Draft202012Validator(draft_schema["$defs"]["target"])
         target_validator.validate(

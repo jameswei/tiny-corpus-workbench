@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/refinement-manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_type",
+    "format_version",
+    "run_id",
+    "created_at",
+    "status",
+    "revision_id",
+    "origin_observation_id",
+    "origin_observation_run_id",
+    "source",
+    "base",
+    "draft_id",
+    "artifacts",
+    "diagnosis",
+    "parent"
+  ],
+  "properties": {
+    "record_type": {"const": "refinement"},
+    "format_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["APPLIED", "REJECTED"]},
+    "revision_id": {
+      "oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]
+    },
+    "origin_observation_id": {"$ref": "#/$defs/hash"},
+    "origin_observation_run_id": {"type": "string", "minLength": 1},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "media_type", "size", "sha256"],
+      "properties": {
+        "key": {"type": "string", "minLength": 1},
+        "media_type": {"type": "string", "minLength": 1},
+        "size": {"type": "integer", "minimum": 0},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "identity_type",
+        "identity_value",
+        "run_id",
+        "base_manifest_sha256",
+        "canonical_document_sha256"
+      ],
+      "properties": {
+        "kind": {"enum": ["OBSERVATION", "REFINEMENT"]},
+        "identity_type": {"enum": ["observation_id", "revision_id"]},
+        "identity_value": {"$ref": "#/$defs/hash"},
+        "run_id": {"type": "string", "minLength": 1},
+        "base_manifest_sha256": {"$ref": "#/$defs/hash"},
+        "canonical_document_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "draft_id": {"$ref": "#/$defs/hash"},
+    "artifacts": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 6,
+      "items": {"$ref": "#/$defs/artifact"}
+    },
+    "diagnosis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "diagnosis_id",
+        "run_id",
+        "diagnosis_manifest_sha256",
+        "findings_artifact_sha256"
+      ],
+      "properties": {
+        "diagnosis_id": {"$ref": "#/$defs/hash"},
+        "run_id": {"type": "string", "minLength": 1},
+        "diagnosis_manifest_sha256": {"$ref": "#/$defs/hash"},
+        "findings_artifact_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "parent": {
+      "oneOf": [{"$ref": "#/$defs/parent"}, {"type": "null"}]
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "role",
+        "media_type",
+        "size",
+        "sha256",
+        "application_immutable"
+      ],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "minLength": 1},
+        "media_type": {"enum": ["application/json", "text/markdown"]},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "application_immutable": {"const": true}
+      }
+    },
+    "parent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision_id",
+        "run_id",
+        "refinement_manifest_sha256",
+        "prepared_document_sha256"
+      ],
+      "properties": {
+        "revision_id": {"$ref": "#/$defs/hash"},
+        "run_id": {"type": "string", "minLength": 1},
+        "refinement_manifest_sha256": {"$ref": "#/$defs/hash"},
+        "prepared_document_sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

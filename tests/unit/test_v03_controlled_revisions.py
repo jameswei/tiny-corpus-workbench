@@ -27,7 +27,6 @@ from tiny_corpus_workbench.artifacts import REQUIRED_MODEL_FILES, canonical_json
 from tiny_corpus_workbench.domain import (
     InputError,
     IntegrityError,
-    RuntimeContractError,
 )
 from tiny_corpus_workbench.v03 import (
     _apply_edits,
@@ -91,7 +90,7 @@ class ControlledRevisionTests(unittest.TestCase):
             code = cli.main(list(arguments))
         return code, stdout.getvalue(), stderr.getvalue()
 
-    def test_old_refinement_inputs_exit_two(self) -> None:
+    def test_old_refinement_inputs_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             diagnosis = root / "diagnosis"
@@ -130,9 +129,9 @@ class ControlledRevisionTests(unittest.TestCase):
                 "--base",
                 str(base),
             )
-            self.assertEqual(code, 2)
+            self.assertEqual(code, 5)
             self.assertEqual(stdout, "")
-            self.assertIn("v0.5 refinement draft", stderr)
+            self.assertIn("refinement-draft validation failed", stderr)
 
             old_record = root / "old-refinement"
             old_record.mkdir()
@@ -145,7 +144,7 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             self.assertEqual(code, 2)
             self.assertEqual(stdout, "")
-            self.assertIn("v0.5 refinement", stderr)
+            self.assertIn("regenerate", stderr)
 
     def observation(
         self,
@@ -227,7 +226,6 @@ class ControlledRevisionTests(unittest.TestCase):
             for key, value in decision["proposal"].items()
             if key != "draft_id"
         }
-        proposal_identity["build_provenance"] = decision["build_provenance"]
         draft_id = hashlib.sha256(
             canonical_json(proposal_identity).rstrip(b"\n")
         ).hexdigest()
@@ -260,11 +258,7 @@ class ControlledRevisionTests(unittest.TestCase):
         ).hexdigest()
         manifest["revision_id"] = revision_id
         history["revision_id"] = revision_id
-        history["transformations"][-1] = {
-            key: value
-            for key, value in transformation.items()
-            if key != "schema_version"
-        }
+        history["transformations"][-1] = transformation
         for name, value in (
             ("decision.json", decision),
             ("transformation.json", transformation),
@@ -788,47 +782,28 @@ class ControlledRevisionTests(unittest.TestCase):
                         result["base_state"]["status"], "CHANGED"
                     )
 
-    def test_refinement_runtime_provenance_is_verified(self) -> None:
+    def test_refinement_records_omit_runtime_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
                 root / "base", "TCW-D009"
             )
-            for field, replacement, malformed in (
-                ("lockfile_sha256", "f" * 64, False),
-                ("package_version", "0.5.1", False),
-                (
-                    "dependencies",
-                    None,
-                    True,
-                ),
-            ):
-                with self.subTest(field=field):
-                    copied = self.copy_record(revision, root / field)
-                    manifest_path = copied / "refinement-manifest.json"
-                    manifest = json.loads(manifest_path.read_text("utf-8"))
-                    if field == "dependencies":
-                        replacement = dict(
-                            manifest["build_provenance"]["dependencies"]
-                        )
-                        replacement.pop("jsonschema")
-                    manifest["build_provenance"][field] = replacement
-                    manifest_path.write_bytes(canonical_json(manifest))
-                    if malformed:
-                        self.assertEqual(
-                            verify_refinement(
-                                copied, diagnosis, observation
-                            )["artifact_integrity"]["status"],
-                            "BROKEN",
-                        )
-                    else:
-                        with self.assertRaisesRegex(
-                            RuntimeContractError,
-                            "recorded provenance is unsupported",
-                        ):
-                            verify_refinement(
-                                copied, diagnosis, observation
-                            )
+            manifest = json.loads(
+                (revision / "refinement-manifest.json").read_text("utf-8")
+            )
+            self.assertEqual(
+                (manifest["record_type"], manifest["format_version"]),
+                ("refinement", 1),
+            )
+            for name in ("decision.json", "transformation.json", "history.json"):
+                value = json.loads((revision / name).read_text("utf-8"))
+                self.assertNotIn("record_type", value)
+                self.assertNotIn("format_version", value)
+                self.assertNotIn("schema_version", value)
+                self.assertNotIn("build_provenance", value)
+            result = verify_refinement(revision, diagnosis, observation)
+            self.assertNotIn("schema_version", result)
+            self.assertNotIn("build_provenance", result)
 
     def test_replay_requires_exact_diagnosis_and_base(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -978,7 +953,7 @@ class ControlledRevisionTests(unittest.TestCase):
             self.assertEqual(result["artifact_integrity"]["status"], "BROKEN")
             self.assertNotEqual(result["base_state"]["status"], "MATCH")
 
-    def test_supplied_relationship_provenance_failures_use_exact_cli_streams(
+    def test_supplied_relationship_format_failures_use_exact_cli_streams(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1072,14 +1047,15 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             parent_manifest = unsupported_parent / "refinement-manifest.json"
             value = json.loads(parent_manifest.read_text("utf-8"))
-            value["build_provenance"]["provenance_id"] = "0" * 64
+            value["format_version"] = 99
             parent_manifest.write_bytes(canonical_json(value))
             parent_cases = [
                 (
-                    "parent-unsupported",
+                    "parent-unknown-format",
                     unsupported_parent,
-                    6,
-                    "recorded provenance is unsupported by this v0.5 package\n",
+                    2,
+                    "refinement record format is unsupported; "
+                    "regenerate the record with the current project\n",
                 )
             ]
             malformed_parent = self.copy_record(
@@ -1087,14 +1063,15 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             parent_manifest = malformed_parent / "refinement-manifest.json"
             value = json.loads(parent_manifest.read_text("utf-8"))
-            del value["build_provenance"]["command_id"]
+            del value["record_type"]
             parent_manifest.write_bytes(canonical_json(value))
             parent_cases.append(
                 (
-                    "parent-malformed",
+                    "parent-missing-header",
                     malformed_parent,
-                    5,
-                    "supplied base is malformed or unavailable\n",
+                    2,
+                    "refinement record format is unsupported; "
+                    "regenerate the record with the current project\n",
                 )
             )
 
@@ -1270,14 +1247,12 @@ class ControlledRevisionTests(unittest.TestCase):
             refinement_manifest = json.loads(
                 (revision / "refinement-manifest.json").read_text("utf-8")
             )
-            self.assertEqual(
-                decision_record["build_provenance"]["command_id"],
-                "tcw.draft-refinement",
-            )
-            self.assertEqual(
-                refinement_manifest["build_provenance"]["command_id"],
-                "tcw.resolve-refinement",
-            )
+            self.assertNotIn("build_provenance", decision_record)
+            self.assertNotIn("schema_version", decision_record)
+            self.assertEqual(refinement_manifest["record_type"], "refinement")
+            self.assertEqual(refinement_manifest["format_version"], 1)
+            self.assertNotIn("build_provenance", refinement_manifest)
+            self.assertNotIn("schema_version", refinement_manifest)
             self.assertNotIn("runtime", refinement_manifest)
             self.assertNotIn("milestone", refinement_manifest)
             result = verify_refinement(revision, diagnosis, observation)

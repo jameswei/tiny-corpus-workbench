@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/transformation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "transformation_id",
+    "state",
+    "parent",
+    "revision_id",
+    "finding_id",
+    "decision_id",
+    "decided_by",
+    "refiner",
+    "affected_refs",
+    "forward_edits",
+    "inverse_edits",
+    "prepared_document_sha256"
+  ],
+  "properties": {
+    "transformation_id": {"$ref": "#/$defs/hash"},
+    "state": {"const": "APPLIED"},
+    "parent": {"type": "object"},
+    "revision_id": {"$ref": "#/$defs/hash"},
+    "finding_id": {"$ref": "#/$defs/hash"},
+    "decision_id": {"$ref": "#/$defs/hash"},
+    "decided_by": {"type": "string", "minLength": 1},
+    "refiner": {"type": "object"},
+    "affected_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^#/"}
+    },
+    "forward_edits": {"type": "array", "minItems": 1},
+    "inverse_edits": {"type": "array", "minItems": 1},
+    "prepared_document_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

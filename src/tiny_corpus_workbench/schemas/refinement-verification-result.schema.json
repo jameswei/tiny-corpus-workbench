@@ -1,22 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/tcw/refinement-verification-result-v0.5.schema.json",
+  "$id": "https://example.invalid/tcw/refinement-verification-result.schema.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version",
     "refinement_directory",
     "artifact_integrity",
     "diagnosis_state",
     "base_state",
     "derivation_state",
-    "reversibility_state",
-    "build_provenance"
+    "reversibility_state"
   ],
   "properties": {
-    "schema_version": {
-      "const": "tcw.refinement-verification-result/v0.5"
-    },
     "refinement_directory": {
       "type": "string"
     },
@@ -34,9 +29,6 @@
     },
     "reversibility_state": {
       "$ref": "#/$defs/derivation"
-    },
-    "build_provenance": {
-      "$ref": "common-v0.5.schema.json#/$defs/BUILD_COMMAND"
     }
   },
   "$defs": {

@@ -8,7 +8,11 @@ from pathlib import Path
 
 from tiny_corpus_workbench.domain import InputError
 from tiny_corpus_workbench.workbench_records import admit_record, admit_records
-from tests.unit.workbench_test_support import PublishedDiagnosis, PublishedObservation
+from tests.unit.workbench_test_support import (
+    PublishedDiagnosis,
+    PublishedObservation,
+    PublishedRefinements,
+)
 
 
 class WorkbenchAdmissionTests(unittest.TestCase):
@@ -16,11 +20,13 @@ class WorkbenchAdmissionTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.published = PublishedObservation()
         cls.diagnosis = PublishedDiagnosis()
+        cls.refinements = PublishedRefinements()
 
     @classmethod
     def tearDownClass(cls) -> None:
         cls.published.close()
         cls.diagnosis.close()
+        cls.refinements.close()
 
     def test_intrinsically_verified_explicit_root_is_admitted(self) -> None:
         admitted = admit_records([self.published.root])
@@ -131,6 +137,28 @@ class WorkbenchAdmissionTests(unittest.TestCase):
                     )
                     with self.assertRaisesRegex(InputError, "regenerate"):
                         admit_record(copied)
+
+    def test_unknown_refinement_header_is_rejected_with_guidance(self) -> None:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as directory:
+            copied = Path(directory) / self.refinements.applied.name
+            shutil.copytree(self.refinements.applied, copied)
+            manifest_path = copied / "refinement-manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["format_version"] = 99
+            manifest_path.write_text(
+                json.dumps(
+                    manifest,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+                "utf-8",
+            )
+            with self.assertRaisesRegex(InputError, "regenerate"):
+                admit_record(copied)
 
 
 if __name__ == "__main__":

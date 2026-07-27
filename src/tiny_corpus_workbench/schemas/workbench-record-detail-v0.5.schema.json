@@ -864,7 +864,7 @@
                     "minimum": 0
                   },
                   "refiner": {
-                    "$ref": "refinement-draft-v0.5.schema.json#/$defs/refiner"
+                    "$ref": "refinement-draft.schema.json#/$defs/refiner"
                   },
                   "before_sha256": {
                     "$ref": "common-v0.5.schema.json#/$defs/hash"
@@ -906,7 +906,7 @@
                     ]
                   },
                   "refiner": {
-                    "$ref": "refinement-draft-v0.5.schema.json#/$defs/refiner"
+                    "$ref": "refinement-draft.schema.json#/$defs/refiner"
                   },
                   "before_sha256": {
                     "$ref": "common-v0.5.schema.json#/$defs/hash"

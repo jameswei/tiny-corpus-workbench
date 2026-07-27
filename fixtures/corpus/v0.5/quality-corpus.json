@@ -5,7 +5,7 @@
       "family": "line-end-hyphenation",
       "format": "docx",
       "member_id": "line-end-hyphenation",
-      "source": "../../refinement/v0.5/line-end-hyphenation.docx"
+      "source": "../../refinement/line-end-hyphenation.docx"
     },
     {
       "family": "repeated-margin",
@@ -29,7 +29,7 @@
       "family": "whitespace-cleanup",
       "format": "md",
       "member_id": "whitespace-cleanup",
-      "source": "../../refinement/v0.5/whitespace-cleanup.md"
+      "source": "../../refinement/whitespace-cleanup.md"
     }
   ],
   "schema_version": "tcw.corpus-spec/v0.5",

@@ -213,7 +213,7 @@ class CorpusIntegrationTests(unittest.TestCase):
             root = Path(directory).resolve()
             inputs = root / "inputs"
             inputs.mkdir()
-            source = ROOT / "fixtures/refinement/v0.5/whitespace-cleanup.md"
+            source = ROOT / "fixtures/refinement/whitespace-cleanup.md"
             code, observation = observe(
                 str(source), root / "observations", MODEL_ROOT
             )

@@ -18,18 +18,19 @@ uv run --frozen --group fixtures python tools/verify_fixtures.py
 
 The repository's MIT license applies to code. The separate CC0 declaration in
 `LICENSE-CC0-1.0.txt` applies to the authored specifications, generated golden
-documents, diagnosis corpus, and versioned refinement fixtures.
+documents, diagnosis corpus, and refinement fixtures.
 
 The separate `diagnosis/` corpus exercises fixed diagnosis rules. It
 contains two Markdown sources and one deterministic three-page PDF. Generate
 or check it with `tools/generate_diagnosis_fixtures.py`. Its registry records
 expected rule identifiers, file sizes, hashes, and the CC0-1.0 license.
 
-The `refinement/v0.5/` directory is a mixed-format fixture set. It contains a
+The `refinement/` directory is a mixed-format fixture set. It contains a
 deterministic Markdown source for whitespace normalization and a deterministic
 DOCX source for line-end dehyphenation. Check their registry with
 `tools/generate_refinement_fixtures.py --check`. The repeated-margin refiner
-reuses `diagnosis/repeated-margin.pdf`.
+reuses `diagnosis/repeated-margin.pdf`. The registry records only current
+fixture paths, learning properties, hashes, licenses, and generator recipes.
 
 The `corpus/v0.5/` directory contains two corpus specifications. It adds no raw
 document:

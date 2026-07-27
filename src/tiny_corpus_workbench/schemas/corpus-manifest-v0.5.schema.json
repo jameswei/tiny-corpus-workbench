@@ -864,7 +864,7 @@
           "pattern": "^TCW-D0(0[1-9]|10)$"
         },
         "refiner": {
-          "$ref": "refinement-draft-v0.5.schema.json#/$defs/refiner"
+          "$ref": "refinement-draft.schema.json#/$defs/refiner"
         },
         "affected_reference_count": {
           "type": "integer",

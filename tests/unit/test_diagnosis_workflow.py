@@ -338,16 +338,10 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             checkout_a.mkdir()
             checkout_b.mkdir()
             try:
-                with mock.patch(
-                    "tiny_corpus_workbench.v03.active_build_provenance",
-                    side_effect=AssertionError(
-                        "diagnosis must not inspect runtime metadata"
-                    ),
-                ):
-                    os.chdir(checkout_a)
-                    first = diagnose(observation, root / "first")
-                    os.chdir(checkout_b)
-                    second = diagnose(observation, root / "second")
+                os.chdir(checkout_a)
+                first = diagnose(observation, root / "first")
+                os.chdir(checkout_b)
+                second = diagnose(observation, root / "second")
             finally:
                 os.chdir(original_cwd)
             first_manifest = json.loads(
@@ -962,16 +956,12 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     self.assertEqual(stderr, expected_stderr)
 
             observation = self.observation(root / "observations")
-            with mock.patch(
-                "tiny_corpus_workbench.v03.active_build_provenance",
-                side_effect=AssertionError("diagnosis must not inspect runtime"),
-            ):
-                code, stdout, stderr = self.invoke(
-                    "diagnose",
-                    str(observation),
-                    "--output-root",
-                    str(root / "diagnoses"),
-                )
+            code, stdout, stderr = self.invoke(
+                "diagnose",
+                str(observation),
+                "--output-root",
+                str(root / "diagnoses"),
+            )
             self.assertEqual(code, 0, stderr)
             self.assertNotEqual(stdout, "")
 

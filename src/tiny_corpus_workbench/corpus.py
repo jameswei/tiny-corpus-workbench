@@ -257,7 +257,7 @@ def _admit_revision(
 
     # Keep the refinement implementation out of import paths that do not admit
     # revision bundles.
-    from tiny_corpus_workbench.v03 import verify_refinement
+    from tiny_corpus_workbench.application.refinement import verify_refinement
 
     try:
         verification = verify_refinement(
