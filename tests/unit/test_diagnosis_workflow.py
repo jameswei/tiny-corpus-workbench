@@ -754,30 +754,93 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             root = Path(directory)
             observation = self.observation(root / "observations")
             diagnosis = self.diagnose(observation, root / "diagnoses")
-            manifest_path = diagnosis / "diagnosis-manifest.json"
-            findings_path = diagnosis / "findings.json"
-            manifest = json.loads(manifest_path.read_text("utf-8"))
-            findings = json.loads(findings_path.read_text("utf-8"))
-            findings["findings"][0]["summary"] = "Tampered but schema-valid"
-            findings_path.write_bytes(canonical_json(findings))
-            (diagnosis / "report.md").write_bytes(_diagnosis_report(findings))
-            for descriptor in manifest["artifacts"]:
-                path = diagnosis / descriptor["path"]
-                descriptor["size"] = path.stat().st_size
-                descriptor["sha256"] = hashlib.sha256(
-                    path.read_bytes()
-                ).hexdigest()
-            manifest_path.write_bytes(canonical_json(manifest))
-
-            result = verify_diagnosis(diagnosis)
-            self.assertEqual(result["artifact_integrity"]["status"], "BROKEN")
-            self.assertTrue(
-                any(
-                    issue["code"] == "MANIFEST_INVALID"
-                    for issue in result["artifact_integrity"]["issues"]
+            cases = {
+                "metadata": lambda findings: findings["findings"][0].update(
+                    {"summary": "Tampered but structurally valid"}
                 ),
-                result,
-            )
+                "evidence-with-refreshed-identities": (
+                    lambda findings: findings["findings"][0].update(
+                        {"evidence": {"band": "top"}}
+                    )
+                ),
+            }
+            for name, mutate in cases.items():
+                with self.subTest(case=name):
+                    changed = root / name
+                    shutil.copytree(diagnosis, changed)
+                    manifest_path = changed / "diagnosis-manifest.json"
+                    findings_path = changed / "findings.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    findings = json.loads(findings_path.read_text("utf-8"))
+                    mutate(findings)
+                    if name == "evidence-with-refreshed-identities":
+                        domain_findings = [
+                            {
+                                key: finding[key]
+                                for key in (
+                                    "rule_id",
+                                    "rule_version",
+                                    "document_refs",
+                                    "evidence",
+                                )
+                            }
+                            for finding in findings["findings"]
+                        ]
+                        domain_findings.sort(key=canonical_json)
+                        diagnosis_id = hashlib.sha256(
+                            canonical_json(
+                                {
+                                    "subject": findings["subject"],
+                                    "ruleset": findings["ruleset"],
+                                    "findings": domain_findings,
+                                }
+                            ).rstrip(b"\n")
+                        ).hexdigest()
+                        findings["diagnosis_id"] = diagnosis_id
+                        manifest["diagnosis_id"] = diagnosis_id
+                        for finding in findings["findings"]:
+                            finding["finding_id"] = hashlib.sha256(
+                                canonical_json(
+                                    {
+                                        "diagnosis_id": diagnosis_id,
+                                        "rule_id": finding["rule_id"],
+                                        "rule_version": finding[
+                                            "rule_version"
+                                        ],
+                                        "document_refs": finding[
+                                            "document_refs"
+                                        ],
+                                        "evidence": finding["evidence"],
+                                    }
+                                ).rstrip(b"\n")
+                            ).hexdigest()
+                        findings["findings"].sort(
+                            key=lambda finding: finding["finding_id"]
+                        )
+                    findings_path.write_bytes(canonical_json(findings))
+                    (changed / "report.md").write_bytes(
+                        _diagnosis_report(findings)
+                    )
+                    for descriptor in manifest["artifacts"]:
+                        path = changed / descriptor["path"]
+                        descriptor["size"] = path.stat().st_size
+                        descriptor["sha256"] = hashlib.sha256(
+                            path.read_bytes()
+                        ).hexdigest()
+                    manifest_path.write_bytes(canonical_json(manifest))
+
+                    result = verify_diagnosis(changed)
+                    self.assertEqual(
+                        result["artifact_integrity"]["status"],
+                        "BROKEN",
+                    )
+                    self.assertTrue(
+                        any(
+                            issue["code"] == "MANIFEST_INVALID"
+                            for issue in result["artifact_integrity"]["issues"]
+                        ),
+                        result,
+                    )
 
     def test_subject_advisories_and_complete_source_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

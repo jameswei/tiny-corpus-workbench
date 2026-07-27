@@ -108,6 +108,56 @@ RULESET_PARAMETER_HASH = hashlib.sha256(
         ]
     ).rstrip(b"\n")
 ).hexdigest()
+CURRENT_RULES = [
+    *RULESET,
+    {
+        "rule_id": "TCW-D009",
+        "name": "NORMALIZABLE_WHITESPACE",
+        "version": "1",
+        "severity": "INFO",
+        "parameters": {
+            "line_endings": "LF",
+            "horizontal_whitespace": "ASCII_SPACE",
+            "preserve_internal_line_breaks": True,
+        },
+    },
+    {
+        "rule_id": "TCW-D010",
+        "name": "POSSIBLE_LINE_END_HYPHENATION",
+        "version": "1",
+        "severity": "WARNING",
+        "parameters": {
+            "minimum_fragment_code_points": 2,
+            "logical_line_breaks": 1,
+            "right_initial": "lowercase",
+        },
+    },
+]
+CURRENT_RULESET = {
+    "name": "tcw-evidence-based-diagnosis",
+    "version": "v0.3",
+    "rules": CURRENT_RULES,
+}
+CURRENT_RULESET_PARAMETER_HASH = hashlib.sha256(
+    canonical_json(
+        [
+            {
+                "rule_id": rule["rule_id"],
+                "rule_version": rule["version"],
+                "parameters": rule["parameters"],
+            }
+            for rule in CURRENT_RULES
+        ]
+    ).rstrip(b"\n")
+).hexdigest()
+CURRENT_FINDING_METADATA = {
+    rule["rule_id"]: {
+        "rule_version": rule["version"],
+        "severity": rule["severity"],
+        "summary": rule["name"],
+    }
+    for rule in CURRENT_RULES
+}
 TEXT_COLLECTIONS = (
     "texts",
     "pictures",
@@ -122,10 +172,26 @@ SEVERITY_BY_RULE = {rule["rule_id"]: rule["severity"] for rule in RULESET}
 
 
 def validate_finding_contract(finding: dict[str, Any]) -> None:
-    rule_id = finding["rule_id"]
-    references = finding["document_refs"]
-    evidence = finding["evidence"]
+    rule_id = finding.get("rule_id")
+    expected_metadata = CURRENT_FINDING_METADATA.get(rule_id)
+    actual_metadata = {
+        key: finding.get(key)
+        for key in ("rule_version", "severity", "summary")
+    }
+    if expected_metadata is None or actual_metadata != expected_metadata:
+        raise IntegrityError("finding metadata is inconsistent with its rule")
+    references = finding.get("document_refs")
+    evidence = finding.get("evidence")
+    if not isinstance(references, list) or not isinstance(evidence, dict):
+        raise IntegrityError("finding violates its rule-specific evidence contract")
     keys = set(evidence)
+
+    def is_hash(value: Any) -> bool:
+        return (
+            isinstance(value, str)
+            and len(value) == 64
+            and all(character in "0123456789abcdef" for character in value)
+        )
 
     def references_match(
         *,
@@ -198,6 +264,7 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
             and evidence["count"] == len(references)
             and type(evidence["normalized_character_count"]) is int
             and evidence["normalized_character_count"] >= 80
+            and is_hash(evidence["normalized_text_sha256"])
         )
     elif rule_id == "TCW-D005":
         first_shape = keys == {"current_level", "previous_level"}
@@ -271,6 +338,7 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
             and evidence["band"] in {"top", "bottom"}
             and type(evidence["normalized_character_count"]) is int
             and 3 <= evidence["normalized_character_count"] <= 200
+            and is_hash(evidence["normalized_text_sha256"])
             and isinstance(pages, list)
             and all(type(page) is int and page >= 1 for page in pages)
             and pages == sorted(set(pages))
@@ -288,6 +356,55 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
             )
             and isinstance(evidence["content_layer"], str)
             and bool(evidence["content_layer"])
+        )
+    elif rule_id in {"TCW-D009", "TCW-D010"}:
+        offsets_name = (
+            "code_point_offsets"
+            if rule_id == "TCW-D009"
+            else "hyphen_code_point_offsets"
+        )
+        result_hash_name = (
+            "normalized_text_sha256"
+            if rule_id == "TCW-D009"
+            else "repaired_text_sha256"
+        )
+        required = {
+            offsets_name,
+            "occurrence_count",
+            "original_text_sha256",
+            result_hash_name,
+        }
+        has_row = "row" in evidence
+        has_column = "column" in evidence
+        if has_row or has_column:
+            required.update({"row", "column"})
+        offsets = evidence.get(offsets_name)
+        valid = (
+            keys == required
+            and references_match(
+                minimum=1,
+                maximum=1,
+                prefixes=("#/",),
+            )
+            and isinstance(offsets, list)
+            and bool(offsets)
+            and all(type(offset) is int and offset >= 0 for offset in offsets)
+            and offsets == sorted(set(offsets))
+            and type(evidence.get("occurrence_count")) is int
+            and evidence["occurrence_count"] == len(offsets)
+            and is_hash(evidence.get("original_text_sha256"))
+            and is_hash(evidence.get(result_hash_name))
+            and has_row == has_column
+            and (
+                not has_row
+                or (
+                    references[0].startswith("#/tables/")
+                    and type(evidence["row"]) is int
+                    and evidence["row"] >= 0
+                    and type(evidence["column"]) is int
+                    and evidence["column"] >= 0
+                )
+            )
         )
     if not valid:
         raise IntegrityError("finding violates its rule-specific evidence contract")

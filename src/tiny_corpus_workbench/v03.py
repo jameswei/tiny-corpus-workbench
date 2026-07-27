@@ -25,7 +25,10 @@ from tiny_corpus_workbench.application.records import (
 )
 from tiny_corpus_workbench.artifacts import _rename_exclusive, canonical_json
 from tiny_corpus_workbench.diagnosis_rules import (
-    RULESET as V02_RULES,
+    CURRENT_FINDING_METADATA,
+    CURRENT_RULES,
+    CURRENT_RULESET,
+    CURRENT_RULESET_PARAMETER_HASH,
     _canonicalize_findings,
     _hash,
     _index,
@@ -33,7 +36,7 @@ from tiny_corpus_workbench.diagnosis_rules import (
     _table_cells,
     analyze_document as analyze_v02,
     snapshot_tree,
-    validate_finding_contract as validate_v02_finding,
+    validate_finding_contract,
 )
 from tiny_corpus_workbench.domain import (
     CanonicalUnavailableError,
@@ -53,48 +56,9 @@ from tiny_corpus_workbench.verification import verify_observation
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
-V03_RULES = [
-    *V02_RULES,
-    {
-        "rule_id": "TCW-D009",
-        "name": "NORMALIZABLE_WHITESPACE",
-        "version": "1",
-        "severity": "INFO",
-        "parameters": {
-            "line_endings": "LF",
-            "horizontal_whitespace": "ASCII_SPACE",
-            "preserve_internal_line_breaks": True,
-        },
-    },
-    {
-        "rule_id": "TCW-D010",
-        "name": "POSSIBLE_LINE_END_HYPHENATION",
-        "version": "1",
-        "severity": "WARNING",
-        "parameters": {
-            "minimum_fragment_code_points": 2,
-            "logical_line_breaks": 1,
-            "right_initial": "lowercase",
-        },
-    },
-]
-RULESET = {
-    "name": "tcw-evidence-based-diagnosis",
-    "version": "v0.3",
-    "rules": V03_RULES,
-}
-RULESET_PARAMETER_HASH = _hash(
-    canonical_json(
-        [
-            {
-                "rule_id": item["rule_id"],
-                "rule_version": item["version"],
-                "parameters": item["parameters"],
-            }
-            for item in V03_RULES
-        ]
-    ).rstrip(b"\n")
-)
+V03_RULES = CURRENT_RULES
+RULESET = CURRENT_RULESET
+RULESET_PARAMETER_HASH = CURRENT_RULESET_PARAMETER_HASH
 REFINERS = {
     "TCW-D009": {
         "refiner_id": "TCW-R001",
@@ -125,16 +89,8 @@ DIAGNOSIS_ARTIFACTS = {
     "report.md": ("diagnostic-report", "text/markdown"),
 }
 V03_FINDING_METADATA = {
-    "TCW-D009": {
-        "rule_version": "1",
-        "severity": "INFO",
-        "summary": "NORMALIZABLE_WHITESPACE",
-    },
-    "TCW-D010": {
-        "rule_version": "1",
-        "severity": "WARNING",
-        "summary": "POSSIBLE_LINE_END_HYPHENATION",
-    },
+    rule_id: CURRENT_FINDING_METADATA[rule_id]
+    for rule_id in ("TCW-D009", "TCW-D010")
 }
 
 
@@ -676,43 +632,7 @@ def validate_finding_set(value: dict[str, Any]) -> None:
         )
         if finding["finding_id"] != expected_id:
             raise IntegrityError("finding identity is inconsistent")
-        if finding["rule_id"] in {item["rule_id"] for item in V02_RULES}:
-            validate_v02_finding(finding)
-            continue
-        if {
-            key: finding.get(key)
-            for key in ("rule_version", "severity", "summary")
-        } != V03_FINDING_METADATA.get(finding["rule_id"]):
-            raise IntegrityError("v0.5 finding metadata is inconsistent")
-        evidence = finding["evidence"]
-        offsets_name = (
-            "code_point_offsets"
-            if finding["rule_id"] == "TCW-D009"
-            else "hyphen_code_point_offsets"
-        )
-        required = {
-            offsets_name,
-            "occurrence_count",
-            "original_text_sha256",
-            (
-                "normalized_text_sha256"
-                if finding["rule_id"] == "TCW-D009"
-                else "repaired_text_sha256"
-            ),
-        }
-        if "row" in evidence or "column" in evidence:
-            required.update({"row", "column"})
-        offsets = evidence.get(offsets_name)
-        if (
-            set(evidence) != required
-            or not isinstance(offsets, list)
-            or not offsets
-            or offsets != sorted(set(offsets))
-            or any(type(offset) is not int or offset < 0 for offset in offsets)
-            or evidence.get("occurrence_count") != len(offsets)
-            or len(finding["document_refs"]) != 1
-        ):
-            raise IntegrityError("v0.5 finding evidence is inconsistent")
+        validate_finding_contract(finding)
 
 
 def _diagnosis_report(findings: dict[str, Any]) -> bytes:
