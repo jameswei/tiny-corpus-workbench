@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 import unittest
@@ -78,6 +79,28 @@ class WorkbenchAdmissionTests(unittest.TestCase):
             next(iter(batch.records.values())).backing.root,
             self.published.root,
         )
+
+    def test_unknown_observation_header_is_rejected_with_guidance(self) -> None:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as directory:
+            copied = Path(directory) / self.published.root.name
+            shutil.copytree(self.published.root, copied)
+            manifest_path = copied / "manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["format_version"] = 99
+            manifest_path.write_text(
+                json.dumps(
+                    manifest,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+                "utf-8",
+            )
+            with self.assertRaisesRegex(InputError, "regenerate"):
+                admit_record(copied)
 
 
 if __name__ == "__main__":

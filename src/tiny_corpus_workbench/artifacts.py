@@ -29,16 +29,19 @@ def canonical_json(value: Any) -> bytes:
 
 def compute_observation_id(
     source: dict[str, Any],
-    build_provenance: dict[str, Any],
     configurations: dict[str, Any],
     model_inventory_hash: str | None,
+    extractors: list[dict[str, Any]],
+    docling_document_schema: dict[str, Any],
 ) -> str:
     identity = {
-        "schema_version": "tcw.preparation-manifest/v0.5",
         "source": {key: source[key] for key in ("sha256", "size", "media_type")},
-        "build_provenance": build_provenance,
         "configurations": configurations,
         "model_inventory_hash": model_inventory_hash,
+        "extractor_versions": {
+            result["name"]: result["version"] for result in extractors
+        },
+        "docling_document_schema": docling_document_schema,
     }
     return canonical_sha256(identity)
 
@@ -52,7 +55,6 @@ def inventory_models(root: Path, *, required: bool) -> dict[str, Any]:
     if not required:
         return {
             "required": False,
-            "path": str(root.absolute()),
             "inventory_hash": None,
             "files": [],
         }
@@ -93,7 +95,7 @@ def inventory_models(root: Path, *, required: bool) -> dict[str, Any]:
     if not files:
         raise RuntimeContractError(f"required Docling model artifacts are empty: {root}")
     inventory_hash = hashlib.sha256(canonical_json(files).rstrip(b"\n")).hexdigest()
-    return {"required": True, "path": str(root), "inventory_hash": inventory_hash, "files": files}
+    return {"required": True, "inventory_hash": inventory_hash, "files": files}
 
 
 def model_filesystem_identity(root: Path) -> tuple[tuple[Any, ...], ...]:

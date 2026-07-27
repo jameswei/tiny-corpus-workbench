@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Iterator
 
 from tiny_corpus_workbench.artifacts import canonical_json as artifact_json
+from tiny_corpus_workbench.application.records import require_record_header
 from tiny_corpus_workbench.canonical_json import (
     artifact_key,
     logical_copy_key,
@@ -597,7 +598,9 @@ def _capture_record(root: Path) -> _AdmissionCapture:
         if not isinstance(manifest, dict) or raw != artifact_json(manifest):
             raise IntegrityError("record manifest is not canonical JSON")
         kind, schema, _ = ROOTS[name]
-        if manifest.get("schema_version") != schema:
+        if kind == "OBSERVATION":
+            require_record_header(manifest, "observation")
+        elif manifest.get("schema_version") != schema:
             raise InputError("workbench requires a v0.5 record")
         listed = _listed_descriptors(kind, manifest)
         captured: list[tuple[tuple[str, str, str], _CapturedFile]] = []

@@ -12,6 +12,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
 
+from tiny_corpus_workbench.application.records import require_record_header
 from tiny_corpus_workbench.artifacts import (
     REQUIRED_MODEL_FILES,
     canonical_json,
@@ -20,18 +21,13 @@ from tiny_corpus_workbench.artifacts import (
 )
 from tiny_corpus_workbench.comparison import make_comparison
 from tiny_corpus_workbench.domain import (
-    DOCLING_DOCUMENT_COMPATIBILITY,
+    InputError,
     IntegrityError,
     RuntimeContractError,
     sanitize_message,
 )
 from tiny_corpus_workbench.source import sha256_file
 from tiny_corpus_workbench.schema_catalog import validator as catalog_validator
-from tiny_corpus_workbench.supported_provenance import (
-    RECORDED_PROVENANCE_ERROR,
-    active_build_provenance,
-    validate_recorded_provenance,
-)
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
@@ -212,18 +208,8 @@ def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     """Check cross-field contracts that JSON Schema cannot express safely."""
 
     issues: list[dict[str, Any]] = []
-    dependencies = manifest["build_provenance"]["dependencies"]
     results = {result["name"]: result for result in manifest["extractors"]}
     for name, result in results.items():
-        if result["version"] != dependencies[name]:
-            issues.append(
-                _issue(
-                    "REFERENCE_MISMATCH",
-                    "manifest.json",
-                    f"{name} version differs from runtime dependency",
-                )
-            )
-
         expected_artifacts = (
             EXPECTED_ARTIFACTS[name]
             if result["status"] in ("SUCCESS", "PARTIAL_SUCCESS")
@@ -260,7 +246,7 @@ def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
         )
     document_schema = manifest["docling_document_schema"]
     if docling["status"] == "FAILED":
-        if any(document_schema[key] is not None for key in ("name", "version", "compatibility")):
+        if any(document_schema[key] is not None for key in ("name", "version")):
             issues.append(
                 _issue(
                     "REFERENCE_MISMATCH",
@@ -271,13 +257,12 @@ def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     elif (
         document_schema["name"] is None
         or document_schema["version"] is None
-        or document_schema["compatibility"] != DOCLING_DOCUMENT_COMPATIBILITY
     ):
         issues.append(
             _issue(
                 "REFERENCE_MISMATCH",
                 "manifest.json",
-                "usable Docling result requires its exact schema compatibility identity",
+                "usable Docling result requires its document schema identity",
             )
         )
     markitdown = results["markitdown"]
@@ -432,11 +417,11 @@ def _docling_document_schema_issues(
 
 
 def validate_staged_schemas(root: Path) -> None:
-    """Reject staged evidence that does not satisfy both public schemas."""
+    """Reject staged evidence that does not satisfy both internal schemas."""
 
     for filename, schema_name in (
-        ("manifest.json", "preparation-manifest-v0.5.schema.json"),
-        ("comparison.json", "comparison-summary-v0.5.schema.json"),
+        ("manifest.json", "observation-manifest.schema.json"),
+        ("comparison.json", "comparison.schema.json"),
     ):
         try:
             document = json.loads((root / filename).read_text("utf-8"))
@@ -455,10 +440,9 @@ def verify_observation(
     source: Path | None = None,
     model_root: Path | None = None,
 ) -> dict[str, Any]:
-    result_provenance = active_build_provenance(command_id="tcw.verify")
-    manifest_schema = _schema("preparation-manifest-v0.5.schema.json")
-    comparison_schema = _schema("comparison-summary-v0.5.schema.json")
-    result_schema = _schema("verification-result-v0.5.schema.json")
+    manifest_schema = _schema("observation-manifest.schema.json")
+    comparison_schema = _schema("comparison.schema.json")
+    result_schema = _schema("observation-verification-result.schema.json")
     issues: list[dict[str, Any]] = []
     manifest: object = _LOAD_FAILED
     valid_manifest: dict[str, Any] | None = None
@@ -484,9 +468,8 @@ def verify_observation(
                     "manifest JSON root must be an object",
                 )
             )
-        elif manifest.get("schema_version") != "tcw.preparation-manifest/v0.5":
-            issues.append(_issue("SCHEMA_UNSUPPORTED", "manifest.json", "manifest schema is unsupported"))
         else:
+            require_record_header(manifest, "observation")
             errors = _validation_errors(manifest_schema, manifest)
             if errors:
                 issues.append(_issue("MANIFEST_INVALID", "manifest.json", "manifest does not conform to its schema"))
@@ -495,24 +478,17 @@ def verify_observation(
 
     if valid_manifest is not None:
         manifest = valid_manifest
-        try:
-            validate_recorded_provenance(
-                manifest["build_provenance"],
-                command_id="tcw.observe",
-                extracting=True,
-            )
-        except ValueError as error:
-            raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
         if root.name != manifest["run_id"]:
             issues.append(_issue("RUN_ID_MISMATCH", None, "directory basename does not match run_id"))
         computed_id = compute_observation_id(
             manifest["source"],
-            manifest["build_provenance"],
             manifest["configurations"],
             manifest["models"]["inventory_hash"],
+            manifest["extractors"],
+            manifest["docling_document_schema"],
         )
         if computed_id != manifest["observation_id"]:
-            issues.append(_issue("OBSERVATION_ID_MISMATCH", None, "observation_id does not match recorded provenance"))
+            issues.append(_issue("OBSERVATION_ID_MISMATCH", None, "observation_id does not match recorded evidence"))
         issues.extend(_manifest_contract_issues(manifest))
 
         model_files = manifest["models"]["files"]
@@ -700,7 +676,6 @@ def verify_observation(
     if issues:
         artifact_status = "BROKEN" if any(issue["code"] in BROKEN_CODES for issue in issues) else "INTEGRITY_MISMATCH"
     report = {
-        "schema_version": "tcw.verification-result/v0.5",
         "observation_directory": str(root.resolve()),
         "artifact_integrity": {"status": artifact_status, "issues": issues},
         "source_state": _advisory_source(
@@ -711,7 +686,6 @@ def verify_observation(
             model_root,
             manifest.get("models") if isinstance(manifest, dict) else None,
         ),
-        "build_provenance": result_provenance,
     }
     _validate_result(result_schema, report)
     return report
@@ -720,27 +694,24 @@ def verify_observation(
 def verify_command(
     root: Path, source: Path | None, model_root: Path | None
 ) -> int:
-    try:
-        active_build_provenance(command_id="tcw.verify")
-    except (RuntimeContractError, ValueError) as error:
-        print(sanitize_message(error), file=sys.stderr)
-        return 6
     if root.is_symlink() or not root.is_dir():
         print("OBSERVATION_DIRECTORY must be one local non-symlink directory", file=sys.stderr)
         return 2
     try:
         candidate = json.loads((root / "manifest.json").read_text("utf-8"))
-    except Exception:
-        candidate = None
-    if (
-        isinstance(candidate, dict)
-        and isinstance(candidate.get("schema_version"), str)
-        and candidate["schema_version"] != "tcw.preparation-manifest/v0.5"
-    ):
-        print("manifest schema is unsupported", file=sys.stderr)
+        require_record_header(candidate, "observation")
+    except (OSError, UnicodeError, json.JSONDecodeError, InputError):
+        print(
+            "observation record format is unsupported; "
+            "regenerate the record with the current project",
+            file=sys.stderr,
+        )
         return 2
     try:
         report = verify_observation(root, source, model_root)
+    except InputError as error:
+        print(sanitize_message(error), file=sys.stderr)
+        return 2
     except RuntimeContractError as error:
         print(sanitize_message(error), file=sys.stderr)
         return 6

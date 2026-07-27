@@ -82,7 +82,6 @@ def make_comparison(
         status = "NOT_AVAILABLE"
         deltas = None
     return {
-        "schema_version": "tcw.comparison-summary/v0.5",
         "observation_id": observation_id,
         "normalization_algorithm": "tcw-markdown-normalize-v1",
         "source": {

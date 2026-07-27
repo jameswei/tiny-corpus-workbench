@@ -1,20 +1,4 @@
 {
-  "build_provenance": {
-    "dependencies": {
-      "docling": "2.113.0",
-      "docling-core": "2.87.1",
-      "jsonschema": "4.26.0",
-      "markitdown": "0.1.6"
-    },
-    "generator_id": "tools.generate_fixtures",
-    "lockfile_sha256": "2a06114acb4804c445ff5d562123c7ef9930f86d18bf98d6d51fb615e40f5cca",
-    "package_version": "0.5.0",
-    "provenance_id": "f27bf80e8a5c17a5ea7567ccdca6335d955f09a616ac4ec750567a1e98715f04",
-    "python": {
-      "implementation": "CPython",
-      "major_minor": "3.12"
-    }
-  },
   "fixtures": [
     {
       "anchors": {
@@ -30,15 +14,12 @@
       "expected_docling_table_count": 1,
       "family": "meeting-minutes",
       "format": "docx",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "meeting-minutes-docx",
       "license": "CC0-1.0",
       "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "ownership": "project-authored",
       "path": "fixtures/golden/meeting-minutes.docx",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "7f12bc9644e1ed8021aca47903a7fae5d72ab4f75d914f9d12dfae498f443a1e",
       "size": 34935
     },
@@ -56,15 +37,12 @@
       "expected_docling_table_count": 1,
       "family": "meeting-minutes",
       "format": "md",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "meeting-minutes-md",
       "license": "CC0-1.0",
       "media_type": "text/markdown",
       "ownership": "project-authored",
       "path": "fixtures/golden/meeting-minutes.md",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "365ae53bbd1ec88783f9cad8597211af637291837c3e98129420f45cb1529431",
       "size": 655
     },
@@ -82,15 +60,12 @@
       "expected_docling_table_count": 1,
       "family": "meeting-minutes",
       "format": "pdf",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "meeting-minutes-pdf",
       "license": "CC0-1.0",
       "media_type": "application/pdf",
       "ownership": "project-authored",
       "path": "fixtures/golden/meeting-minutes.pdf",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "ebd76d9c68fd6966a891142dc6b38f9bd3a6c1f744c6372570b6c086c93be27d",
       "size": 2440
     },
@@ -108,15 +83,12 @@
       "expected_docling_table_count": 0,
       "family": "meeting-minutes",
       "format": "txt",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "meeting-minutes-txt",
       "license": "CC0-1.0",
       "media_type": "text/plain",
       "ownership": "project-authored",
       "path": "fixtures/golden/meeting-minutes.txt",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "729231f06f8582c77d1b56616e8763a2a42f8114a8277648a0027ab5ebea9b46",
       "size": 612
     },
@@ -134,15 +106,12 @@
       "expected_docling_table_count": 1,
       "family": "policy-memo",
       "format": "docx",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "policy-memo-docx",
       "license": "CC0-1.0",
       "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "ownership": "project-authored",
       "path": "fixtures/golden/policy-memo.docx",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "3a54761632e542a2ddbed090ab072698a61730bde9e41db4bbabd165c894824c",
       "size": 35019
     },
@@ -160,15 +129,12 @@
       "expected_docling_table_count": 1,
       "family": "policy-memo",
       "format": "md",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "policy-memo-md",
       "license": "CC0-1.0",
       "media_type": "text/markdown",
       "ownership": "project-authored",
       "path": "fixtures/golden/policy-memo.md",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "7d2fe694613a437af02d379f8b8ea627bc2f93425046182465bc4651f6913785",
       "size": 718
     },
@@ -186,15 +152,12 @@
       "expected_docling_table_count": 1,
       "family": "policy-memo",
       "format": "pdf",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "policy-memo-pdf",
       "license": "CC0-1.0",
       "media_type": "application/pdf",
       "ownership": "project-authored",
       "path": "fixtures/golden/policy-memo.pdf",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "6338a9667efc79061606fce260af226f88b20a74f76202bd71865d8eafe4173e",
       "size": 2563
     },
@@ -212,15 +175,12 @@
       "expected_docling_table_count": 0,
       "family": "policy-memo",
       "format": "txt",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "policy-memo-txt",
       "license": "CC0-1.0",
       "media_type": "text/plain",
       "ownership": "project-authored",
       "path": "fixtures/golden/policy-memo.txt",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "170904e81d98657ea9076965b722d29ea721c678df12a122b057de99cfed7930",
       "size": 683
     },
@@ -238,15 +198,12 @@
       "expected_docling_table_count": 1,
       "family": "release-notice",
       "format": "docx",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "release-notice-docx",
       "license": "CC0-1.0",
       "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "ownership": "project-authored",
       "path": "fixtures/golden/release-notice.docx",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "b46fca502cfa9cd2d412f0bc9c9623ac94daf6c51a31edd9ff8c5399ee15f60b",
       "size": 34895
     },
@@ -264,15 +221,12 @@
       "expected_docling_table_count": 1,
       "family": "release-notice",
       "format": "md",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "release-notice-md",
       "license": "CC0-1.0",
       "media_type": "text/markdown",
       "ownership": "project-authored",
       "path": "fixtures/golden/release-notice.md",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "60f128be2c81cb7f3c8f93f23e210de6800a8dbc4695ba3a3912ff6a2621e04c",
       "size": 529
     },
@@ -290,15 +244,12 @@
       "expected_docling_table_count": 1,
       "family": "release-notice",
       "format": "pdf",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "release-notice-pdf",
       "license": "CC0-1.0",
       "media_type": "application/pdf",
       "ownership": "project-authored",
       "path": "fixtures/golden/release-notice.pdf",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "4cd0d9dee57c226731e590736618eb28a8200e51d36c8cb3a07eae9ff16164fa",
       "size": 2392
     },
@@ -316,22 +267,14 @@
       "expected_docling_table_count": 0,
       "family": "release-notice",
       "format": "txt",
-      "generator": {
-        "name": "tools/generate_fixtures.py",
-        "schema": "tcw.authored-fixture/v0.5"
-      },
       "id": "release-notice-txt",
       "license": "CC0-1.0",
       "media_type": "text/plain",
       "ownership": "project-authored",
       "path": "fixtures/golden/release-notice.txt",
+      "recipe": "tools/generate_fixtures.py",
       "sha256": "0a4cdc6594cc7ce7db86a7f3199ba5d33266d0598bd7a55f5bc3f84a67a97a0a",
       "size": 487
     }
-  ],
-  "generator": {
-    "name": "tools/generate_fixtures.py",
-    "schema": "tcw.authored-fixture/v0.5"
-  },
-  "schema_version": "tcw.fixture-registry/v0.5"
+  ]
 }

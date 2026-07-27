@@ -14,31 +14,7 @@ from tiny_corpus_workbench.domain import IntegrityError, RuntimeContractError
 
 
 class ArtifactTests(unittest.TestCase):
-    def test_v05_observation_identity_preimage_is_frozen(self) -> None:
-        build_provenance = {
-            "provenance_id": "b" * 64,
-            "package_version": "0.5.0",
-            "lockfile_sha256": "c" * 64,
-            "python": {
-                "implementation": "CPython",
-                "major_minor": "3.12",
-            },
-            "dependencies": {
-                "docling": "1",
-                "docling-core": "2",
-                "jsonschema": "3",
-                "markitdown": "4",
-            },
-            "command_id": "tcw.observe",
-            "extractor_contract": {
-                "docling": {
-                    "package_version": "1",
-                    "document_schema_name": "DoclingDocument",
-                    "document_schema_version": "1.10.0",
-                },
-                "markitdown": {"package_version": "4"},
-            },
-        }
+    def test_observation_identity_preimage_is_domain_evidence(self) -> None:
         self.assertEqual(
             compute_observation_id(
                 {
@@ -46,14 +22,18 @@ class ArtifactTests(unittest.TestCase):
                     "size": 1,
                     "media_type": "text/plain",
                 },
-                build_provenance,
                 {
                     "docling": {"mode": "fixed"},
                     "markitdown": {"mode": "fixed"},
                 },
                 None,
+                [
+                    {"name": "docling", "version": "1"},
+                    {"name": "markitdown", "version": "4"},
+                ],
+                {"name": "DoclingDocument", "version": "1.10.0"},
             ),
-            "b5ffcfcc138400d718bc2ff66043135a5001f0db855e4b9b1ee7ea8be108a36b",
+            "6ec100f8ebd5f2353cf37d7b356e665e3e50bdac2a60f43e5a0231974c789d3d",
         )
 
     def test_atomic_publication_and_no_overwrite(self) -> None:

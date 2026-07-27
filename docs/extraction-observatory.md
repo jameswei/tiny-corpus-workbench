@@ -7,7 +7,7 @@ problem, recommend a repair, or change the source.
 
 ## Setup
 
-Use CPython 3.12 and the committed lockfile:
+Use CPython 3.12 and install the locked development environment:
 
 ```bash
 uv sync --frozen --python 3.12
@@ -28,13 +28,13 @@ records a canonical inventory hash. Symlinks are rejected.
 ## Observe one source
 
 ```bash
-uv run --frozen tcw observe fixtures/golden/policy-memo.pdf
+uv run tcw observe fixtures/golden/policy-memo.pdf
 ```
 
 Optional locations are explicit:
 
 ```bash
-uv run --frozen tcw observe SOURCE \
+uv run tcw observe SOURCE \
   --output-root build/extraction-observatory \
   --docling-artifacts .cache/docling/models
 ```
@@ -45,13 +45,12 @@ OOXML, non-UTF-8 text, and NUL-containing text are rejected before extraction.
 Empty Markdown and text files are also rejected because the manifest requires a
 positive source size. There is no directory or batch command.
 
-Before capture, `tcw` checks CPython 3.12, the exact locked package versions,
-and every adapter API used for conversion and serialization. It then opens the
-non-symlink source once and copies it into an owner-only private snapshot. The
-descriptor metadata must remain stable throughout that copy. Both extractors
-consume the same validated snapshot, which is removed before publication. A
-later change to the original source cannot mix extractor inputs and does not
-invalidate the completed observation.
+Before capture, `tcw` checks each adapter API used for conversion and
+serialization. It then opens the non-symlink source once and copies it into an
+owner-only private snapshot. The descriptor metadata must remain stable
+throughout that copy. Both extractors consume the same validated snapshot,
+which is removed before publication. A later change to the original source
+cannot mix extractor inputs and does not invalidate the completed observation.
 
 CLI parsing and input handling do not import the schema runtime eagerly. When
 observation reaches final schema validation, an unavailable or incompatible
@@ -90,12 +89,13 @@ build/extraction-observatory/<source-key>/<run-id>/
   markitdown/document.md
 ```
 
-`manifest.json` records source identity and hash, the exact dependency and
-lockfile environment, fixed configurations, model inventory, extractor
-results, artifact hashes, stable errors, and `application_immutable` markers.
-The fixed runtime dependency mapping is `docling==2.113.0`,
-`docling-core==2.87.1`, and `markitdown==0.1.6`; verification rejects a changed,
-missing, or additional entry.
+`manifest.json` is the observation root. It starts with
+`record_type: "observation"` and `format_version: 1`. It records source
+identity, fixed extraction configurations, the actual model inventory,
+extractor names and installed versions, the Docling document schema name and
+version, extractor results, artifact hashes, stable errors, and
+`application_immutable` markers. It does not record the project package,
+Python runtime, lockfile, dependency map, or command identity.
 `docling/document.json` is the unmodified output of Docling's
 `save_as_json()`.
 
@@ -133,7 +133,7 @@ instead of parsing `argparse` stderr.
 Verification is self-contained by default and does not import either extractor:
 
 ```bash
-uv run --frozen tcw verify OBSERVATION_DIRECTORY
+uv run tcw verify OBSERVATION_DIRECTORY
 ```
 
 The verifier/schema runtime is loaded only for this command. If it is
@@ -143,24 +143,23 @@ diagnostic and no report.
 The command writes exactly one compact JSON report to stdout. `VERIFIED` means
 the supported schemas, expected paths, regular-file kinds, recorded sizes and
 hashes, observation identity, statuses, and internal references agree. Ordinary
-artifact corruption reports `INTEGRITY_MISMATCH`; an uninterpretable manifest,
-identity, or reference reports `BROKEN`. Both failure states exit `5` and leave
-the observation unchanged. Decoded JSON with a null, scalar, array, or malformed
-nested shape also completes as `BROKEN`; it is never treated as an absent value
-or an internal verifier failure.
+artifact corruption reports `INTEGRITY_MISMATCH`; an invalid identity or
+reference reports `BROKEN`. Both failure states exit `5` and leave the
+observation unchanged. A missing, unreadable, or unsupported root header is an
+input-format error. It exits `2`, prints no JSON, and gives regeneration
+guidance.
 
 Structural checks include RFC 3339 timestamp syntax, nonnegative integral
 durations, and single-line sanitized errors. For a usable Docling result, the
 manifest schema name and version must match the identity inside the intact
-`docling/document.json`, and its exact-lock compatibility statement must be
-exact. A failed Docling result records no document schema identity: its name,
-version, and compatibility fields are `null`.
+`docling/document.json`. A failed Docling result records no document schema
+identity: its name and version are `null`.
 
-Current provenance checks are opt-in and advisory:
+Current source and model checks are opt-in and advisory:
 
 ```bash
-uv run --frozen tcw verify OBSERVATION_DIRECTORY --source SOURCE
-uv run --frozen tcw verify OBSERVATION_DIRECTORY \
+uv run tcw verify OBSERVATION_DIRECTORY --source SOURCE
+uv run tcw verify OBSERVATION_DIRECTORY \
   --docling-artifacts .cache/docling/models
 ```
 
@@ -172,7 +171,7 @@ change historical artifact integrity or the verifier exit code. Model matching
 uses the canonical relative-path, size, and hash inventory, so an equivalent
 model inventory may be checked from a different absolute directory.
 
-## Reruns and compatibility
+## Reruns and current formats
 
 Every invocation creates a new UTC/randomized run ID. Published directories
 are never reused, overwritten, repaired, or modified by the application. A
@@ -180,10 +179,11 @@ rerun preserves all earlier evidence. Rebuilding means running `tcw observe`
 again to create a new observation; `tcw verify` never repairs or quarantines a
 run.
 
-Docling JSON compatibility is promised only for the exact `uv.lock`
-environment that created an artifact. Dependency or model changes create new
-observations; they do not migrate old ones. For a run, inspect the source, run
-directory, committed lockfile, and recorded local model inventory together.
+Readers accept only the current observation header. A missing or unknown
+header exits `2`, prints no JSON report, and tells you to regenerate the record
+with the current project. The project does not migrate or overwrite an old
+observation. Extractor versions and the Docling schema identity remain
+descriptive evidence. They are not runtime compatibility gates.
 
 “Application-immutable” describes `tcw` behavior, not filesystem enforcement.
 The local hashes and verifier make runs tamper-evident for ordinary corruption
@@ -209,7 +209,7 @@ the original local record and is not a v0.1 verification failure.
 | `3` | One extractor failed or Docling reported partial success. |
 | `4` | Neither extractor produced a usable view. |
 | `5` | Source mutation, publication conflict, or artifact-integrity failure. |
-| `6` | Locked runtime, dependency, or required model artifacts unavailable or incompatible. |
+| `6` | Extractor runtime, schema runtime, or required model artifacts unavailable. |
 
 `tcw verify` uses `0` for `VERIFIED`, `2` for an invalid observation-directory
 argument, `5` for `INTEGRITY_MISMATCH` or `BROKEN`, `6` when its bundled schema

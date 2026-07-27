@@ -149,10 +149,9 @@ def _load_defaults() -> tuple[
 ]:
     # Keep corpus behavior out of existing command import paths.
     try:
-        from tiny_corpus_workbench.cli import (
+        from tiny_corpus_workbench.application.observation import (
             DOCLING_CONFIG,
             MARKITDOWN_CONFIG,
-            _preflight_extractors,
             observe,
         )
         from tiny_corpus_workbench.supported_provenance import (
@@ -171,19 +170,10 @@ def _load_defaults() -> tuple[
     ruleset = {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH}
 
     def locked_corpus_runtime() -> dict[str, Any]:
-        runtime = active_build_provenance(
+        return active_build_provenance(
             command_id="tcw.inspect-corpus",
             extracting=True,
         )
-        lock, _, _ = _preflight_extractors()
-        if (
-            lock["lockfile_sha256"] != runtime["lockfile_sha256"]
-            or lock["dependencies"] != runtime["dependencies"]
-        ):
-            raise RuntimeContractError(
-                "observation and diagnosis runtime identities do not match"
-            )
-        return runtime
 
     return (
         observe,

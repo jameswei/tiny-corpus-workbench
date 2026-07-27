@@ -54,10 +54,10 @@
           ],
           "properties": {
             "source": {
-              "$ref": "preparation-manifest-v0.5.schema.json#/$defs/source"
+              "$ref": "observation-manifest.schema.json#/$defs/source"
             },
             "docling_document_schema": {
-              "$ref": "preparation-manifest-v0.5.schema.json#/$defs/documentSchema"
+              "$ref": "observation-manifest.schema.json#/$defs/documentSchema"
             },
             "extractors": {
               "type": "array",

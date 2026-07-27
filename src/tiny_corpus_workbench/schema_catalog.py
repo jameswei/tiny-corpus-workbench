@@ -1,4 +1,4 @@
-"""Lightweight catalog for the closed v0.5 JSON Schema baseline."""
+"""Load the project's current internal record schemas."""
 
 from __future__ import annotations
 
@@ -21,11 +21,9 @@ COMMON_DEFINITIONS: Final[Mapping[str, Any]] = MappingProxyType(
 
 SCHEMA_FILES: Final[Mapping[str, str]] = MappingProxyType(
     {
-        "tcw.authored-fixture/v0.5": "authored-fixture-v0.5.schema.json",
-        "tcw.fixture-registry/v0.5": "fixture-registry-v0.5.schema.json",
-        "tcw.preparation-manifest/v0.5": "preparation-manifest-v0.5.schema.json",
-        "tcw.comparison-summary/v0.5": "comparison-summary-v0.5.schema.json",
-        "tcw.verification-result/v0.5": "verification-result-v0.5.schema.json",
+        "observation-manifest": "observation-manifest.schema.json",
+        "comparison": "comparison.schema.json",
+        "observation-verification-result": "observation-verification-result.schema.json",
         "tcw.diagnosis-fixture-registry/v0.5": "diagnosis-fixture-registry-v0.5.schema.json",
         "tcw.diagnosis-manifest/v0.5": "diagnosis-manifest-v0.5.schema.json",
         "tcw.finding-set/v0.5": "finding-set-v0.5.schema.json",
@@ -95,9 +93,16 @@ def common_validator(definition: str) -> Draft202012Validator:
 def validate_document(
     schema_version: str, document: dict[str, Any]
 ) -> None:
-    """Validate one public v0.5 document structurally and semantically."""
+    """Validate one internal document structurally and semantically."""
 
     validator(schema_version).validate(document)
+    if schema_version == "comparison":
+        from tiny_corpus_workbench.semantic_validation import (
+            _validate_comparison,
+        )
+
+        _validate_comparison(document)
+        return
     from tiny_corpus_workbench.semantic_validation import validate_semantics
 
     validate_semantics(schema_version, document)

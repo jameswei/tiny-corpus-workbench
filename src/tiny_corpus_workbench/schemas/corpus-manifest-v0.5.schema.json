@@ -207,7 +207,7 @@
           "$ref": "#/$defs/hash"
         },
         "configurations": {
-          "$ref": "preparation-manifest-v0.5.schema.json#/$defs/configurations"
+          "$ref": "observation-manifest.schema.json#/$defs/configurations"
         },
         "model_inventory": {
           "type": "object",
@@ -248,7 +248,7 @@
             "files": {
               "type": "array",
               "items": {
-                "$ref": "preparation-manifest-v0.5.schema.json#/$defs/modelFile"
+                "$ref": "observation-manifest.schema.json#/$defs/modelFile"
               }
             }
           }

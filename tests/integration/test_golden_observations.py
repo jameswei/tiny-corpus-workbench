@@ -29,10 +29,10 @@ class GoldenObservationTests(unittest.TestCase):
             raise unittest.SkipTest(f"prefetched Docling models are required: {MODEL_ROOT}")
         cls.registry = json.loads((ROOT / "fixtures/golden/fixtures.json").read_text("utf-8"))
         cls.manifest_validator = schema_validator(
-            "tcw.preparation-manifest/v0.5"
+            "observation-manifest"
         )
         cls.comparison_validator = schema_validator(
-            "tcw.comparison-summary/v0.5"
+            "comparison"
         )
 
     def test_all_twelve_fixtures_through_both_extractors_twice_offline(self) -> None:

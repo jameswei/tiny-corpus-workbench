@@ -33,6 +33,9 @@ assert "tiny_corpus_workbench.diagnosis_rules" not in sys.modules
 ACTIVE_RUNTIME_ERROR = (
     "active runtime does not match this package provenance registry\n"
 )
+OBSERVATION_SCHEMA_ERROR = (
+    "bundled observation schema validation is unavailable\n"
+)
 
 
 class BootstrapTests(unittest.TestCase):
@@ -71,8 +74,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
-
 def fake_docling(source, destination, model_root):
     destination.mkdir(parents=True)
     (destination / "document.json").write_text(
@@ -86,16 +87,14 @@ def fake_markitdown(source, destination):
     destination.mkdir(parents=True)
     (destination / "document.md").write_text("# view\n", "utf-8")
 
-lock = {
-    "path": str(Path("uv.lock").resolve()),
-    "sha256": "0" * 64,
-    "dependencies": dict(RUNTIME_DEPENDENCIES),
-}
 adapters = (
     SimpleNamespace(convert=fake_docling),
     SimpleNamespace(convert=fake_markitdown),
 )
-with mock.patch.object(cli, "_preflight_extractors", return_value=(lock, *adapters)):
+with mock.patch(
+    "tiny_corpus_workbench.application.observation._preflight_extractors",
+    return_value=adapters,
+):
     code = cli.main(
         [
             "observe",
@@ -110,7 +109,10 @@ raise SystemExit(code)
             output = Path(directory) / "output"
             completed = self.run_fresh(script, str(output))
             self.assertEqual(list(output.glob("*/*")), [])
-        self.assert_runtime_bootstrap_failure(completed)
+        self.assertEqual(completed.returncode, 6)
+        self.assertEqual(completed.stdout, "")
+        self.assertEqual(completed.stderr, OBSERVATION_SCHEMA_ERROR)
+        self.assertNotIn("Traceback", completed.stderr)
 
     def test_fresh_process_without_jsonschema_handles_diagnosis_bootstrap(self) -> None:
         script = BLOCK_JSONSCHEMA + r"""
@@ -149,11 +151,9 @@ raise SystemExit(cli.main(["inspect-corpus", sys.argv[1]]))
 
     def test_incompatible_verification_module_is_runtime_exit(self) -> None:
         stdout, stderr = io.StringIO(), io.StringIO()
-        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
-            tiny_corpus_workbench,
-            "verification",
-            SimpleNamespace(verify_command=None),
-            create=True,
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "tiny_corpus_workbench.application.verification.verify_command",
+            None,
         ), redirect_stdout(stdout), redirect_stderr(stderr):
             code = cli.main(["verify", directory])
         self.assertEqual(code, 6)
