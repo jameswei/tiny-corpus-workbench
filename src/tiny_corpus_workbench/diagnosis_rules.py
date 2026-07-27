@@ -167,6 +167,10 @@ TEXT_COLLECTIONS = (
     "field_regions",
     "field_items",
 )
+REFINABLE_TEXT_REFERENCE_PREFIXES = (
+    "#/texts/",
+    "#/field_items/",
+)
 SUMMARY_BY_RULE = {rule["rule_id"]: rule["name"] for rule in RULESET}
 SEVERITY_BY_RULE = {rule["rule_id"]: rule["severity"] for rule in RULESET}
 
@@ -320,6 +324,7 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
             valid = (
                 keys == {"declared_ref", "relationship_kind"}
                 and isinstance(declared, str)
+                and bool(declared)
                 and owner_shape
                 and references == expected
             )
@@ -379,12 +384,17 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
         if has_row or has_column:
             required.update({"row", "column"})
         offsets = evidence.get(offsets_name)
+        target_prefixes = (
+            ("#/tables/",)
+            if has_row and has_column
+            else REFINABLE_TEXT_REFERENCE_PREFIXES
+        )
         valid = (
             keys == required
             and references_match(
                 minimum=1,
                 maximum=1,
-                prefixes=("#/",),
+                prefixes=target_prefixes,
             )
             and isinstance(offsets, list)
             and bool(offsets)

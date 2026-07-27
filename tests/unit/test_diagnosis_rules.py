@@ -232,6 +232,16 @@ class DiagnosisRuleTests(unittest.TestCase):
             ),
             contract_finding(
                 "TCW-D009",
+                ["#/field_items/0"],
+                {
+                    "code_point_offsets": [1],
+                    "occurrence_count": 1,
+                    "original_text_sha256": "c" * 64,
+                    "normalized_text_sha256": "d" * 64,
+                },
+            ),
+            contract_finding(
+                "TCW-D009",
                 ["#/tables/0"],
                 {
                     "code_point_offsets": [1],
@@ -245,6 +255,16 @@ class DiagnosisRuleTests(unittest.TestCase):
             contract_finding(
                 "TCW-D010",
                 ["#/texts/0"],
+                {
+                    "hyphen_code_point_offsets": [1],
+                    "occurrence_count": 1,
+                    "original_text_sha256": "e" * 64,
+                    "repaired_text_sha256": "f" * 64,
+                },
+            ),
+            contract_finding(
+                "TCW-D010",
+                ["#/field_items/0"],
                 {
                     "hyphen_code_point_offsets": [1],
                     "occurrence_count": 1,
@@ -291,6 +311,75 @@ class DiagnosisRuleTests(unittest.TestCase):
                 structural.validate(invalid)
                 with self.assertRaises(IntegrityError):
                     validate_finding_contract(invalid)
+
+    def test_d006_and_refinable_target_constraints_are_domain_owned(
+        self,
+    ) -> None:
+        schema = load_schema("finding-set")
+        structural = Draft202012Validator(
+            {
+                "$schema": schema["$schema"],
+                "$defs": schema["$defs"],
+                "$ref": "#/$defs/finding",
+            }
+        )
+        empty_declared = contract_finding(
+            "TCW-D006",
+            ["#/tables/0"],
+            {
+                "relationship_kind": "invalid_declared_caption",
+                "declared_ref": "",
+            },
+        )
+        structural.validate(empty_declared)
+        with self.assertRaises(IntegrityError):
+            validate_finding_contract(empty_declared)
+
+        valid_evidence = {
+            "TCW-D009": {
+                "code_point_offsets": [1],
+                "occurrence_count": 1,
+                "original_text_sha256": "a" * 64,
+                "normalized_text_sha256": "b" * 64,
+            },
+            "TCW-D010": {
+                "hyphen_code_point_offsets": [1],
+                "occurrence_count": 1,
+                "original_text_sha256": "c" * 64,
+                "repaired_text_sha256": "d" * 64,
+            },
+        }
+        for rule_id, evidence in valid_evidence.items():
+            for reference in ("#/texts/0", "#/field_items/0"):
+                with self.subTest(
+                    rule_id=rule_id,
+                    reference=reference,
+                    valid=True,
+                ):
+                    validate_finding_contract(
+                        contract_finding(rule_id, [reference], evidence)
+                    )
+            for reference in (
+                "#/body",
+                "#/groups/0",
+                "#/pages/1",
+                "#/pictures/0",
+                "#/tables/0",
+                "#/field_regions/0",
+            ):
+                with self.subTest(
+                    rule_id=rule_id,
+                    reference=reference,
+                    valid=False,
+                ):
+                    invalid = contract_finding(
+                        rule_id,
+                        [reference],
+                        evidence,
+                    )
+                    structural.validate(invalid)
+                    with self.assertRaises(IntegrityError):
+                        validate_finding_contract(invalid)
 
     def test_generic_evidence_is_rejected_for_every_base_rule(self) -> None:
         for rule in BASE_RULESET:

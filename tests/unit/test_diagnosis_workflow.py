@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import unittest
 import uuid
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import UTC, datetime
@@ -20,6 +21,7 @@ from docling_core.types.doc import DocItemLabel, DoclingDocument, TableData
 
 from tiny_corpus_workbench import cli
 from tiny_corpus_workbench.artifacts import canonical_json
+from tiny_corpus_workbench.diagnosis_rules import CURRENT_FINDING_METADATA
 from tiny_corpus_workbench.domain import (
     InputError,
     IntegrityError,
@@ -754,17 +756,56 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             root = Path(directory)
             observation = self.observation(root / "observations")
             diagnosis = self.diagnose(observation, root / "diagnoses")
+
+            def d006_empty_declared(findings):
+                finding = findings["findings"][0]
+                finding.update(
+                    {
+                        "rule_id": "TCW-D006",
+                        **CURRENT_FINDING_METADATA["TCW-D006"],
+                        "document_refs": ["#/tables/0"],
+                        "evidence": {
+                            "relationship_kind": "invalid_declared_caption",
+                            "declared_ref": "",
+                        },
+                    }
+                )
+
+            def change_ref(rule_id, reference):
+                def mutate(findings):
+                    finding = next(
+                        item
+                        for item in findings["findings"]
+                        if item["rule_id"] == rule_id
+                    )
+                    finding["document_refs"] = [reference]
+
+                return mutate
+
             cases = {
-                "metadata": lambda findings: findings["findings"][0].update(
-                    {"summary": "Tampered but structurally valid"}
+                "metadata": (
+                    lambda findings: findings["findings"][0].update(
+                        {"summary": "Tampered but structurally valid"}
+                    ),
+                    False,
                 ),
                 "evidence-with-refreshed-identities": (
                     lambda findings: findings["findings"][0].update(
                         {"evidence": {"band": "top"}}
-                    )
+                    ),
+                    True,
+                ),
+                "d006-empty-declared-ref": (d006_empty_declared, True),
+                "d009-body-target": (
+                    change_ref("TCW-D009", "#/body"),
+                    True,
+                ),
+                "d010-group-target": (
+                    change_ref("TCW-D010", "#/groups/0"),
+                    True,
                 ),
             }
-            for name, mutate in cases.items():
+            for name, (mutate, refresh_identities) in cases.items():
                 with self.subTest(case=name):
                     changed = root / name
                     shutil.copytree(diagnosis, changed)
@@ -773,7 +814,24 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     manifest = json.loads(manifest_path.read_text("utf-8"))
                     findings = json.loads(findings_path.read_text("utf-8"))
                     mutate(findings)
-                    if name == "evidence-with-refreshed-identities":
+                    if refresh_identities:
+                        severity = Counter(
+                            item["severity"] for item in findings["findings"]
+                        )
+                        rules = Counter(
+                            item["rule_id"] for item in findings["findings"]
+                        )
+                        findings["summary"] = {
+                            "total": len(findings["findings"]),
+                            "by_severity": {
+                                key: severity[key]
+                                for key in ("ERROR", "WARNING", "INFO")
+                            },
+                            "by_rule": {
+                                key: rules[key]
+                                for key in findings["summary"]["by_rule"]
+                            },
+                        }
                         domain_findings = [
                             {
                                 key: finding[key]
