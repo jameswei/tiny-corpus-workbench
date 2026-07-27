@@ -134,7 +134,9 @@ class WorkbenchIntegrationTests(unittest.TestCase):
     def test_artifact_retrieval_is_plain_text_and_preserves_unsafe_markup(
         self,
     ) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
             source = Path(temporary) / "unsafe.md"
             unsafe = '<img src=x onerror="alert(1)"> **not rendered**\n'
             source.write_text(unsafe, "utf-8")

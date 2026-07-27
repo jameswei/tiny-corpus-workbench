@@ -1032,7 +1032,6 @@ def _advisories(
 def _verify_runtime_and_snapshot(
     manifest: dict[str, Any],
     specification: dict[str, Any],
-    active_runtime: dict[str, Any],
     issues: list[dict[str, Any]],
 ) -> None:
     from tiny_corpus_workbench.cli import DOCLING_CONFIG, MARKITDOWN_CONFIG
@@ -1253,7 +1252,6 @@ def verify_corpus(
         _verify_runtime_and_snapshot(
             manifest,
             specification,
-            active_runtime,
             issues,
         )
 

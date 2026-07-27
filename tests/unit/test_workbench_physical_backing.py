@@ -227,13 +227,17 @@ class WorkbenchPhysicalBackingTests(unittest.TestCase):
             comparison.write_bytes(original)
 
     def test_unrelated_private_tmp_churn_does_not_reject_admission(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
             copied = Path(temporary) / self.published.root.name
             shutil.copytree(self.published.root, copied)
             original_verify = workbench_records._verify_intrinsic
 
             def verify_with_unrelated_churn(kind: str, snapshot: Path) -> None:
-                with tempfile.TemporaryDirectory(dir="/private/tmp") as churn:
+                with tempfile.TemporaryDirectory(
+                    dir=Path(tempfile.gettempdir()).resolve()
+                ) as churn:
                     (Path(churn) / "unrelated.txt").write_text(
                         "unrelated", encoding="utf-8"
                     )
@@ -248,7 +252,9 @@ class WorkbenchPhysicalBackingTests(unittest.TestCase):
             self.assertEqual(admitted.backing.root, copied)
 
     def test_parent_symlink_alias_is_rejected_before_canonicalization(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
             base = Path(temporary)
             real = base / "real"
             real.mkdir()
@@ -261,7 +267,9 @@ class WorkbenchPhysicalBackingTests(unittest.TestCase):
                 admit_record(alias / copied.name)
 
     def test_nested_parent_symlink_alias_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
             base = Path(temporary)
             real = base / "real"
             nested = real / "nested"
@@ -275,7 +283,9 @@ class WorkbenchPhysicalBackingTests(unittest.TestCase):
                 admit_record(alias / "nested" / copied.name)
 
     def test_final_component_symlink_alias_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
             base = Path(temporary)
             copied = base / self.published.root.name
             shutil.copytree(self.published.root, copied)

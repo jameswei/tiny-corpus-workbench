@@ -105,7 +105,6 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     arguments = parser.parse_args()
-    FIXTURES.mkdir(parents=True, exist_ok=True)
     if arguments.check:
         with tempfile.TemporaryDirectory() as directory:
             generated = Path(directory) / HYPHENATION.name
@@ -118,6 +117,7 @@ def main() -> int:
                 print("v0.5 refinement fixture bytes differ")
                 return 1
     else:
+        FIXTURES.mkdir(parents=True, exist_ok=True)
         write_hyphenation(HYPHENATION)
         WHITESPACE.write_bytes(WHITESPACE_BYTES)
     rendered = (

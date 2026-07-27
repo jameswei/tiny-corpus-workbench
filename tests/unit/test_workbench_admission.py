@@ -45,13 +45,17 @@ class WorkbenchAdmissionTests(unittest.TestCase):
         return f"{alias}/../{copied.name}"
 
     def test_single_admission_rejects_cancelled_symlink_alias(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
             supplied = self._cancelled_alias_path(temporary)
             with self.assertRaises(InputError):
                 admit_record(supplied)
 
     def test_batch_admission_rejects_cancelled_symlink_alias(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
             supplied = self._cancelled_alias_path(temporary)
             with self.assertRaises(InputError):
                 admit_records([supplied])

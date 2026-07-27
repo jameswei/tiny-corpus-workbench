@@ -168,7 +168,9 @@ class WorkbenchUIContractTests(unittest.TestCase):
         self.assertIn(".textContent", script)
 
     def test_validator_rejects_remote_assets_and_unsafe_dom_construction(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
             copy = Path(temporary)
             for source in ASSETS.iterdir():
                 shutil.copyfile(source, copy / source.name)
@@ -184,7 +186,9 @@ class WorkbenchUIContractTests(unittest.TestCase):
         self.assertTrue(any("innerHTML" in error for error in errors))
 
     def test_validator_rejects_external_html_resource(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/private/tmp") as temporary:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
             copy = Path(temporary)
             for source in ASSETS.iterdir():
                 shutil.copyfile(source, copy / source.name)

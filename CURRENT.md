@@ -9,7 +9,9 @@ Future work may use whichever sound engineering practices fit the task.
 
 - Milestone v0.5, Local Visual Workbench, is a complete local release candidate.
   Fresh task reviews and the complete milestone integration review returned
-  `PASS`. It is not released.
+  `PASS`. Milestone PR
+  [#13](https://github.com/jameswei/tiny-corpus-workbench/pull/13) is open and
+  ready for review. v0.5 is not released.
 - V05-1 through V05-8 are accepted with stable checkpoints. V05-8 completes the
   user guide, learning lesson, release disclosure, site presentation,
   documentation audit, CI coverage, and clean-export validation.
@@ -189,9 +191,10 @@ The complete schema/reset verdict is settled:
 - earlier Git tags preserve implementation history, not current compatibility.
 
 V05-1 through V05-8 are accepted. The complete milestone integration review and
-the bounded correction review returned `PASS`. Current release-candidate
-validation passes 323 unit tests and 343 complete tests with the prefetched
-Docling models in offline mode. Two final audit methods cover 27 unsafe
+the bounded correction review returned `PASS`. After hosted review corrections,
+current release-candidate validation passes 324 unit tests and 344 complete
+tests with the prefetched Docling models in offline mode. Two final audit
+methods cover 27 unsafe
 copied-repository mutations and seven safe or historical contexts, including
 clause-local mixed claims. Deterministic fixture generation, registries, corpus
 specifications, the 17-document schema audit, bundled workbench assets, the
@@ -200,8 +203,9 @@ packaging also pass. A clean exported tree runs the model-free observation,
 diagnosis, approved-refinement, corpus, and workbench startup/API workflows
 without changing the export.
 
-Publication remains paused. It requires explicit owner authority before push,
-pull request, hosted CI, merge, tag, GitHub Release, or website publication.
+Publication review has started with milestone PR #13. Hosted CI must pass on the
+review-correction commit. Merge, tag, GitHub Release, and post-release website
+publication remain paused pending separate owner authority.
 
 ## Latest completed milestone
 

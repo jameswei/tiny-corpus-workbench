@@ -959,6 +959,24 @@ def _claim_policy_issue(claim: str) -> str | None:
     return None
 
 
+def _required_section(
+    text: str,
+    start_marker: str,
+    end_marker: str,
+    *,
+    relative: str,
+) -> str:
+    start = text.find(start_marker)
+    content_start = start + len(start_marker)
+    end = text.find(end_marker, content_start) if start >= 0 else -1
+    if start < 0 or end < 0:
+        fail(
+            f"{relative} section markers are missing or out of order: "
+            f"{start_marker} -> {end_marker}"
+        )
+    return text[content_start:end]
+
+
 def _verify_v05_8_documents(
     root: Path,
 ) -> None:
@@ -1004,12 +1022,18 @@ def _verify_v05_8_documents(
     for relative in V05_8_CONTRADICTION_SCOPE:
         text = (root / relative).read_text("utf-8")
         if relative == "CURRENT.md":
-            current_status = text.split("## Status", 1)[1].split(
-                "- Milestone v0.1", 1
-            )[0]
-            active_milestone = text.split("## Active milestone", 1)[1].split(
-                "## Latest completed milestone", 1
-            )[0]
+            current_status = _required_section(
+                text,
+                "## Status",
+                "- Milestone v0.1",
+                relative=relative,
+            )
+            active_milestone = _required_section(
+                text,
+                "## Active milestone",
+                "## Latest completed milestone",
+                relative=relative,
+            )
             text = f"{current_status}\n{active_milestone}"
         for claim in _current_claims(relative, text):
             if issue := _claim_policy_issue(claim):

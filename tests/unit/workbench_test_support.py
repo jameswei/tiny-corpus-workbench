@@ -29,7 +29,9 @@ def run_tcw(*arguments: str) -> dict:
 
 class PublishedObservation:
     def __init__(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(dir="/private/tmp")
+        self.temporary = tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        )
         result = run_tcw(
             "observe",
             str(REPOSITORY / "fixtures/golden/policy-memo.md"),
@@ -56,7 +58,9 @@ class PublishedDiagnosis(PublishedObservation):
 
 class PublishedFailedObservation:
     def __init__(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(dir="/private/tmp")
+        self.temporary = tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        )
         stdout, stderr = io.StringIO(), io.StringIO()
         with (
             mock.patch(
@@ -88,7 +92,9 @@ class PublishedFailedObservation:
 
 class PublishedCorpus:
     def __init__(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(dir="/private/tmp")
+        self.temporary = tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        )
         result = run_tcw(
             "inspect-corpus",
             str(REPOSITORY / "fixtures/corpus/v0.5/quality-corpus.json"),
@@ -103,7 +109,9 @@ class PublishedCorpus:
 
 class PublishedRefinements:
     def __init__(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(dir="/private/tmp")
+        self.temporary = tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        )
         result = run_tcw(
             "observe",
             str(REPOSITORY / "fixtures/refinement/v0.5/whitespace-cleanup.md"),
@@ -166,7 +174,9 @@ class PublishedChain:
     def __init__(self) -> None:
         from docx import Document
 
-        self.temporary = tempfile.TemporaryDirectory(dir="/private/tmp")
+        self.temporary = tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        )
         source = Path(self.temporary.name) / "chain.docx"
         document = Document()
         document.add_heading("Chain fixture", level=1)

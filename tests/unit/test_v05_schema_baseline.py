@@ -4,11 +4,13 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from collections import Counter
 from copy import deepcopy
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 from jsonschema import Draft202012Validator, ValidationError
@@ -29,6 +31,7 @@ from tiny_corpus_workbench.schema_catalog import (
 )
 from tiny_corpus_workbench.semantic_validation import SemanticValidationError
 from tiny_corpus_workbench.supported_provenance import load_registry
+from tools import generate_refinement_fixtures
 from tools.verify_v05_schema_baseline import (
     AuditError,
     verify as verify_reset_audit,
@@ -2810,6 +2813,18 @@ class V05SchemaBaselineTests(unittest.TestCase):
                 ),
             ),
             (
+                "missing current section marker",
+                "CURRENT.md section markers are missing or out of order",
+                lambda root: (root / "CURRENT.md").write_text(
+                    (root / "CURRENT.md").read_text("utf-8").replace(
+                        "## Active milestone",
+                        "## Archived milestone",
+                        1,
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
                 "premature released marker",
                 "v0.5 availability claim lacks",
                 lambda root: (root / "README.md").write_text(
@@ -3080,6 +3095,47 @@ class V05SchemaBaselineTests(unittest.TestCase):
                         repository,
                         base_repository=base_repository,
                     )
+
+    def test_ci_portability_guards(self) -> None:
+        macos_temp_call = 'TemporaryDirectory(dir=' + '"/private/tmp")'
+        macos_temp_users = [
+            path.as_posix()
+            for path in Path("tests").rglob("*.py")
+            if macos_temp_call in path.read_text("utf-8")
+        ]
+        self.assertEqual(macos_temp_users, [])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixtures = Path(temporary) / "missing/refinement/v0.5"
+            with (
+                patch.object(
+                    generate_refinement_fixtures,
+                    "FIXTURES",
+                    fixtures,
+                ),
+                patch.object(
+                    generate_refinement_fixtures,
+                    "REGISTRY",
+                    fixtures / "fixtures.json",
+                ),
+                patch.object(
+                    generate_refinement_fixtures,
+                    "HYPHENATION",
+                    fixtures / "line-end-hyphenation.docx",
+                ),
+                patch.object(
+                    generate_refinement_fixtures,
+                    "WHITESPACE",
+                    fixtures / "whitespace-cleanup.md",
+                ),
+                patch.object(
+                    sys,
+                    "argv",
+                    ["generate_refinement_fixtures.py", "--check"],
+                ),
+            ):
+                self.assertEqual(generate_refinement_fixtures.main(), 1)
+            self.assertFalse(fixtures.exists())
 
     def test_both_ci_jobs_fetch_history_before_the_schema_audit(self) -> None:
         workflow = yaml.safe_load(
