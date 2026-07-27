@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import io
+import os
 import subprocess
 import sys
 import tempfile
@@ -95,11 +96,48 @@ class PublishedCorpus:
         self.temporary = tempfile.TemporaryDirectory(
             dir=Path(tempfile.gettempdir()).resolve()
         )
+        temporary_root = Path(self.temporary.name)
+        input_root = temporary_root / "input"
+        input_root.mkdir()
+        sources = (
+            ("meeting-minutes", "fixtures/golden/meeting-minutes.md"),
+            ("policy-memo", "fixtures/golden/policy-memo.md"),
+            ("release-notice", "fixtures/golden/release-notice.md"),
+            ("short-note", "fixtures/diagnosis/v0.5/short-note.md"),
+            (
+                "structural-traps",
+                "fixtures/diagnosis/v0.5/structural-traps.md",
+            ),
+        )
+        corpus_spec = input_root / "model-free-corpus.json"
+        corpus_spec.write_bytes(
+            canonical_json(
+                {
+                    "schema_version": "tcw.corpus-spec/v0.5",
+                    "corpus_id": "model-free-workbench-corpus",
+                    "title": "Model-free workbench corpus",
+                    "members": [
+                        {
+                            "member_id": member_id,
+                            "family": member_id,
+                            "format": "md",
+                            "source": os.path.relpath(
+                                REPOSITORY / relative_source,
+                                corpus_spec.parent,
+                            ),
+                        }
+                        for member_id, relative_source in sources
+                    ],
+                }
+            )
+        )
         result = run_tcw(
             "inspect-corpus",
-            str(REPOSITORY / "fixtures/corpus/v0.5/quality-corpus.json"),
+            str(corpus_spec),
             "--output-root",
-            self.temporary.name,
+            str(temporary_root / "output"),
+            "--docling-artifacts",
+            str(temporary_root / "missing-models"),
         )
         self.root = Path(result["manifest"]).parent
 
