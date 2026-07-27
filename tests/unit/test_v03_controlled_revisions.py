@@ -654,6 +654,126 @@ class ControlledRevisionTests(unittest.TestCase):
                         result["artifact_integrity"]["status"], "BROKEN"
                     )
 
+    def test_hash_consistent_base_and_refiner_relationship_tampering_exits_five(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, _, revision = self.approve_rule(root / "base", "TCW-D009")
+
+            def assert_broken(record: Path) -> None:
+                result = verify_refinement(record)
+                self.assertEqual(
+                    result["artifact_integrity"]["status"], "BROKEN"
+                )
+                code, stdout, stderr = self.invoke(
+                    "verify-refinement", str(record)
+                )
+                self.assertEqual(code, 5)
+                self.assertEqual(stderr, "")
+                self.assertEqual(
+                    json.loads(stdout)["artifact_integrity"]["status"],
+                    "BROKEN",
+                )
+
+            mismatched_base = self.copy_record(
+                revision, root / "base-identity-type"
+            )
+            manifest_path = mismatched_base / "refinement-manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["base"]["identity_type"] = "revision_id"
+            manifest_path.write_bytes(canonical_json(manifest))
+            assert_broken(mismatched_base)
+
+            for label, replacement in (
+                (
+                    "refiner-descriptor",
+                    {
+                        "refiner_id": "TCW-R001",
+                        "name": "DETERMINISTIC_DEHYPHENATION",
+                        "version": "1",
+                    },
+                ),
+                (
+                    "proposal-refiner",
+                    {
+                        "refiner_id": "TCW-R003",
+                        "name": "DETERMINISTIC_DEHYPHENATION",
+                        "version": "1",
+                    },
+                ),
+            ):
+                with self.subTest(label=label):
+                    copied = self.copy_record(revision, root / label)
+                    manifest = json.loads(
+                        (copied / "refinement-manifest.json").read_text("utf-8")
+                    )
+                    decision = json.loads(
+                        (copied / "decision.json").read_text("utf-8")
+                    )
+                    transformation = json.loads(
+                        (copied / "transformation.json").read_text("utf-8")
+                    )
+                    history = json.loads(
+                        (copied / "history.json").read_text("utf-8")
+                    )
+
+                    decision["proposal"]["refiner"] = replacement
+                    proposal_identity = {
+                        key: value
+                        for key, value in decision["proposal"].items()
+                        if key != "draft_id"
+                    }
+                    draft_id = hashlib.sha256(
+                        canonical_json(proposal_identity).rstrip(b"\n")
+                    ).hexdigest()
+                    decision["proposal"]["draft_id"] = draft_id
+                    manifest["draft_id"] = draft_id
+                    prepared_sha256 = hashlib.sha256(
+                        (copied / "prepared/document.json").read_bytes()
+                    ).hexdigest()
+                    revision_id = hashlib.sha256(
+                        canonical_json(
+                            {
+                                "parent": manifest["base"]["identity_value"],
+                                "base_sha256": manifest["base"][
+                                    "canonical_document_sha256"
+                                ],
+                                "draft_id": draft_id,
+                                "prepared_sha256": prepared_sha256,
+                            }
+                        ).rstrip(b"\n")
+                    ).hexdigest()
+                    transformation["refiner"] = replacement
+                    transformation["decision_id"] = draft_id
+                    transformation["revision_id"] = revision_id
+                    transformation["transformation_id"] = hashlib.sha256(
+                        canonical_json(
+                            {
+                                "revision_id": revision_id,
+                                "draft_id": draft_id,
+                                "refiner": replacement,
+                            }
+                        ).rstrip(b"\n")
+                    ).hexdigest()
+                    manifest["revision_id"] = revision_id
+                    history["revision_id"] = revision_id
+                    history["transformations"][-1] = transformation
+                    for name, value in (
+                        ("decision.json", decision),
+                        ("transformation.json", transformation),
+                        ("history.json", history),
+                    ):
+                        (copied / name).write_bytes(canonical_json(value))
+                    self.refresh_descriptors(
+                        copied,
+                        manifest,
+                        "decision.json",
+                        "transformation.json",
+                        "history.json",
+                    )
+                    assert_broken(copied)
+
     def test_rejected_status_requires_exact_inventory_and_null_revision(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -1273,6 +1273,13 @@ def _validate_refinement_semantics(
     decision_value = decision["decision"]
     if proposal["draft_id"] != _draft_identity(proposal):
         raise IntegrityError("draft identity is inconsistent")
+    expected_refiner = REFINERS.get(proposal["finding"]["rule_id"])
+    if (
+        expected_refiner is None
+        or proposal["refiner"] != expected_refiner
+        or proposal["affected_refs"] != proposal["finding"]["document_refs"]
+    ):
+        raise IntegrityError("proposal finding and refiner differ")
     if (
         manifest["draft_id"] != proposal["draft_id"]
         or manifest["diagnosis"]["diagnosis_id"] != proposal["diagnosis_id"]
