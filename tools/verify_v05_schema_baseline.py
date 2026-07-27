@@ -20,7 +20,7 @@ from tiny_corpus_workbench.canonical_json import canonical_json
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY_PATH = "tests/fixtures/v05-schema-evidence-inventory.json"
 INVENTORY_SHA256 = (
-    "961c9d871acd4431f0f27d0e41bc5f8125c7fbed9479ef48311b463710a79942"
+    "c8e3e8c241df3541d3b7399b4d8d2d34938cf655b05a1602359944fae9f49be1"
 )
 OLD_SCHEMA = re.compile(r"tcw\.[A-Za-z0-9-]+/v0\.[1-4]\b")
 OLD_SCHEMA_FILE = re.compile(r"-v0\.[1-4]\.schema\.json\b")

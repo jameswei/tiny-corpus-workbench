@@ -465,11 +465,6 @@ def _validate_refinement_detail(
         ),
         "transformations and revision_chain disagree",
     )
-    _require(
-        transformations[0]["before_sha256"]
-        == detail["base_target"]["content_sha256"],
-        "first transformation does not start at the base content hash",
-    )
     evaluation_state = (
         "MATCH"
         if detail["diagnosis_state"] == detail["base_state"] == "MATCH"
@@ -483,7 +478,9 @@ def _validate_refinement_detail(
     if detail["base_target"]["kind"] == "OBSERVATION":
         _require(
             detail["parent_target"] is None
-            and chain[0]["parent_revision_id"] is None,
+            and chain[0]["parent_revision_id"] is None
+            and transformations[0]["before_sha256"]
+            == detail["base_target"]["content_sha256"],
             "observation-based refinement has a parent revision",
         )
         _require(
@@ -498,7 +495,9 @@ def _validate_refinement_detail(
         _require(
             parent is not None
             and parent == detail["base_target"]
-            and chain[0]["parent_revision_id"] == parent["identity_value"],
+            and chain[-1]["parent_revision_id"] == parent["identity_value"]
+            and transformations[-1]["before_sha256"]
+            == parent["content_sha256"],
             "revision-based refinement does not identify its parent",
         )
         parent_edge = _relationship_for(
