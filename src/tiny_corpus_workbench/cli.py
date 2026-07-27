@@ -38,6 +38,12 @@ from tiny_corpus_workbench.source import SourceSnapshot, sha256_file
 ACTIVE_RUNTIME_ERROR = (
     "active runtime does not match this package provenance registry"
 )
+WORKBENCH_ROOT_MANIFESTS = (
+    "manifest.json",
+    "diagnosis-manifest.json",
+    "refinement-manifest.json",
+    "corpus-manifest.json",
+)
 
 
 def _runtime_import_message(error: Exception, fallback: str) -> str:
@@ -55,6 +61,28 @@ def _active_build_provenance(**arguments: Any) -> dict[str, Any]:
         raise
     except Exception as error:
         raise RuntimeContractError(ACTIVE_RUNTIME_ERROR) from error
+
+
+def _preflight_workbench_roots(roots: list[Path]) -> None:
+    for root in roots:
+        try:
+            metadata = root.lstat()
+        except FileNotFoundError as error:
+            raise InputError("RECORD root is unavailable") from error
+        except OSError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode):
+            continue
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise InputError("RECORD must be a root directory")
+        try:
+            known = any(
+                os.path.lexists(root / name) for name in WORKBENCH_ROOT_MANIFESTS
+            )
+        except OSError:
+            continue
+        if not known:
+            raise InputError("RECORD root is not a supported record")
 
 
 DOCLING_CONFIG = {
@@ -281,6 +309,12 @@ def parser() -> argparse.ArgumentParser:
         "corpus_directory", metavar="CORPUS_DIRECTORY", type=Path
     )
     verify_corpus.add_argument("--spec", metavar="CORPUS_SPEC", type=Path)
+    workbench = commands.add_parser(
+        "workbench", help="serve explicit records in a read-only local workbench"
+    )
+    workbench.add_argument("records", metavar="RECORD", type=Path, nargs="+")
+    workbench.add_argument("--port", default="8765")
+    workbench.add_argument("--no-open", action="store_true")
     return root
 
 
@@ -579,6 +613,56 @@ def observe(source_value: str, output_root: Path, model_root: Path) -> tuple[Exi
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "workbench":
+        server = None
+        try:
+            _active_build_provenance(command_id="tcw.workbench")
+            from tiny_corpus_workbench.workbench_projection import build_projection
+            from tiny_corpus_workbench.workbench_records import admit_records
+            from tiny_corpus_workbench.workbench_server import (
+                create_server,
+                open_browser,
+                startup_document,
+                validate_port,
+            )
+
+            port = validate_port(args.port)
+            _preflight_workbench_roots(args.records)
+            records = admit_records(args.records)
+            try:
+                projection = build_projection(records)
+            except IntegrityError as error:
+                if "structured response limit" not in str(error):
+                    raise
+                raise InputError(
+                    "workbench projection exceeds the structured response limit"
+                ) from error
+            server = create_server(records, projection, port)
+            try:
+                startup = startup_document(projection, port)
+                print(
+                    json.dumps(startup, sort_keys=True, separators=(",", ":")),
+                    flush=True,
+                )
+                if not args.no_open:
+                    warning = open_browser(startup["url"])
+                    if warning is not None:
+                        print(warning, file=sys.stderr, flush=True)
+                server.serve_forever()
+            except KeyboardInterrupt:
+                pass
+            return int(ExitCode.SUCCESS)
+        except KeyboardInterrupt:
+            return int(ExitCode.SUCCESS)
+        except WorkbenchError as error:
+            print(sanitize_message(error), file=sys.stderr)
+            return int(error.exit_code)
+        except Exception:
+            print("internal workbench failure", file=sys.stderr)
+            return int(ExitCode.INTERNAL)
+        finally:
+            if server is not None:
+                server.server_close()
     if args.command == "inspect-corpus":
         try:
             command = _corpus_callable(

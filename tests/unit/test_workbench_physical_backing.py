@@ -537,10 +537,41 @@ class WorkbenchPhysicalBackingTests(unittest.TestCase):
         session = AdmittedRecords(records, set(), [])
         self.assertEqual(
             session.recheck_artifact(descriptor),
-            canonical.backing.root / descriptor["relative_path"],
+            (
+                canonical.backing.root / descriptor["relative_path"]
+            ).read_bytes(),
         )
         with self.assertRaises(IntegrityError):
             admit_record(noncanonical.backing.root, backing=noncanonical.backing)
+
+    def test_mutation_between_descriptor_read_and_name_recheck_is_rejected(
+        self,
+    ) -> None:
+        copied = self._copied_record("during-content-capture")
+        admitted = admit_records([copied])
+        built = build_projection(admitted)
+        descriptor = next(iter(built.details.values()))["manifest"]
+        target = copied / descriptor["relative_path"]
+        original = target.read_bytes()
+        read_open_regular = workbench_records._read_open_regular
+
+        def mutate_after_read(file_descriptor: int):
+            captured = read_open_regular(file_descriptor)
+            target.write_bytes(b"x" * len(original))
+            return captured
+
+        try:
+            with (
+                patch.object(
+                    workbench_records,
+                    "_read_open_regular",
+                    side_effect=mutate_after_read,
+                ),
+                self.assertRaises(IntegrityError),
+            ):
+                admitted.recheck_artifact(descriptor)
+        finally:
+            target.write_bytes(original)
 
 
 if __name__ == "__main__":

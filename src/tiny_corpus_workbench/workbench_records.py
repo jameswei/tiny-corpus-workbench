@@ -100,11 +100,13 @@ class AdmittedRecord:
     manifest_name: str
     manifest: dict[str, Any]
     manifest_bytes: bytes
+    manifest_identity: tuple[int, ...]
     manifest_sha256: str
     logical_copy_key: str
     record_key: str | None
     listed: list[dict[str, Any]]
     artifact_bytes: dict[tuple[str, str, str], bytes]
+    artifact_identities: dict[tuple[str, str, str], tuple[int, ...]]
     backing: Backing
     copies: list[Backing] = field(default_factory=list)
     contained_by: set[str] = field(default_factory=set)
@@ -192,7 +194,9 @@ class AdmittedRecords:
     def contained_only_keys(self) -> set[str]:
         return set(self.records) - self.explicit_keys
 
-    def recheck_artifact(self, artifact: dict[str, Any] | str) -> Path:
+    def recheck_artifact(self, artifact: dict[str, Any] | str) -> bytes:
+        """Capture one authorized canonical artifact as immutable verified bytes."""
+
         key = artifact if isinstance(artifact, str) else artifact.get("artifact_key")
         if not isinstance(key, str):
             raise IntegrityError("artifact authorization key is invalid")
@@ -207,16 +211,27 @@ class AdmittedRecords:
         record, authorized = matches[0]
         if isinstance(artifact, dict) and artifact != authorized:
             raise IntegrityError("artifact descriptor differs from authorization")
-        candidate = _safe_path(record.backing.root, authorized["relative_path"])
-        metadata = candidate.lstat()
+        if authorized["origin"] == "ROOT_MANIFEST":
+            expected_identity = record.manifest_identity
+        else:
+            expected_identity = record.artifact_identities[
+                (
+                    authorized["role"],
+                    authorized["relative_path"],
+                    authorized["sha256"],
+                )
+            ]
+        captured = _capture_authorized_artifact(
+            record.backing.root,
+            authorized["relative_path"],
+            expected_identity,
+        )
         if (
-            stat.S_ISLNK(metadata.st_mode)
-            or not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_size != authorized["size"]
-            or _sha(candidate.read_bytes()) != authorized["sha256"]
+            len(captured) != authorized["size"]
+            or _sha(captured) != authorized["sha256"]
         ):
             raise IntegrityError("canonical artifact backing changed")
-        return candidate
+        return captured
 
 
 def _sha(value: bytes) -> str:
@@ -412,6 +427,76 @@ def _read_open_regular(file_descriptor: int) -> _CapturedFile:
     if len(content) != before.st_size:
         raise IntegrityError("record artifact size changed during capture")
     return _CapturedFile(_stat_identity(before), content)
+
+
+def _open_artifact_components(
+    root_fd: int, relative: PurePosixPath
+) -> tuple[list[int], tuple[tuple[int, ...], ...]]:
+    descriptors: list[int] = []
+    identities: list[tuple[int, ...]] = []
+    current = root_fd
+    try:
+        for component in relative.parts[:-1]:
+            descriptor = _open_no_follow(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY,
+                dir_fd=current,
+            )
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISDIR(metadata.st_mode):
+                raise IntegrityError(
+                    "canonical artifact parent is not a directory"
+                )
+            descriptors.append(descriptor)
+            identities.append(_directory_identity(metadata, root=False))
+            current = descriptor
+        descriptor = _open_no_follow(
+            relative.parts[-1], os.O_RDONLY, dir_fd=current
+        )
+        descriptors.append(descriptor)
+        identities.append(_stat_identity(os.fstat(descriptor)))
+        return descriptors, tuple(identities)
+    except Exception:
+        _close_descriptors(descriptors)
+        raise
+
+
+def _capture_authorized_artifact(
+    root: Path,
+    relative_value: object,
+    expected_identity: tuple[int, ...],
+) -> bytes:
+    relative = _safe_relative(relative_value)
+    try:
+        with _opened_root(root) as (root_fd, _, _, _):
+            descriptors, identities = _open_artifact_components(root_fd, relative)
+            try:
+                if identities[-1] != expected_identity:
+                    raise IntegrityError(
+                        "canonical artifact node changed after admission"
+                    )
+                captured = _read_open_regular(descriptors[-1])
+                if captured.identity != identities[-1]:
+                    raise IntegrityError(
+                        "canonical artifact changed before capture"
+                    )
+                current, current_identities = _open_artifact_components(
+                    root_fd, relative
+                )
+                try:
+                    if current_identities != identities:
+                        raise IntegrityError(
+                            "canonical artifact node changed during capture"
+                        )
+                finally:
+                    _close_descriptors(current)
+                return captured.content
+            finally:
+                _close_descriptors(descriptors)
+    except IntegrityError:
+        raise
+    except OSError as error:
+        raise IntegrityError("canonical artifact backing changed") from error
 
 
 def _capture_inventory(
@@ -699,6 +784,9 @@ def admit_record(root: Path, *, backing: Backing | None = None) -> AdmittedRecor
     captured = {
         key: item.content for key, item in before_capture.listed
     }
+    captured_identities = {
+        key: item.identity for key, item in before_capture.listed
+    }
     canonical_backing = (
         Backing(root=canonical_root, top_level=True)
         if backing is None
@@ -719,11 +807,13 @@ def admit_record(root: Path, *, backing: Backing | None = None) -> AdmittedRecor
         manifest_name=name,
         manifest=manifest,
         manifest_bytes=before,
+        manifest_identity=before_capture.manifest_file.identity,
         manifest_sha256=manifest_hash,
         logical_copy_key=logical,
         record_key=None,
         listed=listed,
         artifact_bytes=captured,
+        artifact_identities=captured_identities,
         backing=canonical_backing,
         copies=[canonical_backing],
         top_level=(backing is None or backing.top_level),
