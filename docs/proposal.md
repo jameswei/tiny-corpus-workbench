@@ -133,3 +133,5 @@ Use these questions to shape a small first increment and confirm its scope with
 the project owner before implementation. This document should remain the
 historical record of the initial brainstorming verdict rather than becoming a
 live taskboard.
+
+<!-- task-scope-negative-probe -->
