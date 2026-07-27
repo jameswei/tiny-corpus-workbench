@@ -870,13 +870,21 @@ def _proposal(
         "refiner": refiner,
         "affected_refs": finding["document_refs"],
         "forward_edits": edits,
-        "inverse_edits": [
-            {"target": edit["target"], "before": edit["after"], "after": edit["before"]}
-            for edit in edits
-        ],
+        "inverse_edits": _inverse_edits(edits),
     }
     proposal["draft_id"] = _hash(canonical_json(proposal).rstrip(b"\n"))
     return proposal, base
+
+
+def _inverse_edits(edits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "target": copy.deepcopy(edit["target"]),
+            "before": copy.deepcopy(edit["after"]),
+            "after": copy.deepcopy(edit["before"]),
+        }
+        for edit in edits
+    ]
 
 
 def draft_refinement(
@@ -1351,6 +1359,8 @@ def _validate_refinement_semantics(
     decision_value = decision["decision"]
     if proposal["draft_id"] != _draft_identity(proposal):
         raise IntegrityError("draft identity is inconsistent")
+    if proposal["inverse_edits"] != _inverse_edits(proposal["forward_edits"]):
+        raise IntegrityError("proposal inverse edits differ")
     validate_finding_contract(proposal["finding"])
     expected_finding_id = _hash(
         canonical_json(
@@ -1470,6 +1480,8 @@ def _validate_refinement_semantics(
 
     previous = None
     for index, item in enumerate(history["transformations"]):
+        if item["inverse_edits"] != _inverse_edits(item["forward_edits"]):
+            raise IntegrityError("history inverse edits differ")
         expected_revision_id = _revision_identity(
             item["parent"]["subject_id"],
             item["parent"]["canonical_document_sha256"],
@@ -1763,6 +1775,8 @@ def verify_refinement(
                 ) from error
     base_matches = False
     base = None
+    expected_proposal = None
+    expected_proposal_error = False
     if base_root is not None and manifest is not None:
         if not base_root.exists():
             base_state = {"status": "MISSING"}
@@ -1834,46 +1848,102 @@ def verify_refinement(
         if (
             diagnosis_matches
             and base_matches
+            and decision is not None
+            and base is not None
+        ):
+            try:
+                expected_proposal, _ = _proposal(
+                    diagnosis_root,
+                    decision["proposal"]["finding"]["finding_id"],
+                    base_root,
+                )
+            except RuntimeContractError:
+                raise
+            except Exception:
+                expected_proposal_error = True
+            if manifest["status"] == "REJECTED" and (
+                expected_proposal_error
+                or expected_proposal is None
+                or decision["proposal"]["forward_edits"]
+                != expected_proposal["forward_edits"]
+                or decision["proposal"]["inverse_edits"]
+                != expected_proposal["inverse_edits"]
+            ):
+                issues.append(
+                    {
+                        "code": "MANIFEST_INVALID",
+                        "path": "decision.json",
+                        "message": "refinement edits differ from the selected refiner",
+                    }
+                )
+        if (
+            diagnosis_matches
+            and base_matches
             and manifest["status"] == "APPLIED"
             and transformation is not None
             and base is not None
         ):
-            try:
-                forward = _apply_edits(base["payload"], transformation["forward_edits"])
-                forward_bytes, _ = _prepared_bytes(forward)
-                prepared_bytes, prepared_payload = _load_json_regular(
-                    root / "prepared/document.json", "prepared document"
-                )
-                derivation = {
-                    "status": "MATCH"
-                    if forward_bytes == prepared_bytes
-                    else "MISMATCH"
-                }
-            except RuntimeContractError:
-                raise
-            except Exception:
+            if expected_proposal_error or expected_proposal is None:
                 derivation = {"status": "ERROR"}
-            try:
-                _, prepared_payload = _load_json_regular(
-                    root / "prepared/document.json", "prepared document"
-                )
-                reversed_payload = _apply_edits(
-                    prepared_payload, transformation["inverse_edits"]
-                )
-                reversed_bytes = _json_bytes_like(
-                    reversed_payload,
-                    base["payload"],
-                    base["document_bytes"],
-                )
-                reversibility = {
-                    "status": "MATCH"
-                    if reversed_bytes == base["document_bytes"]
-                    else "MISMATCH"
-                }
-            except RuntimeContractError:
-                raise
-            except Exception:
                 reversibility = {"status": "ERROR"}
+            else:
+                if (
+                    transformation["forward_edits"]
+                    != expected_proposal["forward_edits"]
+                ):
+                    derivation = {"status": "MISMATCH"}
+                else:
+                    try:
+                        forward = _apply_edits(
+                            base["payload"], transformation["forward_edits"]
+                        )
+                        forward_bytes, _ = _prepared_bytes(forward)
+                        prepared_bytes, _ = _load_json_regular(
+                            root / "prepared/document.json",
+                            "prepared document",
+                        )
+                        derivation = {
+                            "status": (
+                                "MATCH"
+                                if forward_bytes == prepared_bytes
+                                else "MISMATCH"
+                            )
+                        }
+                    except RuntimeContractError:
+                        raise
+                    except Exception:
+                        derivation = {"status": "ERROR"}
+                if (
+                    transformation["inverse_edits"]
+                    != expected_proposal["inverse_edits"]
+                ):
+                    reversibility = {"status": "MISMATCH"}
+                else:
+                    try:
+                        _, prepared_payload = _load_json_regular(
+                            root / "prepared/document.json",
+                            "prepared document",
+                        )
+                        reversed_payload = _apply_edits(
+                            prepared_payload,
+                            transformation["inverse_edits"],
+                        )
+                        reversed_bytes = _json_bytes_like(
+                            reversed_payload,
+                            base["payload"],
+                            base["document_bytes"],
+                        )
+                        reversibility = {
+                            "status": (
+                                "MATCH"
+                                if reversed_bytes == base["document_bytes"]
+                                else "MISMATCH"
+                            )
+                        }
+                    except RuntimeContractError:
+                        raise
+                    except Exception:
+                        reversibility = {"status": "ERROR"}
     status = "VERIFIED" if not issues else ("BROKEN" if any(item["code"] == "MANIFEST_INVALID" for item in issues) else "INTEGRITY_MISMATCH")
     result = {
         "refinement_directory": str(root.resolve()),
@@ -1912,4 +1982,24 @@ def verify_refinement_command(
         print(f"internal refinement verifier failure: {sanitize_message(error)}", file=sys.stderr)
         return 1
     print(json.dumps(report, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-    return 0 if report["artifact_integrity"]["status"] == "VERIFIED" else 5
+    supplied_states_match = (
+        (
+            diagnosis_root is None
+            or report["diagnosis_state"]["status"] == "MATCH"
+        )
+        and (
+            base_root is None
+            or report["base_state"]["status"] == "MATCH"
+        )
+    )
+    replay_states_pass = all(
+        report[name]["status"] in {"MATCH", "NOT_CHECKED", "NOT_APPLICABLE"}
+        for name in ("derivation_state", "reversibility_state")
+    )
+    return (
+        0
+        if report["artifact_integrity"]["status"] == "VERIFIED"
+        and supplied_states_match
+        and replay_states_pass
+        else 5
+    )

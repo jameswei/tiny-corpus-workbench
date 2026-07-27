@@ -34,6 +34,7 @@ from tiny_corpus_workbench.v03 import (
     _diagnosis_identity,
     _diagnosis_report,
     _normalize_whitespace,
+    _prepared_bytes,
     _target,
     make_finding_set,
     verify_diagnosis,
@@ -363,6 +364,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 "affected_refs": proposal["affected_refs"],
                 "forward_edits": proposal["forward_edits"],
                 "inverse_edits": proposal["inverse_edits"],
+                "prepared_document_sha256": prepared_sha256,
             }
         )
         transformation["transformation_id"] = hashlib.sha256(
@@ -389,6 +391,8 @@ class ControlledRevisionTests(unittest.TestCase):
             "decision.json",
             "transformation.json",
             "history.json",
+            "prepared/document.json",
+            "prepared/document.md",
         )
 
     def subject(self) -> dict:
@@ -721,15 +725,201 @@ class ControlledRevisionTests(unittest.TestCase):
                         broken, diagnosis, observation
                     )
                     self.assertEqual(
-                        broken_result["artifact_integrity"]["status"], "VERIFIED"
+                        broken_result["artifact_integrity"]["status"], "BROKEN"
                     )
                     self.assertEqual(
                         broken_result["derivation_state"]["status"], "MATCH"
                     )
-                    self.assertIn(
+                    self.assertEqual(
                         broken_result["reversibility_state"]["status"],
-                        {"MISMATCH", "ERROR"},
+                        "MISMATCH",
                     )
+                    code, stdout, stderr = self.invoke(
+                        "verify-refinement", str(broken)
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(
+                        json.loads(stdout)["artifact_integrity"]["status"],
+                        "BROKEN",
+                    )
+                    code, stdout, stderr = self.invoke(
+                        "verify-refinement",
+                        str(broken),
+                        "--diagnosis",
+                        str(diagnosis),
+                        "--base",
+                        str(observation),
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(
+                        json.loads(stdout)["reversibility_state"]["status"],
+                        "MISMATCH",
+                    )
+
+    def test_hash_consistent_forged_edits_fail_canonical_refiner_replay(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation, diagnosis, revision = self.approve_rule(
+                root / "base", "TCW-D009"
+            )
+            forged = self.copy_record(revision, root / "forged")
+            decision = json.loads(
+                (forged / "decision.json").read_text("utf-8")
+            )
+            forward = deepcopy(decision["proposal"]["forward_edits"])
+            forward[0]["after"] += " Forged deterministic-looking output."
+            inverse = [
+                {
+                    "target": deepcopy(edit["target"]),
+                    "before": deepcopy(edit["after"]),
+                    "after": deepcopy(edit["before"]),
+                }
+                for edit in forward
+            ]
+            base_payload = json.loads(
+                (observation / "docling/document.json").read_text("utf-8")
+            )
+            prepared_payload = _apply_edits(base_payload, forward)
+            prepared_bytes, markdown_bytes = _prepared_bytes(prepared_payload)
+            (forged / "prepared/document.json").write_bytes(prepared_bytes)
+            (forged / "prepared/document.md").write_bytes(markdown_bytes)
+
+            def replace_edits(proposal: dict) -> None:
+                proposal["forward_edits"] = forward
+                proposal["inverse_edits"] = inverse
+
+            self.rewrite_proposal_identity_chain(forged, replace_edits)
+            intrinsic = verify_refinement(forged)
+            self.assertEqual(
+                intrinsic["artifact_integrity"]["status"], "VERIFIED"
+            )
+            self.assertEqual(
+                intrinsic["derivation_state"]["status"], "NOT_CHECKED"
+            )
+            checked = verify_refinement(forged, diagnosis, observation)
+            self.assertEqual(
+                checked["artifact_integrity"]["status"], "VERIFIED"
+            )
+            self.assertEqual(
+                checked["diagnosis_state"]["status"], "MATCH"
+            )
+            self.assertEqual(checked["base_state"]["status"], "MATCH")
+            self.assertEqual(
+                checked["derivation_state"]["status"], "MISMATCH"
+            )
+            self.assertEqual(
+                checked["reversibility_state"]["status"], "MISMATCH"
+            )
+
+            code, stdout, stderr = self.invoke(
+                "verify-refinement", str(forged)
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["derivation_state"]["status"],
+                "NOT_CHECKED",
+            )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(forged),
+                "--diagnosis",
+                str(diagnosis),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["derivation_state"]["status"],
+                "MISMATCH",
+            )
+
+            findings = json.loads(
+                (diagnosis / "findings.json").read_text("utf-8")
+            )
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            rejected_draft = root / "rejected.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, rejected_draft
+            )
+            rejected_value = json.loads(
+                rejected_draft.read_text("utf-8")
+            )
+            rejected_value["decision"] = {
+                "state": "REJECTED",
+                "decided_by": "test-owner",
+                "note": None,
+            }
+            rejected_draft.write_bytes(canonical_json(rejected_value))
+            rejected = cli._diagnosis_callable(
+                "v03", "resolve_refinement"
+            )(
+                rejected_draft,
+                diagnosis,
+                observation,
+                root / "rejected-records",
+            )
+            forged_rejected = self.copy_record(
+                rejected, root / "forged-rejected"
+            )
+            decision_path = forged_rejected / "decision.json"
+            manifest_path = forged_rejected / "refinement-manifest.json"
+            decision = json.loads(decision_path.read_text("utf-8"))
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            decision["proposal"]["forward_edits"] = forward
+            decision["proposal"]["inverse_edits"] = inverse
+            decision["proposal"]["draft_id"] = hashlib.sha256(
+                canonical_json(
+                    {
+                        key: value
+                        for key, value in decision["proposal"].items()
+                        if key != "draft_id"
+                    }
+                ).rstrip(b"\n")
+            ).hexdigest()
+            manifest["draft_id"] = decision["proposal"]["draft_id"]
+            decision_path.write_bytes(canonical_json(decision))
+            self.refresh_descriptors(
+                forged_rejected, manifest, "decision.json"
+            )
+            self.assertEqual(
+                verify_refinement(forged_rejected)[
+                    "artifact_integrity"
+                ]["status"],
+                "VERIFIED",
+            )
+            checked_rejected = verify_refinement(
+                forged_rejected, diagnosis, observation
+            )
+            self.assertEqual(
+                checked_rejected["artifact_integrity"]["status"], "BROKEN"
+            )
+            self.assertEqual(
+                checked_rejected["derivation_state"]["status"],
+                "NOT_APPLICABLE",
+            )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(forged_rejected),
+                "--diagnosis",
+                str(diagnosis),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["artifact_integrity"]["status"], "BROKEN"
+            )
 
     def test_hash_consistent_semantic_tampering_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1155,6 +1345,19 @@ class ControlledRevisionTests(unittest.TestCase):
                     self.assertEqual(
                         result["base_state"]["status"], "CHANGED"
                     )
+                    code, stdout, stderr = self.invoke(
+                        "verify-refinement",
+                        str(copied),
+                        "--diagnosis",
+                        str(diagnosis),
+                        "--base",
+                        str(observation),
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(
+                        json.loads(stdout)["base_state"]["status"], "CHANGED"
+                    )
 
     def test_refinement_records_omit_runtime_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1202,6 +1405,19 @@ class ControlledRevisionTests(unittest.TestCase):
                 missing_diagnosis["reversibility_state"]["status"],
                 "NOT_CHECKED",
             )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(revision),
+                "--diagnosis",
+                str(root / "missing-diagnosis"),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["diagnosis_state"]["status"], "MISSING"
+            )
 
             missing_base = verify_refinement(
                 revision, diagnosis, root / "missing-base"
@@ -1215,6 +1431,19 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             self.assertEqual(
                 missing_base["reversibility_state"]["status"], "NOT_CHECKED"
+            )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(revision),
+                "--diagnosis",
+                str(diagnosis),
+                "--base",
+                str(root / "missing-base"),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["base_state"]["status"], "MISSING"
             )
 
             changed = self.copy_record(
@@ -1271,6 +1500,19 @@ class ControlledRevisionTests(unittest.TestCase):
             self.assertEqual(
                 changed_result["reversibility_state"]["status"],
                 "NOT_CHECKED",
+            )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(revision),
+                "--diagnosis",
+                str(changed),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["diagnosis_state"]["status"], "CHANGED"
             )
 
     def test_chained_parent_reference_is_exact_and_bound_to_base(self) -> None:
@@ -1633,6 +1875,16 @@ class ControlledRevisionTests(unittest.TestCase):
             self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
             self.assertEqual(result["derivation_state"]["status"], "MATCH")
             self.assertEqual(result["reversibility_state"]["status"], "MATCH")
+            code, _, stderr = self.invoke(
+                "verify-refinement",
+                str(revision),
+                "--diagnosis",
+                str(diagnosis),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
             original = json.loads(
                 (observation / "docling/document.json").read_text("utf-8")
             )
@@ -1678,6 +1930,20 @@ class ControlledRevisionTests(unittest.TestCase):
                 verify_refinement(record)["reversibility_state"]["status"],
                 "NOT_APPLICABLE",
             )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(record),
+                "--diagnosis",
+                str(diagnosis2),
+                "--base",
+                str(revision),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["reversibility_state"]["status"],
+                "NOT_APPLICABLE",
+            )
 
             draft2 = root / "dehyphenation-decision.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -1695,6 +1961,19 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             history = json.loads((revision2 / "history.json").read_text("utf-8"))
             self.assertEqual(len(history["transformations"]), 2)
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(revision2),
+                "--diagnosis",
+                str(diagnosis2),
+                "--base",
+                str(revision),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["derivation_state"]["status"], "MATCH"
+            )
 
             broken_chain = self.copy_record(revision2, root / "broken-chain")
             broken_manifest = json.loads(
