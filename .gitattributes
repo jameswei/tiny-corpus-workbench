@@ -15,4 +15,4 @@ LICENSE text eol=lf
 fixtures/golden/*.pdf binary
 fixtures/golden/*.docx binary
 fixtures/diagnosis/*.pdf binary
-fixtures/refinement/v0.5/*.docx binary
+fixtures/refinement/*.docx binary
