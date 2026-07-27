@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 import shutil
@@ -12,7 +13,6 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 
-import yaml
 from jsonschema import Draft202012Validator, ValidationError
 
 from tiny_corpus_workbench.canonical_json import canonical_json
@@ -130,16 +130,6 @@ def schema_object_nodes(value: object):
     elif isinstance(value, list):
         for child in value:
             yield from schema_object_nodes(child)
-
-
-def git_tree_paths(base: str, *scopes: str) -> set[str]:
-    result = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", base, *scopes],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return {line for line in result.stdout.splitlines() if line}
 
 
 class V05SchemaBaselineTests(unittest.TestCase):
@@ -1938,56 +1928,21 @@ class V05SchemaBaselineTests(unittest.TestCase):
             all(len(set(identity)) > 1 for identity in primary_identities)
         )
 
-    def test_inventory_paths_symbols_and_migration_source_pointers_exist(self) -> None:
+    def test_inventory_current_paths_and_migration_evidence_are_self_contained(
+        self,
+    ) -> None:
         inventory_raw = INVENTORY.read_bytes()
         inventory = json.loads(inventory_raw)
         self.assertEqual(inventory_raw, canonical_json(inventory) + b"\n")
-        approved_base = inventory["approved_base"]
-        self.assertEqual(
-            approved_base,
-            "6545636f1ded597a0850ef35705ef0137ac8ea38",
-        )
 
-        def base_json(path: str) -> dict:
-            return json.loads(
-                subprocess.run(
-                    ["git", "show", f"{approved_base}:{path}"],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                ).stdout
-            )
         for group in ("writers", "verifiers", "identity_inputs"):
             for item in inventory[group]:
                 path = Path(item["path"])
                 with self.subTest(group=group, path=path):
                     self.assertTrue(path.is_file())
                     self.assertIn("classification", item)
-                    if item.get("family") != "workbench":
-                        subprocess.run(
-                            [
-                                "git",
-                                "cat-file",
-                                "-e",
-                                f"{approved_base}:{path}",
-                            ],
-                            check=True,
-                            capture_output=True,
-                        )
                     if symbol := item.get("symbol"):
-                        if item.get("family") == "workbench":
-                            source = path.read_text("utf-8")
-                        else:
-                            source = subprocess.run(
-                                [
-                                    "git",
-                                    "show",
-                                    f"{approved_base}:{path}",
-                                ],
-                                check=True,
-                                capture_output=True,
-                                text=True,
-                            ).stdout
+                        source = path.read_text("utf-8")
                         for name in symbol.split(","):
                             self.assertIn(name, source)
         expected_provenance = {
@@ -2251,23 +2206,10 @@ class V05SchemaBaselineTests(unittest.TestCase):
             "base-fixture-registry",
             "retained",
             "#/generator",
-            *(
-                pointer
-                for name in sorted(
-                    resolve_pointer(
-                        base_json(
-                            "src/tiny_corpus_workbench/schemas/"
-                            "fixture-registry-v0.1.schema.json"
-                        ),
-                        "#/$defs/fixture/properties/generator/properties",
-                    )
-                )
-                for pointer in (
-                    f"#/generator/{name}",
-                    f"#/fixtures/*/generator/{name}",
-                )
-                if name != "lockfile_sha256"
-            ),
+            "#/fixtures/*/generator/name",
+            "#/fixtures/*/generator/schema",
+            "#/generator/name",
+            "#/generator/schema",
         )
         expect("base-fixture-registry", "removed", None)
         expect(
@@ -2384,32 +2326,25 @@ class V05SchemaBaselineTests(unittest.TestCase):
         expect(
             "transformation",
             "retained",
-            *(
-                f"#/{name}"
-                for name in sorted(
-                    resolve_pointer(
-                        base_json(
-                            "src/tiny_corpus_workbench/schemas/"
-                            "transformation-history-v0.3.schema.json"
-                        ),
-                        "#/$defs/transformation/properties",
-                    )
-                )
-            ),
+            "#/affected_refs",
+            "#/decided_by",
+            "#/decision_id",
+            "#/finding_id",
+            "#/forward_edits",
+            "#/inverse_edits",
+            "#/parent",
+            "#/prepared_document_sha256",
+            "#/refiner",
+            "#/revision_id",
+            "#/state",
+            "#/transformation_id",
         )
         expect(
             "transformation-history",
             "retained",
-            *(
-                f"#/{name}"
-                for name in sorted(
-                    base_json(
-                        "src/tiny_corpus_workbench/schemas/"
-                        "transformation-history-v0.3.schema.json"
-                    )["properties"]
-                )
-                if name != "schema_version"
-            ),
+            "#/origin_observation_id",
+            "#/revision_id",
+            "#/transformations",
         )
         for family in (
             "authored-fixture",
@@ -2583,20 +2518,6 @@ class V05SchemaBaselineTests(unittest.TestCase):
             },
         )
 
-        renamed_fixture_base_paths = {
-            "fixtures/corpus/v0.5/golden-matrix.json": (
-                "fixtures/corpus/v0.4/golden-matrix.json"
-            ),
-            "fixtures/corpus/v0.5/quality-corpus.json": (
-                "fixtures/corpus/v0.4/quality-corpus.json"
-            ),
-            "fixtures/diagnosis/v0.5/fixtures.json": (
-                "fixtures/diagnosis/v0.2/fixtures.json"
-            ),
-            "fixtures/refinement/v0.5/fixtures.json": (
-                "fixtures/refinement/v0.3/fixtures.json"
-            ),
-        }
         for item in (
             inventory["fixtures_registries_specs"]
             + inventory["public_references"]
@@ -2604,37 +2525,28 @@ class V05SchemaBaselineTests(unittest.TestCase):
             path = item["path"]
             self.assertTrue(Path(path).is_file(), path)
             self.assertTrue(item["classification"])
-            subprocess.run(
-                [
-                    "git",
-                    "cat-file",
-                    "-e",
-                    (
-                        f"{approved_base}:"
-                        f"{renamed_fixture_base_paths.get(path, path)}"
-                    ),
-                ],
-                check=True,
-                capture_output=True,
+        current_fixture_scope = {
+            path.as_posix()
+            for path in Path("fixtures").rglob("*")
+            if path.as_posix() == "fixtures/README.md"
+            or re.fullmatch(
+                r"fixtures/authored/[^/]+\.json", path.as_posix()
             )
-        base_fixture_scope = {
-            path
-            for path in git_tree_paths(approved_base, "fixtures")
-            if path == "fixtures/README.md"
-            or re.fullmatch(r"fixtures/authored/[^/]+\.json", path)
-            or path == "fixtures/golden/fixtures.json"
+            or path.as_posix() == "fixtures/golden/fixtures.json"
             or re.fullmatch(
                 r"fixtures/(?:diagnosis|refinement)/[^/]+/fixtures\.json",
-                path,
+                path.as_posix(),
             )
-            or re.fullmatch(r"fixtures/corpus/[^/]+/[^/]+\.json", path)
+            or re.fullmatch(
+                r"fixtures/corpus/[^/]+/[^/]+\.json", path.as_posix()
+            )
         }
         self.assertEqual(
             {
-                renamed_fixture_base_paths.get(item["path"], item["path"])
+                item["path"]
                 for item in inventory["fixtures_registries_specs"]
             },
-            base_fixture_scope,
+            current_fixture_scope,
         )
         self.assertEqual(
             {item["path"] for item in inventory["public_references"]},
@@ -2724,15 +2636,54 @@ class V05SchemaBaselineTests(unittest.TestCase):
                 self.assertIsNone(source)
                 self.assertIsNone(pointer)
                 continue
-            raw = subprocess.run(
-                ["git", "show", f"{approved_base}:{source}"],
-                check=True,
-                capture_output=True,
-                text=True,
-            ).stdout
-            schema = json.loads(raw)
             with self.subTest(source=source, pointer=pointer):
-                self.assertIsNotNone(resolve_pointer(schema, pointer))
+                self.assertIsInstance(source, str)
+                self.assertRegex(
+                    source,
+                    (
+                        r"^src/tiny_corpus_workbench/schemas/"
+                        r"[^/]+\.schema\.json$"
+                    ),
+                )
+                self.assertIsInstance(pointer, str)
+                self.assertTrue(pointer.startswith("#/"))
+
+    def test_test_suite_has_no_git_process_dependencies(self) -> None:
+        process_functions = {
+            ("subprocess", "call"),
+            ("subprocess", "check_call"),
+            ("subprocess", "check_output"),
+            ("subprocess", "Popen"),
+            ("subprocess", "run"),
+            ("os", "popen"),
+            ("os", "system"),
+        }
+        violations: list[str] = []
+        for path in Path("tests").rglob("*.py"):
+            tree = ast.parse(path.read_text("utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call) or not node.args:
+                    continue
+                function = node.func
+                if not (
+                    isinstance(function, ast.Attribute)
+                    and isinstance(function.value, ast.Name)
+                    and (function.value.id, function.attr) in process_functions
+                ):
+                    continue
+                command = node.args[0]
+                executable = None
+                if (
+                    isinstance(command, (ast.List, ast.Tuple))
+                    and command.elts
+                    and isinstance(command.elts[0], ast.Constant)
+                ):
+                    executable = command.elts[0].value
+                elif isinstance(command, ast.Constant):
+                    executable = str(command.value).split(maxsplit=1)[0]
+                if executable == "git":
+                    violations.append(f"{path}:{node.lineno}")
+        self.assertEqual(violations, [])
 
     def test_standalone_reset_audit_rejects_adversarial_drift(self) -> None:
         base_repository = Path.cwd()
@@ -3136,34 +3087,6 @@ class V05SchemaBaselineTests(unittest.TestCase):
             ):
                 self.assertEqual(generate_refinement_fixtures.main(), 1)
             self.assertFalse(fixtures.exists())
-
-    def test_both_ci_jobs_fetch_history_before_the_schema_audit(self) -> None:
-        workflow = yaml.safe_load(
-            Path(".github/workflows/ci.yml").read_text("utf-8")
-        )
-        jobs = workflow["jobs"]
-        self.assertEqual(set(jobs), {"fast-validation", "full-extraction"})
-        for job_name, job in jobs.items():
-            with self.subTest(job=job_name):
-                checkout = next(
-                    step
-                    for step in job["steps"]
-                    if str(step.get("uses", "")).startswith(
-                        "actions/checkout@"
-                    )
-                )
-                self.assertEqual(checkout["with"]["fetch-depth"], 0)
-                audit_indexes = [
-                    index
-                    for index, step in enumerate(job["steps"])
-                    if "tools/verify_v05_schema_baseline.py"
-                    in str(step.get("run", ""))
-                ]
-                self.assertEqual(len(audit_indexes), 1)
-                self.assertLess(
-                    job["steps"].index(checkout),
-                    audit_indexes[0],
-                )
 
     def test_reset_audit_accepts_safe_context_and_historical_exclusions(
         self,

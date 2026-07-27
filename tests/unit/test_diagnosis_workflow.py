@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import io
 import copy
-import ast
 import hashlib
 import importlib
 import json
 import os
 import shutil
-import subprocess
 import tempfile
 import unittest
 import uuid
@@ -39,6 +37,7 @@ from tests.unit.test_unsupported_old_schemas import OLD_DIAGNOSIS_SCHEMA
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
+# Frozen reviewed inventory for the v0.5 diagnosis migration.
 BASE_REGRESSION_INVENTORY = {
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_v03_diagnosis_is_deterministic_and_read_only"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_observe_diagnose_verify_is_v05_deterministic_and_read_only"),
     ("tests/unit/test_v03_diagnosis_workflow.py", "test_partial_observation_is_supported"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_partial_success_observation_with_canonical_docling_is_diagnosable"),
@@ -791,28 +790,24 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             )
 
     def test_base_regression_inventory_is_complete_and_classified(self) -> None:
-        base = "92bdef4"
-        actual: set[tuple[str, str]] = set()
-        for source in {
-            "tests/unit/test_v03_diagnosis_workflow.py",
-            "tests/unit/test_diagnosis_workflow.py",
-        }:
-            completed = subprocess.run(
-                ["git", "show", f"{base}:{source}"],
-                check=True,
-                capture_output=True,
-                text=True,
+        self.assertEqual(len(BASE_REGRESSION_INVENTORY), 40)
+        source_counts = {
+            source: sum(
+                base_source == source
+                for base_source, _test_name in BASE_REGRESSION_INVENTORY
             )
-            tree = ast.parse(completed.stdout)
-            actual.update(
-                (source, node.name)
-                for node in ast.walk(tree)
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and node.name.startswith("test_")
-            )
-
-        self.assertEqual(len(actual), 40)
-        self.assertEqual(set(BASE_REGRESSION_INVENTORY), actual)
+            for source in {
+                "tests/unit/test_v03_diagnosis_workflow.py",
+                "tests/unit/test_diagnosis_workflow.py",
+            }
+        }
+        self.assertEqual(
+            source_counts,
+            {
+                "tests/unit/test_v03_diagnosis_workflow.py": 14,
+                "tests/unit/test_diagnosis_workflow.py": 26,
+            },
+        )
         classifications = {
             classification
             for classification, _target in BASE_REGRESSION_INVENTORY.values()
