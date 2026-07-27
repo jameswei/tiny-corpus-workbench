@@ -7,10 +7,11 @@ Future work may use whichever sound engineering practices fit the task.
 
 ## Status
 
-- Milestone v0.5, Local Visual Workbench, is a release candidate awaiting
-  independent V05-8 review. It is not released.
-- V05-1 through V05-7 have fresh reviewer `PASS` checkpoints. V05-8 completes
-  the user guide, learning lesson, release disclosure, site presentation,
+- Milestone v0.5, Local Visual Workbench, is a complete local release candidate.
+  Fresh task reviews and the complete milestone integration review returned
+  `PASS`. It is not released.
+- V05-1 through V05-8 are accepted with stable checkpoints. V05-8 completes the
+  user guide, learning lesson, release disclosure, site presentation,
   documentation audit, CI coverage, and clean-export validation.
 - The release candidate provides a read-only, loopback-only, non-persisted
   browser workbench for explicitly supplied observation, diagnosis, refinement,
@@ -187,20 +188,20 @@ The complete schema/reset verdict is settled:
 - users must regenerate old milestone artifacts with v0.5;
 - earlier Git tags preserve implementation history, not current compatibility.
 
-V05-1 through V05-7 are accepted. V05-8 has completed its implementation pass
-and is ready for fresh independent review. Current release-candidate validation
-passes 323 unit tests and 343 complete tests with the prefetched Docling models
-in offline mode. Two final audit methods cover 27 unsafe copied-repository
-mutations and seven safe or historical contexts, including clause-local mixed
-claims. Deterministic fixture generation, registries, corpus specifications,
-the 17-document schema audit, bundled workbench assets, the static site,
-compilation, checkout portability, and diff hygiene also pass. A clean exported
-tree runs the model-free observation, diagnosis, approved-refinement, corpus,
-and workbench startup/API workflows without changing the export.
+V05-1 through V05-8 are accepted. The complete milestone integration review and
+the bounded correction review returned `PASS`. Current release-candidate
+validation passes 323 unit tests and 343 complete tests with the prefetched
+Docling models in offline mode. Two final audit methods cover 27 unsafe
+copied-repository mutations and seven safe or historical contexts, including
+clause-local mixed claims. Deterministic fixture generation, registries, corpus
+specifications, the 17-document schema audit, bundled workbench assets, the
+static site, compilation, checkout portability, branch-range diff hygiene, and
+packaging also pass. A clean exported tree runs the model-free observation,
+diagnosis, approved-refinement, corpus, and workbench startup/API workflows
+without changing the export.
 
-Publication still requires V05-8 review, unchanged-delta root validation, the
-stable checkpoint, complete milestone integration review, and explicit owner
-authority.
+Publication remains paused. It requires explicit owner authority before push,
+pull request, hosted CI, merge, tag, GitHub Release, or website publication.
 
 ## Latest completed milestone
 

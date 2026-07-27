@@ -59,7 +59,7 @@ V05_8_REQUIRED_CLAIMS = {
         "all 25 active JSON schemas",
         "v0.1 through v0.4 artifacts are unsupported",
         "users must regenerate old milestone artifacts with v0.5",
-        "ready for fresh independent review",
+        "complete local release candidate",
     ),
     "docs/local-visual-workbench.md": (
         "binds only to\n`127.0.0.1`",
