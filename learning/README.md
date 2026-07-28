@@ -1,8 +1,8 @@
 # Learning Materials
 
-These lessons turn completed milestones into guided, hands-on study. They are
-for understanding the design and experimenting safely; the user guide and
-accepted milestone plan remain the normative behavior contracts.
+These lessons turn released milestones and the current source checkout into
+guided, hands-on study. They help you understand the design and experiment
+safely. The user guides describe current behavior.
 
 ## Writing style
 
@@ -30,7 +30,7 @@ requires all applicable writing rules and controlled-dictionary checks.
 | v0.2 | [Evidence-Based Diagnosis](v0.2-evidence-based-diagnosis.md) | Available | 45–60 minutes |
 | v0.3 | [Controlled Revisions](v0.3-controlled-revisions.md) | Available | 60 minutes |
 | v0.4 | [Corpus Inspection and Comparison](v0.4-corpus-inspection-comparison.md) | Available | 60–75 minutes |
-| v0.5 | [Local Visual Workbench](v0.5-local-visual-workbench.md) | Available | 30–45 minutes |
+| v0.5 | [Local Visual Workbench](v0.5-local-visual-workbench.md) | Unreleased source | 30–45 minutes |
 
 ## How to use a lesson
 
@@ -60,6 +60,8 @@ Use these companion documents when you need more precision:
   controlled-revision implementation and review contract
 - [Accepted v0.4 plan](../docs/plans/v0.4-corpus-inspection-comparison.md):
   complete corpus inspection and comparison contract
-- [Accepted v0.5 plan](../docs/plans/v0.5-local-visual-workbench.md): complete
-  local visual workbench and unified schema contract
+- [Current v0.5 correction plan](../docs/plans/v0.5-learning-first-correction.md):
+  approved learning-first correction scope
+- [Original v0.5 plan](../docs/plans/v0.5-local-visual-workbench.md):
+  historical record of the superseded implementation direction
 - [Project roadmap](../docs/roadmap.md): milestone sequence and boundaries

@@ -7,7 +7,7 @@ The workbench is local software. It is not a hosted service. It binds only to
 `127.0.0.1`, keeps one frozen projection in memory, and writes no session
 state.
 
-## Start the workbench
+## One-time setup
 
 Install the locked environment:
 
@@ -15,10 +15,15 @@ Install the locked environment:
 uv sync --frozen --python 3.12
 ```
 
+Activate `.venv` to use `corpus` directly. You can instead prefix a usage
+command with `uv run`.
+
+## Start the workbench
+
 Create an observation that needs no model files:
 
 ```bash
-uv run corpus observe fixtures/golden/policy-memo.md \
+corpus observe fixtures/golden/policy-memo.md \
   --output-root /tmp/corpus-workbench-observations
 ```
 
@@ -28,7 +33,7 @@ value as `OBSERVATION_DIRECTORY`.
 Start the workbench without opening a browser automatically:
 
 ```bash
-uv run corpus workbench OBSERVATION_DIRECTORY --no-open
+corpus workbench OBSERVATION_DIRECTORY --no-open
 ```
 
 The command prints only the serving address. The default address is
@@ -45,7 +50,7 @@ Use `--port PORT` to select an unused port from 1024 through 65535. Omit
 Pass one or more record root directories:
 
 ```bash
-uv run corpus workbench OBSERVATION_DIRECTORY \
+corpus workbench OBSERVATION_DIRECTORY \
   DIAGNOSIS_DIRECTORY REFINEMENT_DIRECTORY CORPUS_DIRECTORY --no-open
 ```
 
@@ -98,10 +103,10 @@ GET or HEAD /api/records/{record_key}
 GET or HEAD /api/artifacts/{artifact_key}
 ```
 
-The JSON routes are an internal interface for the bundled UI. They do not make
-a cross-version compatibility promise. Artifact responses come from bytes
-captured during admission. Restart the workbench to admit changed records.
-Opaque artifact keys never expose backing filesystem paths.
+The JSON routes are an internal interface for the bundled UI. They are not a
+public interface. Artifact responses come from bytes captured during
+admission. Restart the workbench to admit changed records. Opaque artifact
+keys never expose backing filesystem paths.
 
 The server returns `404` for unknown routes or keys and `405` for methods other
 than `GET` and `HEAD`. The bundled UI uses text-only DOM construction and makes
