@@ -9,6 +9,7 @@ from pathlib import Path
 from tiny_corpus_workbench.domain import InputError
 from tiny_corpus_workbench.workbench_records import admit_record, admit_records
 from tests.unit.workbench_test_support import (
+    PublishedCorpus,
     PublishedDiagnosis,
     PublishedObservation,
     PublishedRefinements,
@@ -21,12 +22,14 @@ class WorkbenchAdmissionTests(unittest.TestCase):
         cls.published = PublishedObservation()
         cls.diagnosis = PublishedDiagnosis()
         cls.refinements = PublishedRefinements()
+        cls.corpus = PublishedCorpus()
 
     @classmethod
     def tearDownClass(cls) -> None:
         cls.published.close()
         cls.diagnosis.close()
         cls.refinements.close()
+        cls.corpus.close()
 
     def test_intrinsically_verified_explicit_root_is_admitted(self) -> None:
         admitted = admit_records([self.published.root])
@@ -159,6 +162,36 @@ class WorkbenchAdmissionTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(InputError, "regenerate"):
                 admit_record(copied)
+
+    def test_unknown_and_missing_corpus_header_are_rejected_with_guidance(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as directory:
+            for name, mutation in (
+                ("unknown", lambda value: value.update(format_version=99)),
+                ("missing", lambda value: value.pop("record_type")),
+            ):
+                with self.subTest(name=name):
+                    copied = Path(directory) / name / self.corpus.root.name
+                    copied.parent.mkdir()
+                    shutil.copytree(self.corpus.root, copied)
+                    manifest_path = copied / "corpus-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    mutation(manifest)
+                    manifest_path.write_text(
+                        json.dumps(
+                            manifest,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        )
+                        + "\n",
+                        "utf-8",
+                    )
+                    with self.assertRaisesRegex(InputError, "regenerate"):
+                        admit_record(copied)
 
 
 if __name__ == "__main__":

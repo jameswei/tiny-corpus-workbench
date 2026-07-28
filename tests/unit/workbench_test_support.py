@@ -113,7 +113,6 @@ class PublishedCorpus:
         corpus_spec.write_bytes(
             canonical_json(
                 {
-                    "schema_version": "tcw.corpus-spec/v0.5",
                     "corpus_id": "model-free-workbench-corpus",
                     "title": "Model-free workbench corpus",
                     "members": [

@@ -279,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "inspect-corpus":
         try:
             command = _corpus_callable(
-                "corpus_publication", "inspect_corpus"
+                "application.corpus", "inspect_corpus"
             )
             published = command(
                 args.corpus_spec,
@@ -287,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.docling_artifacts,
             )
             verify = _corpus_callable(
-                "corpus_verification", "verify_corpus"
+                "application.corpus", "verify_corpus"
             )
             verification = verify(published.directory)
             if verification["artifact_integrity"]["status"] != "VERIFIED":
@@ -316,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "verify-corpus":
         try:
             command = _corpus_callable(
-                "corpus_verification", "verify_corpus"
+                "application.corpus", "verify_corpus"
             )
             verification = command(args.corpus_directory, args.spec)
         except WorkbenchError as error:

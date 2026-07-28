@@ -11,8 +11,7 @@ from unittest import mock
 
 from tiny_corpus_workbench.artifacts import canonical_json
 from tiny_corpus_workbench.cli import observe
-from tiny_corpus_workbench.corpus_publication import inspect_corpus
-from tiny_corpus_workbench.corpus_verification import verify_corpus
+from tiny_corpus_workbench.application.corpus import inspect_corpus, verify_corpus
 from tiny_corpus_workbench.v03 import (
     diagnose,
     draft_refinement,
@@ -25,8 +24,8 @@ ROOT = Path(__file__).resolve().parents[2]
 MODEL_ROOT = Path(
     os.environ.get("TCW_DOCLING_ARTIFACTS", ".cache/docling/models")
 ).resolve()
-GOLDEN_SPEC = ROOT / "fixtures/corpus/v0.5/golden-matrix.json"
-QUALITY_SPEC = ROOT / "fixtures/corpus/v0.5/quality-corpus.json"
+GOLDEN_SPEC = ROOT / "fixtures/corpus/golden-matrix.json"
+QUALITY_SPEC = ROOT / "fixtures/corpus/quality-corpus.json"
 
 
 @contextmanager
@@ -338,7 +337,6 @@ class CorpusIntegrationTests(unittest.TestCase):
             spec_path.write_bytes(
                 canonical_json(
                     {
-                        "schema_version": "tcw.corpus-spec/v0.5",
                         "corpus_id": "chain-corpus",
                         "title": "Two-step revision chain",
                         "members": [

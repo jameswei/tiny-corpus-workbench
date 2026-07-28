@@ -23,7 +23,7 @@ from tiny_corpus_workbench.canonical_json import (
     logical_copy_key,
     record_key,
 )
-from tiny_corpus_workbench.corpus_verification import verify_corpus
+from tiny_corpus_workbench.application.corpus import verify_corpus
 from tiny_corpus_workbench.domain import InputError, IntegrityError
 from tiny_corpus_workbench.supported_provenance import active_build_provenance
 from tiny_corpus_workbench.application.diagnosis import verify_diagnosis
@@ -599,7 +599,7 @@ def _capture_record(root: Path) -> _AdmissionCapture:
         if not isinstance(manifest, dict) or raw != artifact_json(manifest):
             raise IntegrityError("record manifest is not canonical JSON")
         kind, schema, _ = ROOTS[name]
-        if kind in {"OBSERVATION", "DIAGNOSIS", "REFINEMENT"}:
+        if kind in {"OBSERVATION", "DIAGNOSIS", "REFINEMENT", "CORPUS"}:
             require_record_header(manifest, kind.lower())
         elif manifest.get("schema_version") != schema:
             raise InputError("workbench requires a v0.5 record")

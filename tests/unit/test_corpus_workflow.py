@@ -16,16 +16,15 @@ from unittest import mock
 from docling_core.types.doc import DocItemLabel, DoclingDocument
 
 from tiny_corpus_workbench import cli
+from tiny_corpus_workbench.application.corpus import inspect_corpus, verify_corpus
 from tiny_corpus_workbench.artifacts import canonical_json
 from tiny_corpus_workbench.comparison import NUMERIC_METRICS
 from tiny_corpus_workbench.corpus_execution import (
     _schema_validator as execution_schema_validator,
 )
-from tiny_corpus_workbench.corpus_publication import inspect_corpus
 from tiny_corpus_workbench.corpus_publication import (
     _schema_validator as publication_schema_validator,
 )
-from tiny_corpus_workbench.corpus_verification import verify_corpus
 from tiny_corpus_workbench.corpus_report import render_report
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.source import sha256_file
@@ -65,7 +64,6 @@ def _write_spec(root: Path) -> Path:
     spec.write_bytes(
         canonical_json(
             {
-                "schema_version": "tcw.corpus-spec/v0.5",
                 "corpus_id": "unit-corpus",
                 "title": "Unit <Corpus>",
                 "members": [
@@ -86,13 +84,13 @@ class CorpusWorkflowTests(unittest.TestCase):
     def test_all_corpus_runtime_validators_share_format_checker(self) -> None:
         self.assertIs(
             execution_schema_validator(
-                "corpus-summary-v0.5.schema.json"
+                "corpus-summary.schema.json"
             ).format_checker,
             FORMAT_CHECKER,
         )
         self.assertIs(
             publication_schema_validator(
-                "corpus-manifest-v0.5.schema.json"
+                "corpus-manifest.schema.json"
             ).format_checker,
             FORMAT_CHECKER,
         )
@@ -139,6 +137,20 @@ class CorpusWorkflowTests(unittest.TestCase):
             )
             first = verify_corpus(published.directory)
             second = verify_corpus(published.directory, spec)
+            manifest = json.loads(
+                (published.directory / "corpus-manifest.json").read_text("utf-8")
+            )
+            summary = json.loads(
+                (published.directory / "summary.json").read_text("utf-8")
+            )
+            self.assertEqual(
+                (manifest["record_type"], manifest["format_version"]),
+                ("corpus", 1),
+            )
+            for value in (manifest, summary, first):
+                self.assertNotIn("schema_version", value)
+                self.assertNotIn("build_provenance", value)
+                self.assertNotIn("runtime", value)
             self.assertEqual(
                 first["artifact_integrity"]["status"], "VERIFIED"
             )
@@ -268,15 +280,15 @@ class CorpusWorkflowTests(unittest.TestCase):
                         "VERIFIED",
                     )
 
-    def test_manifest_runtime_descriptor_and_nested_identity_tampering_is_detected(
+    def test_manifest_configuration_descriptor_and_nested_identity_tampering_is_detected(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             _, published = self.publish(root)
 
-            def runtime_tamper(value: dict) -> None:
-                value["runtime"]["lockfile_sha256"] = "f" * 64
+            def configuration_tamper(value: dict) -> None:
+                value["configuration"]["ruleset_id"] = "f" * 64
 
             def descriptor_tamper(value: dict) -> None:
                 value["members"][0]["observation"]["manifest"]["sha256"] = (
@@ -291,7 +303,7 @@ class CorpusWorkflowTests(unittest.TestCase):
                 value["members"].append(deepcopy(value["members"][0]))
 
             for name, mutate in (
-                ("runtime", runtime_tamper),
+                ("configuration", configuration_tamper),
                 ("descriptor", descriptor_tamper),
                 ("identity", identity_tamper),
                 ("duplicate-member", duplicate_member),
@@ -608,6 +620,28 @@ class CorpusWorkflowTests(unittest.TestCase):
                     for issue in verification["artifact_integrity"]["issues"]
                 )
             )
+
+    def test_unknown_and_missing_root_header_exit_two_with_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            _, published = self.publish(root)
+            for name, mutation in (
+                ("unknown", lambda value: value.update(format_version=99)),
+                ("missing", lambda value: value.pop("record_type")),
+            ):
+                with self.subTest(name=name):
+                    copied = root / name / published.directory.name
+                    shutil.copytree(published.directory, copied)
+                    manifest_path = copied / "corpus-manifest.json"
+                    manifest = json.loads(manifest_path.read_text("utf-8"))
+                    mutation(manifest)
+                    manifest_path.write_bytes(canonical_json(manifest))
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        code = cli.main(["verify-corpus", str(copied)])
+                    self.assertEqual(code, 2)
+                    self.assertEqual(stdout.getvalue(), "")
+                    self.assertIn("regenerate", stderr.getvalue())
 
     def test_live_input_drift_is_advisory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

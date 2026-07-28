@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from copy import deepcopy
+from itertools import product
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,46 +16,26 @@ from referencing import Registry, Resource
 
 from tiny_corpus_workbench.artifacts import canonical_json
 from tiny_corpus_workbench.corpus import load_corpus_spec
+from tiny_corpus_workbench.corpus_execution import (
+    validate_corpus_manifest_semantics,
+)
 from tiny_corpus_workbench.domain import InputError, IntegrityError
 
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMAS = ROOT / "src/tiny_corpus_workbench/schemas"
-CORPUS_FIXTURES = ROOT / "fixtures/corpus/v0.5"
+CORPUS_FIXTURES = ROOT / "fixtures/corpus"
 SCHEMA_NAMES = (
-    "corpus-spec-v0.5.schema.json",
-    "corpus-manifest-v0.5.schema.json",
-    "corpus-summary-v0.5.schema.json",
-    "corpus-verification-result-v0.5.schema.json",
+    "corpus-spec.schema.json",
+    "corpus-manifest.schema.json",
+    "corpus-summary.schema.json",
+    "corpus-verification-result.schema.json",
 )
 HASH = "a" * 64
 
 
-def _build_provenance(command_id: str, *, extracting: bool = False) -> dict:
-    entry = json.loads(
-        (ROOT / "src/tiny_corpus_workbench/supported-provenance-v0.5.json").read_text(
-            "utf-8"
-        )
-    )["entries"][0]
-    value = {
-        key: entry[key]
-        for key in (
-            "provenance_id",
-            "package_version",
-            "lockfile_sha256",
-            "python",
-            "dependencies",
-        )
-    }
-    value["command_id"] = command_id
-    if extracting:
-        value["extractor_contract"] = entry["extractor_contract"]
-    return value
-
-
 def _write_spec(root: Path, members: list[dict], **updates: object) -> Path:
     value: dict[str, object] = {
-        "schema_version": "tcw.corpus-spec/v0.5",
         "corpus_id": "test-corpus",
         "title": "Test corpus",
         "members": members,
@@ -122,7 +103,8 @@ def _valid_manifest() -> dict:
     }
     descriptor = {"path": "members/sample/manifest.json", "size": 10, "sha256": HASH}
     return {
-        "schema_version": "tcw.corpus-manifest/v0.5",
+        "record_type": "corpus",
+        "format_version": 1,
         "corpus_id": "sample",
         "snapshot_id": HASH,
         "run_id": "run",
@@ -133,9 +115,9 @@ def _valid_manifest() -> dict:
             "sha256": HASH,
             "normalized_sha256": HASH,
         },
-        "runtime": {
+        "configuration": {
             "ruleset_id": HASH,
-            "configurations": {
+            "extractors": {
                 "docling": {
                     "accelerator": "cpu",
                     "ocr": False,
@@ -240,9 +222,6 @@ def _valid_manifest() -> dict:
                 ("report/styles.css", "corpus-stylesheet", "text/css"),
             )
         ],
-        "build_provenance": _build_provenance(
-            "tcw.inspect-corpus", extracting=True
-        ),
     }
 
 
@@ -268,7 +247,6 @@ def _valid_summary() -> dict:
     deltas: dict[str, object] = _metrics(0)
     deltas["normalized_equal"] = True
     return {
-        "schema_version": "tcw.corpus-summary/v0.5",
         "corpus_id": "sample",
         "snapshot_id": HASH,
         "run_id": "run",
@@ -357,7 +335,6 @@ def _valid_summary() -> dict:
 
 def _valid_verification() -> dict:
     return {
-        "schema_version": "tcw.corpus-verification-result/v0.5",
         "corpus_directory": "/corpus",
         "artifact_integrity": {"status": "VERIFIED", "issues": []},
         "specification_state": {"status": "MATCH"},
@@ -374,18 +351,11 @@ def _valid_verification() -> dict:
                 "base_state": {"status": "MISSING"},
             }
         ],
-        "build_provenance": _build_provenance("tcw.verify-corpus"),
     }
 
 
 class CorpusSchemaTests(unittest.TestCase):
-    def test_four_schemas_are_draft_2020_12_closed_and_have_exact_versions(self) -> None:
-        expected = {
-            "corpus-spec-v0.5.schema.json": "tcw.corpus-spec/v0.5",
-            "corpus-manifest-v0.5.schema.json": "tcw.corpus-manifest/v0.5",
-            "corpus-summary-v0.5.schema.json": "tcw.corpus-summary/v0.5",
-            "corpus-verification-result-v0.5.schema.json": "tcw.corpus-verification-result/v0.5",
-        }
+    def test_four_schemas_are_unversioned_draft_2020_12_and_closed(self) -> None:
         for name in SCHEMA_NAMES:
             with self.subTest(name=name):
                 schema = json.loads((SCHEMAS / name).read_text("utf-8"))
@@ -394,18 +364,25 @@ class CorpusSchemaTests(unittest.TestCase):
                     schema["$schema"],
                     "https://json-schema.org/draft/2020-12/schema",
                 )
-                self.assertEqual(
-                    schema["properties"]["schema_version"]["const"], expected[name]
-                )
-                _assert_objects_closed(self, schema)
+                self.assertNotIn("schema_version", schema["properties"])
+                self.assertIs(schema["additionalProperties"], False)
+                if name in {
+                    "corpus-spec.schema.json",
+                    "corpus-manifest.schema.json",
+                }:
+                    _assert_objects_closed(self, schema)
+        manifest = json.loads(
+            (SCHEMAS / "corpus-manifest.schema.json").read_text("utf-8")
+        )
+        self.assertEqual(manifest["properties"]["record_type"]["const"], "corpus")
+        self.assertEqual(manifest["properties"]["format_version"]["const"], 1)
 
     def test_corpus_spec_schema_rejects_extra_properties_at_each_level(self) -> None:
         schema = json.loads(
-            (SCHEMAS / "corpus-spec-v0.5.schema.json").read_text("utf-8")
+            (SCHEMAS / "corpus-spec.schema.json").read_text("utf-8")
         )
         validator = Draft202012Validator(schema)
         valid = {
-            "schema_version": "tcw.corpus-spec/v0.5",
             "corpus_id": "sample",
             "title": "Sample",
             "members": [
@@ -447,7 +424,7 @@ class CorpusSchemaTests(unittest.TestCase):
                 )
 
     def test_manifest_requires_separate_record_and_revision_identities(self) -> None:
-        validator = _validator("corpus-manifest-v0.5.schema.json")
+        validator = _validator("corpus-manifest.schema.json")
         valid = _valid_manifest()
         validator.validate(valid)
         mutations = (
@@ -465,7 +442,7 @@ class CorpusSchemaTests(unittest.TestCase):
                 validator.validate(changed)
 
     def test_manifest_rejects_wrong_enum_valid_stage_error_codes(self) -> None:
-        validator = _validator("corpus-manifest-v0.5.schema.json")
+        validator = _validator("corpus-manifest.schema.json")
         null_diagnosis = {
             "status": "NOT_RUN",
             "diagnosis_id": None,
@@ -517,22 +494,130 @@ class CorpusSchemaTests(unittest.TestCase):
                 member["diagnosis"] = deepcopy(diagnosis)
                 member["error"] = {"code": expected, "message": "expected"}
                 validator.validate(valid)
+                validate_corpus_manifest_semantics(valid)
                 member["error"]["code"] = wrong
-                with self.assertRaises(ValidationError):
-                    validator.validate(valid)
+                validator.validate(valid)
+                with self.assertRaises(ValueError):
+                    validate_corpus_manifest_semantics(valid)
 
-    def test_summary_requires_all_metrics_groups_and_revision_details(self) -> None:
-        validator = _validator("corpus-summary-v0.5.schema.json")
+    def test_manifest_semantics_cover_every_stage_nullability_combination(
+        self,
+    ) -> None:
+        validator = _validator("corpus-manifest.schema.json")
+        descriptor = {
+            "path": "members/sample/manifest.json",
+            "size": 10,
+            "sha256": HASH,
+        }
+        for status, present in product(
+            ("SUCCESS", "PARTIAL_SUCCESS", "FAILED", "NOT_RUN"),
+            product((False, True), repeat=4),
+        ):
+            observation_present, run_present, manifest_present, canonical_present = (
+                present
+            )
+            valid = _valid_manifest()
+            member = valid["members"][0]
+            member["status"] = "PARTIAL"
+            member["diagnosis"] = {
+                "status": "NOT_RUN",
+                "diagnosis_id": None,
+                "run_id": None,
+                "manifest": None,
+                "findings_sha256": None,
+            }
+            member["observation"] = {
+                "status": status,
+                "observation_id": HASH if observation_present else None,
+                "run_id": "run" if run_present else None,
+                "manifest": descriptor if manifest_present else None,
+                "canonical_document_sha256": (
+                    HASH if canonical_present else None
+                ),
+            }
+            member["error"] = {
+                "code": (
+                    "OBSERVATION_FAILED"
+                    if status == "FAILED"
+                    and not any(
+                        (observation_present, run_present, manifest_present)
+                    )
+                    else "MEMBER_INCOMPLETE"
+                ),
+                "message": "expected",
+            }
+            all_stage_present = all(
+                (observation_present, run_present, manifest_present)
+            )
+            all_stage_absent = not any(
+                (observation_present, run_present, manifest_present)
+            )
+            expected = {
+                "SUCCESS": all_stage_present and canonical_present,
+                "PARTIAL_SUCCESS": all_stage_present,
+                "FAILED": (
+                    (all_stage_present and not canonical_present)
+                    or (all_stage_absent and not canonical_present)
+                ),
+                "NOT_RUN": all_stage_absent and not canonical_present,
+            }[status]
+            validator.validate(valid)
+            with self.subTest(stage="observation", status=status, present=present):
+                if expected:
+                    validate_corpus_manifest_semantics(valid)
+                else:
+                    with self.assertRaises(ValueError):
+                        validate_corpus_manifest_semantics(valid)
+
+        for status, present in product(
+            ("FINDINGS", "NO_FINDINGS", "FAILED", "NOT_RUN"),
+            product((False, True), repeat=4),
+        ):
+            diagnosis_present, run_present, manifest_present, findings_present = (
+                present
+            )
+            valid = _valid_manifest()
+            member = valid["members"][0]
+            member["status"] = "PARTIAL"
+            member["diagnosis"] = {
+                "status": status,
+                "diagnosis_id": HASH if diagnosis_present else None,
+                "run_id": "run" if run_present else None,
+                "manifest": descriptor if manifest_present else None,
+                "findings_sha256": HASH if findings_present else None,
+            }
+            member["error"] = {
+                "code": (
+                    "DIAGNOSIS_FAILED"
+                    if status == "FAILED"
+                    else "MEMBER_INCOMPLETE"
+                ),
+                "message": "expected",
+            }
+            all_present = all(present)
+            all_absent = not any(present)
+            expected = {
+                "FINDINGS": all_present,
+                "NO_FINDINGS": all_present,
+                "FAILED": all_absent,
+                "NOT_RUN": all_absent,
+            }[status]
+            validator.validate(valid)
+            with self.subTest(stage="diagnosis", status=status, present=present):
+                if expected:
+                    validate_corpus_manifest_semantics(valid)
+                else:
+                    with self.assertRaises(ValueError):
+                        validate_corpus_manifest_semantics(valid)
+
+    def test_summary_schema_guards_only_generated_root_structure(self) -> None:
+        validator = _validator("corpus-summary.schema.json")
         valid = _valid_summary()
         validator.validate(valid)
         mutations = (
-            lambda value: value["comparisons"][0][
-                "docling_minus_markitdown"
-            ].pop("normalized_equal"),
-            lambda value: value["comparisons"][0]["docling"].pop("bytes"),
             lambda value: value.pop("revision_groups"),
-            lambda value: value["revisions"][0].pop("before_document_sha256"),
-            lambda value: value["revisions"][0].pop("affected_reference_count"),
+            lambda value: value.update(comparisons={}),
+            lambda value: value.update(totals=[]),
         )
         for mutate in mutations:
             changed = deepcopy(valid)
@@ -540,14 +625,14 @@ class CorpusSchemaTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 validator.validate(changed)
 
-    def test_verification_advisories_are_attributed_per_input(self) -> None:
-        validator = _validator("corpus-verification-result-v0.5.schema.json")
+    def test_verification_schema_guards_only_generated_root_structure(self) -> None:
+        validator = _validator("corpus-verification-result.schema.json")
         valid = _valid_verification()
         validator.validate(valid)
         mutations = (
-            lambda value: value["source_states"][0].pop("member_id"),
-            lambda value: value["revision_states"][0].pop("revision_id"),
-            lambda value: value["revision_states"][0].pop("diagnosis_state"),
+            lambda value: value.pop("source_states"),
+            lambda value: value.update(source_states={}),
+            lambda value: value.update(model_state=[]),
         )
         for mutate in mutations:
             changed = deepcopy(valid)
@@ -604,7 +689,6 @@ class CorpusAdmissionTests(unittest.TestCase):
                             spec.write_text(
                                 json.dumps(
                                     {
-                                        "schema_version": "tcw.corpus-spec/v0.5",
                                         "corpus_id": "replacement",
                                         "title": "Replacement",
                                         "members": [

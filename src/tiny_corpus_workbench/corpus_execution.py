@@ -38,7 +38,6 @@ from tiny_corpus_workbench.verification import FORMAT_CHECKER
 
 Observe = Callable[[str, Path, Path], tuple[ExitCode, Path]]
 Diagnose = Callable[[Path, Path], Path]
-RuntimeLoader = Callable[[], dict[str, Any]]
 ModelInventoryLoader = Callable[..., dict[str, Any]]
 
 
@@ -49,7 +48,7 @@ class CorpusExecutionResult:
     snapshot_id: str
     status: str
     exit_code: ExitCode
-    runtime: dict[str, Any]
+    configuration: dict[str, Any]
     members: tuple[dict[str, Any], ...]
     revisions: tuple[dict[str, Any], ...]
     summary: dict[str, Any]
@@ -142,7 +141,6 @@ def recheck_corpus_inputs(
 def _load_defaults() -> tuple[
     Observe,
     Diagnose,
-    RuntimeLoader,
     dict[str, Any],
     dict[str, Any],
     dict[str, Any],
@@ -153,9 +151,6 @@ def _load_defaults() -> tuple[
             DOCLING_CONFIG,
             MARKITDOWN_CONFIG,
             observe,
-        )
-        from tiny_corpus_workbench.supported_provenance import (
-            active_build_provenance,
         )
         from tiny_corpus_workbench.v03 import (
             RULESET,
@@ -169,16 +164,9 @@ def _load_defaults() -> tuple[
 
     ruleset = {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH}
 
-    def locked_corpus_runtime() -> dict[str, Any]:
-        return active_build_provenance(
-            command_id="tcw.inspect-corpus",
-            extracting=True,
-        )
-
     return (
         observe,
         diagnose,
-        locked_corpus_runtime,
         dict(DOCLING_CONFIG),
         dict(MARKITDOWN_CONFIG),
         ruleset,
@@ -524,7 +512,6 @@ def _snapshot_id_from_identity(identity: dict[str, Any]) -> str:
 
 def _snapshot_identity(
     admitted: AdmittedCorpusSpec,
-    runtime: dict[str, Any],
     configurations: dict[str, Any],
     ruleset: dict[str, Any],
     model_identity: dict[str, Any],
@@ -564,7 +551,6 @@ def _snapshot_identity(
     identity = {
         "normalized_specification": admitted.normalized,
         "members": members,
-        "runtime": runtime,
         "configurations": configurations,
         "ruleset": ruleset,
         "model_inventory": model_identity,
@@ -576,6 +562,76 @@ def _snapshot_identity(
 
 def _error(code: str, message: str) -> dict[str, str]:
     return StableError(code, message).to_dict()
+
+
+def validate_corpus_manifest_semantics(manifest: dict[str, Any]) -> None:
+    """Validate generated stage/nullability and member/error relationships."""
+
+    for member in manifest["members"]:
+        error = member["error"]
+        error_code = error.get("code") if isinstance(error, dict) else None
+        observation = member["observation"]
+        diagnosis = member["diagnosis"]
+
+        observation_values = (
+            observation["observation_id"],
+            observation["run_id"],
+            observation["manifest"],
+        )
+        observation_present = all(value is not None for value in observation_values)
+        observation_absent = all(value is None for value in observation_values)
+        canonical_present = observation["canonical_document_sha256"] is not None
+        valid_observation = {
+            "SUCCESS": observation_present and canonical_present,
+            "PARTIAL_SUCCESS": observation_present,
+            "FAILED": (
+                (observation_present and not canonical_present)
+                or (observation_absent and not canonical_present)
+            ),
+            "NOT_RUN": observation_absent and not canonical_present,
+        }[observation["status"]]
+        if not valid_observation:
+            raise ValueError(
+                "observation status and nullable evidence fields disagree"
+            )
+
+        diagnosis_values = (
+            diagnosis["diagnosis_id"],
+            diagnosis["run_id"],
+            diagnosis["manifest"],
+            diagnosis["findings_sha256"],
+        )
+        diagnosis_present = all(value is not None for value in diagnosis_values)
+        diagnosis_absent = all(value is None for value in diagnosis_values)
+        valid_diagnosis = {
+            "FINDINGS": diagnosis_present,
+            "NO_FINDINGS": diagnosis_present,
+            "FAILED": diagnosis_absent,
+            "NOT_RUN": diagnosis_absent,
+        }[diagnosis["status"]]
+        if not valid_diagnosis:
+            raise ValueError(
+                "diagnosis status and nullable evidence fields disagree"
+            )
+
+        if member["status"] == "COMPLETE" and error is not None:
+            raise ValueError("complete corpus member must not contain an error")
+        if (
+            observation["status"] == "FAILED"
+            and observation["manifest"] is None
+            and error_code != "OBSERVATION_FAILED"
+        ):
+            raise ValueError("failed observation requires its matching error")
+        if (
+            observation["status"] == "NOT_RUN"
+            and error_code != "MEMBER_INCOMPLETE"
+        ):
+            raise ValueError("unrun observation requires its matching error")
+        if (
+            diagnosis["status"] == "FAILED"
+            and error_code != "DIAGNOSIS_FAILED"
+        ):
+            raise ValueError("failed diagnosis requires its matching error")
 
 
 def _extractor_state(
@@ -872,7 +928,6 @@ def _build_summary(
         for member in members
     ]
     summary = {
-        "schema_version": "tcw.corpus-summary/v0.5",
         "corpus_id": admitted.normalized["corpus_id"],
         "snapshot_id": snapshot_id,
         "run_id": run_id,
@@ -913,7 +968,6 @@ def execute_corpus(
     run_id: str,
     observe_member: Observe | None = None,
     diagnose_member: Diagnose | None = None,
-    runtime_loader: RuntimeLoader | None = None,
     model_inventory_loader: ModelInventoryLoader = inventory_models,
 ) -> CorpusExecutionResult:
     """Process admitted members sequentially and aggregate source-free evidence."""
@@ -921,7 +975,6 @@ def execute_corpus(
     (
         default_observe,
         default_diagnose,
-        default_runtime,
         docling_config,
         markitdown_config,
         ruleset,
@@ -930,11 +983,8 @@ def execute_corpus(
     diagnose_member = (
         default_diagnose if diagnose_member is None else diagnose_member
     )
-    runtime_loader = default_runtime if runtime_loader is None else runtime_loader
-
     root = _safe_staging_root(staging_root)
-    runtime = runtime_loader()  # Global mismatch must stop before any member work.
-    summary_validator = _schema_validator("corpus-summary-v0.5.schema.json")
+    summary_validator = _schema_validator("corpus-summary.schema.json")
     configurations = {
         "docling": docling_config,
         "markitdown": markitdown_config,
@@ -945,16 +995,16 @@ def execute_corpus(
         required=pdf_required,
         loader=model_inventory_loader,
     )
-    runtime_record = {
+    specification_capture = _specification_capture(admitted)
+    configuration = {
         "ruleset_id": _ruleset_id(ruleset),
-        "configurations": configurations,
+        "extractors": configurations,
         "model_inventory": model_manifest,
     }
-    specification_capture = _specification_capture(admitted)
     source_captures = tuple(_source_capture(member) for member in admitted.members)
     revision_captures = _revision_captures(admitted)
     snapshot_id, snapshot_identity = _snapshot_identity(
-        admitted, runtime, configurations, ruleset, model_identity
+        admitted, configurations, ruleset, model_identity
     )
     manifest_revisions, summary_revisions = _revision_records(admitted)
 
@@ -1212,7 +1262,7 @@ def execute_corpus(
         snapshot_id=snapshot_id,
         status=status,
         exit_code=exit_code,
-        runtime=runtime_record,
+        configuration=configuration,
         members=tuple(manifest_members),
         revisions=tuple(manifest_revisions),
         summary=summary,

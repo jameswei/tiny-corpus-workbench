@@ -201,7 +201,6 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
                         "source": "corpus-source.md",
                     }
                 ],
-                "schema_version": "tcw.corpus-spec/v0.5",
                 "title": "Clean export model-free corpus",
             },
             sort_keys=True,

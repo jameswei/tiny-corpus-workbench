@@ -32,7 +32,7 @@ DOCX source for line-end dehyphenation. Check their registry with
 reuses `diagnosis/repeated-margin.pdf`. The registry records only current
 fixture paths, learning properties, hashes, licenses, and generator recipes.
 
-The `corpus/v0.5/` directory contains two corpus specifications. It adds no raw
+The `corpus/` directory contains two corpus specifications. It adds no raw
 document:
 
 - `golden-matrix.json` lists all 12 registered golden fixtures. It contains

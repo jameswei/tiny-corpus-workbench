@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/corpus-verification-result.schema.json",
+  "title": "tiny-corpus-workbench generated corpus verification result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "corpus_directory",
+    "artifact_integrity",
+    "specification_state",
+    "source_states",
+    "model_state",
+    "revision_states"
+  ],
+  "properties": {
+    "corpus_directory": {
+      "type": "string"
+    },
+    "artifact_integrity": {
+      "$ref": "refinement-verification-result.schema.json#/$defs/integrity"
+    },
+    "specification_state": {
+      "type": "object"
+    },
+    "source_states": {
+      "type": "array"
+    },
+    "model_state": {
+      "type": "object"
+    },
+    "revision_states": {
+      "type": "array"
+    }
+  }
+}

@@ -1041,7 +1041,7 @@
                   ]
                 },
                 "totals": {
-                  "$ref": "corpus-summary-v0.5.schema.json#/$defs/totals"
+                  "type": "object"
                 }
               }
             },
@@ -1090,7 +1090,7 @@
                     ]
                   },
                   "source": {
-                    "$ref": "corpus-manifest-v0.5.schema.json#/$defs/source"
+                    "$ref": "corpus-manifest.schema.json#/$defs/source"
                   },
                   "observation_record_key": {
                     "oneOf": [
@@ -1212,43 +1212,43 @@
                 "by_family": {
                   "type": "array",
                   "items": {
-                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/namedCounts"
+                    "type": "object"
                   }
                 },
                 "by_format": {
                   "type": "array",
                   "items": {
-                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/namedCounts"
+                    "type": "object"
                   }
                 },
                 "extractors": {
                   "type": "array",
                   "items": {
-                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/extractorCounts"
+                    "type": "object"
                   }
                 },
                 "comparisons": {
                   "type": "array",
                   "items": {
-                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/comparison"
+                    "type": "object"
                   }
                 },
                 "findings": {
                   "type": "array",
                   "items": {
-                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/findingGroup"
+                    "type": "object"
                   }
                 },
                 "revision_groups": {
                   "type": "array",
                   "items": {
-                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/revisionGroup"
+                    "type": "object"
                   }
                 },
                 "revisions": {
                   "type": "array",
                   "items": {
-                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/revisionDetail"
+                    "type": "object"
                   }
                 }
               }
@@ -1272,7 +1272,7 @@
                     "$ref": "common-v0.5.schema.json#/$defs/identifier"
                   },
                   "revision": {
-                    "$ref": "corpus-summary-v0.5.schema.json#/$defs/revisionDetail"
+                    "type": "object"
                   },
                   "refinement_run_id": {
                     "type": "string",
