@@ -1,6 +1,6 @@
 "use strict";
 
-const API_ROOT = "/api/v0.5";
+const API_ROOT = "/api";
 const COMPARISON_METRICS = [
   "bytes",
   "characters",
@@ -198,7 +198,6 @@ function renderOverview(projection) {
     ["Records", counts.record_count],
     ["Top-level records", counts.top_level_record_count],
     ["Contained records", counts.contained_record_count],
-    ["Package version", projection.runtime.package_version],
     ["Session ID", shortHash(projection.session_id), true],
   ];
   clear(elements.sessionFacts);
@@ -210,8 +209,7 @@ function renderOverview(projection) {
 }
 
 function recordLabel(record) {
-  const identity = Object.values(record.identity).filter((value) => value !== null)[0];
-  return `${displayName(record.status)} ${displayName(record.kind)} ${shortHash(identity)}`;
+  return `${displayName(record.status)} ${displayName(record.kind)} ${shortHash(record.primary_identity.value)}`;
 }
 
 function renderNavigation(projection) {
@@ -223,7 +221,7 @@ function renderNavigation(projection) {
     button.type = "button";
     button.dataset.recordKey = record.record_key;
     button.append(node("strong", displayName(record.kind)));
-    button.append(node("small", `${displayName(record.status)} · ${shortHash(Object.values(record.identity)[0])}`));
+    button.append(node("small", `${displayName(record.status)} · ${shortHash(record.primary_identity.value)}`));
     button.setAttribute("aria-label", `Open ${recordLabel(record)}`);
     button.addEventListener("click", () => loadRecord(record));
     elements.recordList.append(button);
@@ -232,13 +230,11 @@ function renderNavigation(projection) {
 
 function renderRecordSummary(record, detail) {
   clear(elements.recordSummary);
-  const identity = Object.entries(record.identity)
-    .map(([key, value]) => `${displayName(key)}: ${shortHash(value)}`)
-    .join(" · ");
+  const identity = `${displayName(record.primary_identity.name)}: ${shortHash(record.primary_identity.value)}`;
   elements.recordSummary.append(factList([
     ["Run ID", record.run_id, true],
     ["Identity", identity, true],
-    ["Admission", displayName(record.admission_origin)],
+    ["Origin", displayName(record.origin)],
     ["Artifacts", record.artifact_count],
     ["Artifact integrity", detail.artifact_integrity],
   ]));
@@ -255,7 +251,7 @@ function renderRelationships(detail) {
   } else {
     for (const edge of detail.relationships) {
       const card = stateCard(displayName(edge.relation), edge.state);
-      card.append(node("p", `Expected ${displayName(edge.expected_target.kind)} ${shortHash(edge.expected_target.identity_value)}.`, "mono"));
+      card.append(node("p", `Expected ${displayName(edge.target_kind)} ${shortHash(edge.target_identity.value)}.`, "mono"));
       grid.append(card);
     }
   }
@@ -275,11 +271,15 @@ function renderSource(source) {
 }
 
 function renderObservation(detail) {
-  const value = detail.detail;
+  const value = detail.view;
   const fragment = document.createDocumentFragment();
   fragment.append(renderSource(value.source));
 
   const extractors = section("Extractor comparison", "Extractor results remain separate. A comparison can be incomplete.");
+  extractors.append(factList([
+    ["Canonical document", value.docling_document.name],
+    ["Document version", value.docling_document.version],
+  ]));
   const cards = node("div", undefined, "card-grid");
   for (const extractor of value.extractors) {
     const card = node("article", undefined, "card");
@@ -298,7 +298,7 @@ function renderObservation(detail) {
   const comparisonState = node("p");
   comparisonState.append("Comparison ", status(comparison.status));
   extractors.append(comparisonState);
-  if (comparison.views) {
+  if (comparison.docling || comparison.markitdown) {
     if (comparison.docling_minus_markitdown) {
       extractors.append(node(
         "p",
@@ -309,8 +309,8 @@ function renderObservation(detail) {
       "Ten extractor comparison metrics",
       [
         {label: "Metric", render: (row) => displayName(row)},
-        {label: "Docling", render: (row) => comparison.views.docling ? comparison.views.docling[row] : "—"},
-        {label: "MarkItDown", render: (row) => comparison.views.markitdown ? comparison.views.markitdown[row] : "—"},
+        {label: "Docling", render: (row) => comparison.docling ? comparison.docling[row] : "—"},
+        {label: "MarkItDown", render: (row) => comparison.markitdown ? comparison.markitdown[row] : "—"},
         {label: "Delta", render: (row) => comparison.docling_minus_markitdown ? comparison.docling_minus_markitdown[row] : "—"},
       ],
       COMPARISON_METRICS,
@@ -321,7 +321,7 @@ function renderObservation(detail) {
 }
 
 function renderDiagnosis(detail) {
-  const value = detail.detail;
+  const value = detail.view;
   const fragment = document.createDocumentFragment();
   fragment.append(renderSource(value.source));
   const evaluations = section("Evaluation states");
@@ -331,7 +331,7 @@ function renderDiagnosis(detail) {
   evaluations.append(grid);
   fragment.append(evaluations);
 
-  const findings = section("Findings", `${value.summary.total} evidence-backed finding(s). Evidence is displayed as literal text.`);
+  const findings = section("Findings", `${value.finding_total} evidence-backed finding(s). Evidence is displayed as literal text.`);
   if (value.findings.length === 0) {
     findings.append(node("p", "No rule matched this document.", "empty"));
   }
@@ -354,7 +354,7 @@ function renderDiagnosis(detail) {
 }
 
 function renderRefinement(detail) {
-  const value = detail.detail;
+  const value = detail.view;
   const fragment = document.createDocumentFragment();
   fragment.append(renderSource(value.source));
 
@@ -363,7 +363,6 @@ function renderRefinement(detail) {
   decisionHeading.append("Decision ", status(value.decision.state));
   decision.append(decisionHeading);
   decision.append(factList([
-    ["Draft ID", value.decision.draft_id, true],
     ["Decided by", value.decision.decided_by],
     ["Note", value.decision.note === null ? "None" : value.decision.note],
   ]));
@@ -417,20 +416,20 @@ function renderRefinement(detail) {
 }
 
 function renderCorpus(detail) {
-  const value = detail.detail;
+  const value = detail.view;
   const fragment = document.createDocumentFragment();
   const summary = section("Corpus summary");
   const summaryLine = node("p");
-  summaryLine.append("Corpus state ", status(value.summary.status));
+  summaryLine.append("Corpus state ", status(value.status));
   summary.append(summaryLine, factList([
     ["Corpus ID", value.corpus_id],
     ["Snapshot ID", value.snapshot_id, true],
-    ["Members", value.summary.totals.member_count],
-    ["Complete", value.summary.totals.complete],
-    ["Partial", value.summary.totals.partial],
-    ["Failed", value.summary.totals.failed],
-    ["Findings", value.summary.totals.finding_count],
-    ["Revisions", value.summary.totals.revision_count],
+    ["Members", value.totals.member_count],
+    ["Complete", value.totals.complete],
+    ["Partial", value.totals.partial],
+    ["Failed", value.totals.failed],
+    ["Findings", value.totals.finding_count],
+    ["Revisions", value.totals.revision_count],
   ]));
   fragment.append(summary);
 
@@ -441,6 +440,7 @@ function renderCorpus(detail) {
       {label: "Member", key: "member_id"},
       {label: "Family", key: "family"},
       {label: "Format", key: "format"},
+      {label: "Source", render: (row) => row.source.name || row.source.key},
       {label: "State", render: (row) => status(row.status)},
       {label: "Observation", render: (row) => row.observation_record_key ? shortHash(row.observation_record_key) : "Not available"},
       {label: "Diagnosis", render: (row) => row.diagnosis_record_key ? shortHash(row.diagnosis_record_key) : "Not available"},
@@ -558,8 +558,7 @@ function renderCorpus(detail) {
       "External revision relationships",
       [
         {label: "Member", key: "member_id"},
-        {label: "Revision", render: (row) => shortHash(row.revision.revision_id)},
-        {label: "Chain length", render: (row) => row.revision.chain_length},
+        {label: "Revision", render: (row) => shortHash(row.revision_id)},
         {label: "Relationship", render: (row) => status(row.relationship_state)},
       ],
       value.external_revisions,
@@ -575,7 +574,7 @@ function artifactCard(descriptor) {
   heading.append(" ", status(descriptor.availability));
   card.append(heading);
   card.append(factList([
-    ["Recorded type", descriptor.recorded_media_type],
+    ["Media type", descriptor.media_type],
     ["Size", `${descriptor.size} bytes`],
     ["SHA-256", descriptor.sha256, true],
   ]));
@@ -600,7 +599,7 @@ function artifactCard(descriptor) {
       result.textContent = await response.text();
       announce(`${displayName(descriptor.role)} retrieved as plain text.`);
     } catch (error) {
-      result.textContent = "The artifact could not be retrieved. It may have changed after admission.";
+      result.textContent = "The artifact could not be retrieved. Restart the local workbench and try again.";
       announce("Artifact retrieval failed.");
     } finally {
       button.disabled = false;
@@ -613,7 +612,7 @@ function artifactCard(descriptor) {
 function renderArtifacts(detail) {
   const wrapper = section("Artifacts", "Content is not fetched until you choose Retrieve plain text. HTML and Markdown remain literal text.");
   const grid = node("div", undefined, "card-grid");
-  for (const descriptor of [detail.manifest, ...detail.artifacts]) {
+  for (const descriptor of detail.artifacts) {
     grid.append(artifactCard(descriptor));
   }
   wrapper.append(grid);

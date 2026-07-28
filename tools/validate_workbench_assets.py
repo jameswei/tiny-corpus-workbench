@@ -88,7 +88,7 @@ def validate(root: Path) -> list[str]:
         if token in js:
             errors.append(f"workbench.js contains forbidden capability: {token}")
     for required in (
-        'const API_ROOT = "/api/v0.5"',
+        'const API_ROOT = "/api"',
         "document.createElement",
         ".textContent",
         "prefers-reduced-motion",

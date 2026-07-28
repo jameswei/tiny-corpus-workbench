@@ -147,10 +147,10 @@ uv run --frozen tcw verify-corpus CORPUS_DIRECTORY \
 uv run --frozen tcw workbench RECORD_DIRECTORY --no-open
 ```
 
-Each command prints a compact JSON result. Replace `OBSERVATION_DIRECTORY` with
-the directory containing the `manifest` path printed by `tcw observe`. Replace
-`DIAGNOSIS_DIRECTORY` with the directory containing the `manifest` path printed
-by `tcw diagnose`.
+Workflow commands print a compact JSON result. `tcw workbench` prints only its
+serving address. Replace `OBSERVATION_DIRECTORY` with the directory containing
+the `manifest` path printed by `tcw observe`. Replace `DIAGNOSIS_DIRECTORY`
+with the directory containing the `manifest` path printed by `tcw diagnose`.
 
 The PDF example requires the local Docling models downloaded in the second
 step. Observation then runs locally and offline. OCR, plugins, remote services,
@@ -171,8 +171,9 @@ resources. It aggregates counts, extractor deltas, findings, and explicitly
 listed verified revision histories without embedding source passages.
 
 The visual workbench also accepts only explicit record roots. It binds only to
-`127.0.0.1`, keeps its projection in memory, and provides no execution,
-mutation, upload, discovery, or source-file route. Stop it with `Ctrl-C`.
+`127.0.0.1`, captures admitted artifact bytes in memory, and provides no
+execution, mutation, upload, discovery, or source-file route. Stop it with
+`Ctrl-C`.
 
 See the [Controlled Revisions guide](docs/controlled-revisions.md) for the
 supported findings, artifact layout, chaining rules, verification states, and

@@ -1,4 +1,4 @@
-"""Canonical JSON and v0.5 workbench identity preimages."""
+"""Canonical JSON and local Workbench identity preimages."""
 
 from __future__ import annotations
 
@@ -107,7 +107,6 @@ def session_id(
 ) -> str:
     return canonical_sha256(
         {
-            "schema_version": "tcw.workbench-projection/v0.5",
             "top_level_record_keys": _sorted_unique(
                 top_level_record_keys, "top-level record keys"
             ),

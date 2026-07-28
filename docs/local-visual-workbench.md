@@ -31,8 +31,8 @@ Start the workbench without opening a browser automatically:
 uv run --frozen tcw workbench OBSERVATION_DIRECTORY --no-open
 ```
 
-The startup JSON gives the exact browser URL, API URL, session identifier, and
-record counts. The default URL is `http://127.0.0.1:8765/`.
+The command prints only the serving address. The default address is
+`http://127.0.0.1:8765/`.
 
 Open the printed URL in a local browser. Press `Ctrl-C` in the terminal to stop
 the server.
@@ -52,7 +52,8 @@ uv run --frozen tcw workbench OBSERVATION_DIRECTORY \
 Each root must contain one supported v0.5 root manifest. The command accepts
 observation, diagnosis, refinement, and corpus records. It verifies intrinsic
 integrity, supported provenance, relationships, containment, file type,
-recorded size, and recorded hashes before startup.
+recorded size, and recorded hashes before startup. It then keeps the admitted
+manifest and listed-artifact bytes in memory.
 
 The workbench does not scan parent directories. It does not follow source
 paths or accept URLs. Corpus records can add their verified contained
@@ -92,20 +93,19 @@ The browser uses these read-only routes:
 GET or HEAD /
 GET or HEAD /assets/workbench.css
 GET or HEAD /assets/workbench.js
-GET or HEAD /api/v0.5/workbench
-GET or HEAD /api/v0.5/records/{record_key}
-GET or HEAD /api/v0.5/artifacts/{artifact_key}
+GET or HEAD /api/workbench
+GET or HEAD /api/records/{record_key}
+GET or HEAD /api/artifacts/{artifact_key}
 ```
 
-The JSON routes use closed v0.5 schemas. Structured responses are bounded.
-Artifact responses are authorized from admitted descriptors and rechecked
-before each response. The API exposes record evidence, not backing filesystem
-paths.
+The JSON routes are an internal interface for the bundled UI. They do not make
+a cross-version compatibility promise. Artifact responses come from bytes
+captured during admission. Restart the workbench to admit changed records.
+Opaque artifact keys never expose backing filesystem paths.
 
-The server rejects unsupported methods, routes, `Host` values, and non-local
-`Origin` values. It rejects traversal, symbolic links, changed files, and
-unknown artifact keys. Responses use a restrictive Content Security Policy and
-other browser security headers.
+The server returns `404` for unknown routes or keys and `405` for methods other
+than `GET` and `HEAD`. The bundled UI uses text-only DOM construction and makes
+no remote requests.
 
 The service is loopback-only, but other local processes can reach a loopback
 port. Do not treat the workbench as an access-control or authentication
@@ -119,10 +119,10 @@ or corpus workflows. Use the existing CLI commands for those operations.
 Diagnosis still does not authorize mutation. An approved refinement remains
 the only supported path to a prepared successor revision.
 
-Local hashes detect changes under the trusted-local model. They do not prove
-authorship or authenticity. The interface does not show source or prepared
-document passages unless you explicitly retrieve an admitted plain-text
-artifact.
+Local hashes detect changes during admission under the trusted-local model.
+They do not prove authorship or authenticity. The interface does not show
+source or prepared document passages unless you explicitly retrieve an
+admitted plain-text artifact.
 
 See the [README](../README.md) for the complete CLI path and the
 [v0.5 lesson](../learning/v0.5-local-visual-workbench.md) for a short guided

@@ -1,4 +1,4 @@
-"""Deterministic v0.5 workbench projection and record-detail serialization."""
+"""Compose the bundled Workbench's small internal read model."""
 
 from __future__ import annotations
 
@@ -14,8 +14,6 @@ from typing import Any, Iterator, Sequence
 from tiny_corpus_workbench.canonical_json import canonical_json, edge_key, session_id
 from tiny_corpus_workbench.diagnosis_rules import RULESET, RULESET_PARAMETER_HASH
 from tiny_corpus_workbench.domain import IntegrityError
-from tiny_corpus_workbench.schema_catalog import validate_document
-from tiny_corpus_workbench.supported_provenance import active_build_provenance
 from tiny_corpus_workbench.application.diagnosis import verify_diagnosis
 from tiny_corpus_workbench.application.refinement import verify_refinement
 from tiny_corpus_workbench.workbench_records import (
@@ -37,6 +35,7 @@ SCHEMAS = {
 class WorkbenchProjection:
     projection: dict[str, Any]
     details: dict[str, dict[str, Any]]
+    artifact_contents: dict[str, bytes]
 
     def projection_bytes(self) -> bytes:
         return canonical_json(self.projection)
@@ -416,20 +415,68 @@ def _record_edges(records: AdmittedRecords, record: AdmittedRecord) -> list[dict
     return sorted(result, key=lambda value: value["edge_key"])
 
 
-def _node(record: AdmittedRecord) -> dict[str, Any]:
-    manifest_descriptor, artifacts = record.descriptors()
+PRIMARY_IDENTITIES = {
+    "OBSERVATION": "observation_id",
+    "DIAGNOSIS": "diagnosis_id",
+    "REFINEMENT": "draft_id",
+    "CORPUS": "corpus_id",
+}
+
+COMPARISON_METRICS = (
+    "bytes",
+    "characters",
+    "non_whitespace_characters",
+    "lines",
+    "non_empty_lines",
+    "atx_headings",
+    "unordered_list_items",
+    "ordered_list_items",
+    "pipe_table_rows",
+    "visible_urls",
+)
+
+
+def _primary_identity(record: AdmittedRecord) -> dict[str, str]:
+    name = PRIMARY_IDENTITIES[record.kind]
+    return {"name": name, "value": record.identity[name]}
+
+
+def _artifact_descriptor(descriptor: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "artifact_key": descriptor["artifact_key"],
+        "role": descriptor["role"],
+        "media_type": descriptor["recorded_media_type"],
+        "size": descriptor["size"],
+        "sha256": descriptor["sha256"],
+        "availability": descriptor["availability"],
+    }
+
+
+def _artifact_bundle(
+    record: AdmittedRecord,
+) -> tuple[list[dict[str, Any]], dict[str, bytes]]:
+    root, listed = record.descriptors()
+    original = [root, *listed]
+    descriptors = sorted(
+        (_artifact_descriptor(item) for item in original),
+        key=lambda item: item["artifact_key"],
+    )
+    contents = {
+        item["artifact_key"]: _frozen_file_bytes(record, item)
+        for item in original
+    }
+    return descriptors, contents
+
+
+def _node(record: AdmittedRecord, artifact_count: int) -> dict[str, Any]:
     return {
         "record_key": record.record_key,
         "kind": record.kind,
-        "record_schema_version": record.schema_version,
-        "run_id": record.run_id,
-        "identity": copy.deepcopy(record.identity),
-        "admission_origin": "TOP_LEVEL" if record.top_level else "CORPUS_CONTAINED",
-        "contained_by": sorted(record.contained_by),
         "status": record.status,
-        "artifact_integrity": "VERIFIED",
-        "manifest": manifest_descriptor,
-        "artifact_count": 1 + len(artifacts),
+        "run_id": record.run_id,
+        "primary_identity": _primary_identity(record),
+        "origin": "TOP_LEVEL" if record.top_level else "CORPUS_CONTAINED",
+        "artifact_count": artifact_count,
     }
 
 
@@ -444,35 +491,58 @@ def _artifact_json(record: AdmittedRecord, role: str) -> dict[str, Any]:
     return value
 
 
+def _compact_source(
+    source: dict[str, Any], *, logical_key: str | None = None
+) -> dict[str, Any]:
+    return {
+        "key": source.get("key", logical_key),
+        "name": source.get("name"),
+        "media_type": source["media_type"],
+        "size": source["size"],
+        "sha256": source["sha256"],
+    }
+
+
+def _metric_view(value: dict[str, Any] | None) -> dict[str, int] | None:
+    if value is None:
+        return None
+    metrics = value.get("metrics", value)
+    return {name: metrics[name] for name in COMPARISON_METRICS}
+
+
+def _metric_deltas(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    return {
+        **{name: value[name] for name in COMPARISON_METRICS},
+        "normalized_equal": value["normalized_equal"],
+    }
+
+
 def _observation_detail(record: AdmittedRecord) -> dict[str, Any]:
     manifest = record.manifest
-    descriptors = {item["role"]: item for item in record.descriptors()[1]}
     comparison = _artifact_json(record, "comparison-summary")
-    extractors = []
-    for extractor in manifest["extractors"]:
-        keys = sorted(
-            descriptors[item["role"]]["artifact_key"]
-            for item in extractor["artifacts"]
-        )
-        extractors.append(
+    return {
+        "source": _compact_source(manifest["source"]),
+        "docling_document": {
+            "name": manifest["docling_document_schema"]["name"],
+            "version": manifest["docling_document_schema"]["version"],
+        },
+        "extractors": [
             {
                 "name": extractor["name"],
                 "version": extractor["version"],
                 "status": extractor["status"],
                 "upstream_status": extractor["upstream_status"],
-                "artifact_keys": keys,
                 "error": copy.deepcopy(extractor["error"]),
             }
-        )
-    return {
-        "source": copy.deepcopy(manifest["source"]),
-        "docling_document_schema": copy.deepcopy(manifest["docling_document_schema"]),
-        "extractors": extractors,
+            for extractor in manifest["extractors"]
+        ],
         "comparison": {
             "status": comparison["status"],
-            "normalization_algorithm": comparison["normalization_algorithm"],
-            "views": copy.deepcopy(comparison["views"]),
-            "docling_minus_markitdown": copy.deepcopy(comparison["deltas"]),
+            "docling": _metric_view(comparison["views"]["docling"]),
+            "markitdown": _metric_view(comparison["views"]["markitdown"]),
+            "docling_minus_markitdown": _metric_deltas(comparison["deltas"]),
         },
     }
 
@@ -484,13 +554,28 @@ def _diagnosis_detail(
     findings = _artifact_json(record, "diagnostic-findings")
     state = edges[0]["state"]
     return {
-        "source": copy.deepcopy(manifest["source"]),
-        "subject": copy.deepcopy(edges[0]["expected_target"]),
+        "source": _compact_source(manifest["source"]),
         "subject_state": "MATCH" if state == "MATCH" else "NOT_CHECKED",
         "derivation_state": "MATCH" if state == "MATCH" else "NOT_CHECKED",
-        "ruleset": copy.deepcopy(manifest["ruleset"]),
-        "summary": copy.deepcopy(manifest["summary"]),
-        "findings": sorted(copy.deepcopy(findings["findings"]), key=lambda value: value["finding_id"]),
+        "finding_total": manifest["summary"]["total"],
+        "findings": sorted(
+            (
+                {
+                    key: copy.deepcopy(finding[key])
+                    for key in (
+                        "finding_id",
+                        "rule_id",
+                        "rule_version",
+                        "summary",
+                        "severity",
+                        "document_refs",
+                        "evidence",
+                    )
+                }
+                for finding in findings["findings"]
+            ),
+            key=lambda value: value["finding_id"],
+        ),
     }
 
 
@@ -538,18 +623,8 @@ def _refinement_detail(
         ]
     state = "MATCH" if both else "NOT_CHECKED"
     return {
-        "source": copy.deepcopy(manifest["source"]),
-        "diagnosis_target": copy.deepcopy(by_relation["REFINEMENT_DIAGNOSIS"]["expected_target"]),
-        "base_target": copy.deepcopy(by_relation["REFINEMENT_BASE"]["expected_target"]),
-        "parent_target": (
-            copy.deepcopy(by_relation["REFINEMENT_PARENT"]["expected_target"])
-            if "REFINEMENT_PARENT" in by_relation
-            else None
-        ),
-        "decision": {
-            "draft_id": manifest["draft_id"],
-            **copy.deepcopy(decision_file["decision"]),
-        },
+        "source": _compact_source(manifest["source"]),
+        "decision": copy.deepcopy(decision_file["decision"]),
         "diagnosis_state": (
             "MATCH" if by_relation["REFINEMENT_DIAGNOSIS"]["state"] == "MATCH" else "NOT_CHECKED"
         ),
@@ -581,7 +656,9 @@ def _corpus_detail(
                 "family": member["family"],
                 "format": member["format"],
                 "status": member["status"],
-                "source": copy.deepcopy(member["source"]),
+                "source": _compact_source(
+                    member["source"], logical_key=member["member_id"]
+                ),
                 "observation_record_key": (
                     containment.get(("CORPUS_CONTAINS_OBSERVATION", member["observation"]["run_id"]))
                     if member["observation"]["manifest"] is not None
@@ -601,9 +678,6 @@ def _corpus_detail(
         if edge["relation"] == "CORPUS_EXTERNAL_REFINEMENT"
     }
     external = []
-    summary_revisions = {
-        item["revision_id"]: item for item in summary["revisions"]
-    }
     for revision in sorted(
         manifest["revisions"],
         key=lambda value: (value["member_id"], value["chain_length"], value["revision_id"]),
@@ -612,26 +686,16 @@ def _corpus_detail(
         external.append(
             {
                 "member_id": revision["member_id"],
-                "revision": copy.deepcopy(summary_revisions[revision["revision_id"]]),
-                "refinement_run_id": revision["refinement_run_id"],
-                "refinement_manifest_sha256": revision["refinement_manifest_sha256"],
-                "prepared_document_sha256": revision["prepared_document_sha256"],
+                "revision_id": revision["revision_id"],
                 "relationship_state": edge["state"],
-                "record_key": edge["target_record_key"],
+                "target_record_key": edge["target_record_key"],
             }
         )
     return {
         "corpus_id": manifest["corpus_id"],
         "snapshot_id": manifest["snapshot_id"],
-        "summary": {"status": summary["status"], "totals": copy.deepcopy(summary["totals"])},
-        "contained_record_keys": sorted(
-            {
-                value
-                for row in matrix
-                for value in (row["observation_record_key"], row["diagnosis_record_key"])
-                if value is not None
-            }
-        ),
+        "status": summary["status"],
+        "totals": copy.deepcopy(summary["totals"]),
         "matrix": matrix,
         "aggregates": {
             "by_family": sorted(
@@ -680,10 +744,28 @@ def _corpus_detail(
     }
 
 
+def _compact_relationship(edge: dict[str, Any]) -> dict[str, Any]:
+    target = edge["expected_target"]
+    result = {
+        "relation": edge["relation"],
+        "state": edge["state"],
+        "target_kind": target["kind"],
+        "target_identity": {
+            "name": target["identity_type"],
+            "value": target["identity_value"],
+        },
+    }
+    if edge["target_record_key"] is not None:
+        result["target_record_key"] = edge["target_record_key"]
+    return result
+
+
 def _detail(
-    records: AdmittedRecords, record: AdmittedRecord, edges: list[dict[str, Any]]
+    records: AdmittedRecords,
+    record: AdmittedRecord,
+    edges: list[dict[str, Any]],
+    artifacts: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    manifest_descriptor, artifacts = record.descriptors()
     if record.kind == "OBSERVATION":
         kind_detail = _observation_detail(record)
     elif record.kind == "DIAGNOSIS":
@@ -693,25 +775,18 @@ def _detail(
     else:
         kind_detail = _corpus_detail(records, record, edges)
     return {
-        "schema_version": "tcw.workbench-record-detail/v0.5",
         "record_key": record.record_key,
         "kind": record.kind,
         "artifact_integrity": "VERIFIED",
-        "manifest": manifest_descriptor,
         "artifacts": artifacts,
-        "relationships": edges,
-        "detail": kind_detail,
+        "relationships": [_compact_relationship(edge) for edge in edges],
+        "view": kind_detail,
     }
 
 
 def build_projection(records: AdmittedRecords) -> WorkbenchProjection:
-    """Build and validate one frozen, non-persisted workbench representation."""
+    """Build one frozen, internal Workbench representation."""
 
-    runtime = active_build_provenance(command_id="tcw.workbench")
-    runtime_display = {
-        "package_version": runtime["package_version"],
-        "provenance_id": runtime["provenance_id"],
-    }
     edge_map = {
         key: _record_edges(records, record)
         for key, record in records.records.items()
@@ -728,30 +803,50 @@ def build_projection(records: AdmittedRecords) -> WorkbenchProjection:
         edge_keys=[edge["edge_key"] for edge in edges],
     )
     projection = {
-        "schema_version": "tcw.workbench-projection/v0.5",
-        "projection_role": "DERIVED_READ_ONLY",
         "session_id": sid,
-        "runtime": runtime_display,
         "counts": {
             "record_count": len(records.records),
             "top_level_record_count": len(top),
             "contained_record_count": len(contained),
         },
-        "records": sorted(
-            (_node(record) for record in records.records.values()),
-            key=lambda value: value["record_key"],
-        ),
-        "edges": edges,
     }
+    artifact_descriptors: dict[str, list[dict[str, Any]]] = {}
+    artifact_contents: dict[str, bytes] = {}
+    for key, record in records.records.items():
+        descriptors, contents = _artifact_bundle(record)
+        artifact_descriptors[key] = descriptors
+        for artifact_key, content in contents.items():
+            if (
+                artifact_key in artifact_contents
+                and artifact_contents[artifact_key] != content
+            ):
+                raise IntegrityError("artifact key resolves to conflicting bytes")
+            artifact_contents[artifact_key] = content
+    projection["records"] = sorted(
+        (
+            _node(record, len(artifact_descriptors[key]))
+            for key, record in records.records.items()
+        ),
+        key=lambda value: value["record_key"],
+    )
     details = {
-        key: _detail(records, record, edge_map[key])
+        key: _detail(
+            records,
+            record,
+            edge_map[key],
+            artifact_descriptors[key],
+        )
         for key, record in records.records.items()
     }
-    validate_document("tcw.workbench-projection/v0.5", projection)
-    for detail in details.values():
-        validate_document("tcw.workbench-record-detail/v0.5", detail)
     if len(canonical_json(projection)) > MAX_STRUCTURED_RESPONSE:
         raise IntegrityError("workbench projection exceeds the structured response limit")
     if any(len(canonical_json(detail)) > MAX_STRUCTURED_RESPONSE for detail in details.values()):
         raise IntegrityError("workbench record detail exceeds the structured response limit")
-    return WorkbenchProjection(projection, details)
+    advertised = {
+        artifact["artifact_key"]
+        for detail in details.values()
+        for artifact in detail["artifacts"]
+    }
+    if advertised != set(artifact_contents):
+        raise IntegrityError("advertised artifact keys differ from captured bytes")
+    return WorkbenchProjection(projection, details, artifact_contents)

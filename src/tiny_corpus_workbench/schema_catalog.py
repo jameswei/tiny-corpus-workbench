@@ -38,10 +38,6 @@ SCHEMA_FILES: Final[Mapping[str, str]] = MappingProxyType(
         "corpus-summary": "corpus-summary.schema.json",
         "corpus-verification-result": "corpus-verification-result.schema.json",
         "tcw.supported-provenance-registry/v0.5": "supported-provenance-registry-v0.5.schema.json",
-        "tcw.workbench-startup/v0.5": "workbench-startup-v0.5.schema.json",
-        "tcw.workbench-projection/v0.5": "workbench-projection-v0.5.schema.json",
-        "tcw.workbench-record-detail/v0.5": "workbench-record-detail-v0.5.schema.json",
-        "tcw.workbench-error/v0.5": "workbench-error-v0.5.schema.json",
     }
 )
 

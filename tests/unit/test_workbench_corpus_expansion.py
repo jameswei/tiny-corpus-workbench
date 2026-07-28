@@ -35,33 +35,15 @@ class WorkbenchCorpusExpansionTests(unittest.TestCase):
         cls.published.close()
         cls.failed.close()
 
-    def test_null_stage_contract_is_covered_by_canonical_example(self) -> None:
-        # The committed missing-edge example is the bounded no-inference branch.
-        fixture = (
-            Path(__file__).resolve().parents[1]
-            / "fixtures/workbench-api/projection-missing-edge.json"
-        )
-        self.assertIn(b'"state":"MISSING"', fixture.read_bytes())
-
-    def test_contained_dedup_example_has_exact_count_equation(self) -> None:
-        import json
-
-        fixture = (
-            Path(__file__).resolve().parents[1]
-            / "fixtures/workbench-api/projection-contained-dedup.json"
-        )
-        value = json.loads(fixture.read_text("utf-8"))
+    def test_contained_projection_has_exact_count_equation(self) -> None:
+        value = build_projection(admit_records([self.published.root])).projection
         counts = value["counts"]
         self.assertEqual(
             counts["record_count"],
             counts["top_level_record_count"] + counts["contained_record_count"],
         )
         self.assertTrue(
-            any(
-                edge["relation"].startswith("CORPUS_CONTAINS_")
-                and edge["state"] == "MATCH"
-                for edge in value["edges"]
-            )
+            any(record["origin"] == "CORPUS_CONTAINED" for record in value["records"])
         )
 
     def test_verified_descriptors_expand_bounded_member_records(self) -> None:
@@ -75,9 +57,12 @@ class WorkbenchCorpusExpansionTests(unittest.TestCase):
                 "contained_record_count": 10,
             },
         )
+        corpus_detail = next(
+            detail for detail in built.details.values() if detail["kind"] == "CORPUS"
+        )
         containment = [
             edge
-            for edge in built.projection["edges"]
+            for edge in corpus_detail["relationships"]
             if edge["relation"].startswith("CORPUS_CONTAINS_")
         ]
         self.assertEqual(len(containment), 10)
