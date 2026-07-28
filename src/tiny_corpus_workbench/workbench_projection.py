@@ -24,10 +24,10 @@ from tiny_corpus_workbench.workbench_records import (
 
 
 SCHEMAS = {
-    "OBSERVATION": "tcw.preparation-manifest/v0.5",
-    "DIAGNOSIS": "tcw.diagnosis-manifest/v0.5",
-    "REFINEMENT": "tcw.refinement-manifest/v0.5",
-    "CORPUS": "tcw.corpus-manifest/v0.5",
+    "OBSERVATION": "observation-manifest",
+    "DIAGNOSIS": "diagnosis-manifest",
+    "REFINEMENT": "refinement-manifest",
+    "CORPUS": "corpus-manifest",
 }
 
 
@@ -183,7 +183,6 @@ def _candidate(records: AdmittedRecords, target: dict[str, Any]) -> AdmittedReco
         record
         for record in records.records.values()
         if record.kind == target["kind"]
-        and record.schema_version == target["record_schema_version"]
         and record.run_id == target["run_id"]
         and record.identity.get(target["identity_type"]) == target["identity_value"]
     ]

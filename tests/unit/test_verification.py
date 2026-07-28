@@ -117,7 +117,7 @@ class VerificationTests(unittest.TestCase):
                     )
                     validator("observation-verification-result").validate(report)
 
-    def test_records_and_results_are_provenance_free(self) -> None:
+    def test_records_and_results_keep_only_domain_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, published = self.observation(Path(directory))
             manifest = json.loads(
@@ -133,7 +133,6 @@ class VerificationTests(unittest.TestCase):
                 },
                 {"record_type": "observation", "format_version": 1},
             )
-            self.assertNotIn("build_provenance", manifest)
             self.assertNotIn("schema_version", manifest)
             self.assertNotIn("schema_version", comparison)
             self.assertEqual(
@@ -145,23 +144,48 @@ class VerificationTests(unittest.TestCase):
             )
             code, report, _, _ = self.verify(published)
             self.assertEqual(code, 0)
-            self.assertNotIn("build_provenance", report)
             self.assertNotIn("schema_version", report)
 
-    def test_missing_or_unknown_header_exits_two_with_guidance(self) -> None:
+    def test_invalid_record_headers_exit_two_with_regeneration_guidance(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, baseline = self.observation(Path(directory) / "baseline")
-            for operation in ("missing", "unknown"):
-                with self.subTest(operation=operation):
-                    copied = Path(directory) / operation / baseline.name
+            cases = (
+                ("missing-record-type", lambda value: value.pop("record_type")),
+                (
+                    "missing-format-version",
+                    lambda value: value.pop("format_version"),
+                ),
+                (
+                    "boolean-format-version",
+                    lambda value: value.update(format_version=True),
+                ),
+                (
+                    "zero-format-version",
+                    lambda value: value.update(format_version=0),
+                ),
+                (
+                    "negative-format-version",
+                    lambda value: value.update(format_version=-1),
+                ),
+                (
+                    "unknown-format-version",
+                    lambda value: value.update(format_version=2),
+                ),
+                (
+                    "wrong-record-type",
+                    lambda value: value.update(record_type="diagnosis"),
+                ),
+            )
+            for name, mutate in cases:
+                with self.subTest(name=name):
+                    copied = Path(directory) / name / baseline.name
                     copied.parent.mkdir()
                     shutil.copytree(baseline, copied)
                     manifest_path = copied / "manifest.json"
                     manifest = json.loads(manifest_path.read_text("utf-8"))
-                    if operation == "missing":
-                        del manifest["record_type"]
-                    else:
-                        manifest["format_version"] = 99
+                    mutate(manifest)
                     manifest_path.write_bytes(canonical_json(manifest))
                     code, stdout, stderr = self.invoke("verify", str(copied))
                     self.assertEqual(code, 2)
@@ -179,7 +203,6 @@ class VerificationTests(unittest.TestCase):
             self.assertEqual(
                 report["artifact_integrity"]["status"], "INTEGRITY_MISMATCH"
             )
-            self.assertNotIn("build_provenance", report)
             self.assertIn(
                 "HASH_MISMATCH",
                 {
@@ -249,16 +272,9 @@ class VerificationTests(unittest.TestCase):
                     "[project]\nname='other'\nversion='9.9.9'\n", "utf-8"
                 )
                 os.chdir(sandbox)
-                with mock.patch(
-                    "tiny_corpus_workbench.supported_provenance.active_build_provenance",
-                    side_effect=AssertionError("provenance must not be read"),
-                ), mock.patch(
-                    "tiny_corpus_workbench.runtime.platform.python_version",
-                    return_value="3.12.99",
-                ):
-                    second_code, second = self.observation(
-                        root / "second", source=absolute_source
-                    )
+                second_code, second = self.observation(
+                    root / "second", source=absolute_source
+                )
             finally:
                 os.chdir(original_cwd)
             self.assertEqual((first_code, second_code), (0, 0))

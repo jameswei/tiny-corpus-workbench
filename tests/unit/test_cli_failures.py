@@ -76,11 +76,8 @@ class CliFailureTests(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertIn("unsupported media type", stderr)
 
-    def test_observe_does_not_read_the_provenance_registry(self) -> None:
+    def test_observe_uses_only_extractor_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as directory, mock.patch(
-            "tiny_corpus_workbench.supported_provenance.active_build_provenance",
-            side_effect=AssertionError("registry must not be read"),
-        ), mock.patch(
             "tiny_corpus_workbench.extractors.docling.convert",
             wraps=fake_docling,
         ), mock.patch(

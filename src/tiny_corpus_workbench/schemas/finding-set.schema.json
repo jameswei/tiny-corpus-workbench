@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/tcw/finding-set-v0.5.schema.json",
+  "$id": "https://example.invalid/tcw/finding-set.schema.json",
   "type": "object",
   "additionalProperties": false,
   "required": [

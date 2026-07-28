@@ -27,7 +27,6 @@ from tiny_corpus_workbench.domain import (
     sanitize_message,
 )
 from tiny_corpus_workbench.source import sha256_file
-from tiny_corpus_workbench.schema_catalog import validator as catalog_validator
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
@@ -84,13 +83,6 @@ def _schema(name: str) -> dict[str, Any]:
 
 
 def _validator(schema: dict[str, Any]) -> Draft202012Validator:
-    schema_version = (
-        schema.get("properties", {}).get("schema_version", {}).get("const")
-    )
-    if isinstance(schema_version, str) and schema_version.endswith("/v0.5"):
-        return catalog_validator(schema_version).evolve(
-            format_checker=FORMAT_CHECKER
-        )
     return Draft202012Validator(schema, format_checker=FORMAT_CHECKER)
 
 

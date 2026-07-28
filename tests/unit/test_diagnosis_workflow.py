@@ -3,7 +3,6 @@ from __future__ import annotations
 import io
 import copy
 import hashlib
-import importlib
 import json
 import os
 import shutil
@@ -36,113 +35,6 @@ from tiny_corpus_workbench.v03 import (
 from tiny_corpus_workbench.v03 import snapshot_tree
 from tiny_corpus_workbench.verification import verify_observation
 SOURCE = Path("fixtures/golden/policy-memo.md")
-OLD_DIAGNOSIS_SCHEMA = "tcw.diagnosis-manifest/v0.3"
-
-
-# Frozen reviewed inventory for the v0.5 diagnosis migration.
-BASE_REGRESSION_INVENTORY = {
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_v03_diagnosis_is_deterministic_and_read_only"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_observe_diagnose_verify_is_current_deterministic_and_read_only"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_partial_observation_is_supported"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_partial_success_observation_with_canonical_docling_is_diagnosable"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_existing_v02_diagnosis_remains_verifiable"): ("obsolete", "v0.5 deliberately rejects old diagnosis schemas with exit 2"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_missing_or_inconsistent_canonical_document_never_publishes"): ("restored", "test_missing_canonical_artifact_is_exit_four_without_publication"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_changed_input_and_schema_failure_never_publish"): ("restored", "test_input_and_staged_mutation_never_publish"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_output_overlap_conflict_and_symlink_are_rejected"): ("restored", "test_unsafe_source_and_symlinked_publication_parent_are_rejected"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_verifier_detects_inventory_hash_json_and_symlink_corruption"): ("restored", "test_verifier_detects_inventory_hash_json_and_node_tamper"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_verifier_rejects_manifest_encoding_and_descriptor_mapping_tampering"): ("restored", "test_verifier_detects_inventory_hash_json_and_node_tamper"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_verifier_rejects_self_consistent_v03_finding_metadata_tampering"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_self_consistent_finding_metadata_tamper_is_rejected"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_optional_subject_states_are_advisory"): ("restored", "test_subject_advisories_and_complete_source_identity"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_diagnosis_identity_and_complete_subject_descriptor_are_verified"): ("restored", "test_subject_advisories_and_complete_source_identity"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_runtime_drift_is_exit_six_without_publication"): ("restored", "test_cli_failures_have_exact_exit_and_stream_contracts"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_v03_diagnosis_runtime_provenance_is_verified"): ("restored", "test_build_provenance_is_not_accepted_in_current_manifest"),
-    ("tests/unit/test_v03_diagnosis_workflow.py", "test_cli_errors_are_sanitized_and_use_exact_streams"): ("restored", "test_cli_failures_have_exact_exit_and_stream_contracts"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_observe_diagnose_verify_is_deterministic_and_read_only"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_observe_diagnose_verify_is_current_deterministic_and_read_only"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_partial_success_is_accepted_and_corruption_is_detected"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_partial_success_observation_corruption_is_rejected_and_advisory"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_unresolved_duplicate_caption_declarations_publish_one_valid_finding"): ("moved", "tests.unit.test_diagnosis_rules.DiagnosisRuleTests.test_duplicate_invalid_caption_declarations_emit_one_finding"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_canonical_collection_paths_are_required_before_publication"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_canonical_collection_paths_are_required_before_publication"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_rerun_cannot_match_legacy_mismatched_self_refs"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_rerun_cannot_match_legacy_mismatched_self_refs"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_output_overlap_is_rejected_without_observation_mutation"): ("restored", "test_diagnosis_output_cannot_be_inside_subject"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_unsafe_observation_source_key_cannot_escape_output_root"): ("restored", "test_unsafe_source_and_symlinked_publication_parent_are_rejected"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_symlinked_publication_parent_cannot_escape_output_root"): ("restored", "test_unsafe_source_and_symlinked_publication_parent_are_rejected"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_output_path_file_conflicts_are_invalid_input"): ("restored", "test_unsafe_source_and_symlinked_publication_parent_are_rejected"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_atomic_diagnosis_conflict_never_replaces_existing_run"): ("restored", "test_publication_collision_and_concurrent_race_are_atomic"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_concurrent_atomic_diagnosis_publication_has_one_winner"): ("restored", "test_publication_collision_and_concurrent_race_are_atomic"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_diagnosis_failures_are_sanitized_with_exact_exit_streams"): ("restored", "test_cli_failures_have_exact_exit_and_stream_contracts"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_usage_failures_have_no_stdout_and_publish_nothing"): ("restored", "test_cli_failures_have_exact_exit_and_stream_contracts"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_missing_canonical_artifact_is_exit_four_without_publication"): ("restored", "test_missing_canonical_artifact_is_exit_four_without_publication"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_observation_change_or_staged_failure_never_publishes"): ("restored", "test_input_and_staged_mutation_never_publish"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_staged_semantics_reject_duplicate_finding_identities"): ("restored", "tests.unit.test_diagnosis_workflow.DiagnosisWorkflowTests.test_staged_semantics_reject_duplicate_finding_identities"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_staged_byte_corruption_is_rejected_before_publication"): ("restored", "test_input_and_staged_mutation_never_publish"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_staged_directories_and_special_nodes_never_publish"): ("restored", "test_input_and_staged_mutation_never_publish"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_post_publication_manifest_loss_is_sanitized_integrity_exit"): ("restored", "test_verifier_detects_inventory_hash_json_and_node_tamper"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_post_publication_summary_requires_complete_integrity"): ("restored", "test_verifier_detects_inventory_hash_json_and_node_tamper"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_post_verification_publication_races_never_emit_summary"): ("restored", "test_publication_collision_and_concurrent_race_are_atomic"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_verifier_detects_inventory_and_content_failure_shapes"): ("restored", "test_verifier_detects_inventory_hash_json_and_node_tamper"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_optional_observation_states_are_advisory"): ("restored", "test_subject_advisories_and_complete_source_identity"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_supplied_observation_cross_checks_all_source_identity_fields"): ("restored", "test_subject_advisories_and_complete_source_identity"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_active_distribution_drift_is_runtime_exit"): ("restored", "test_cli_failures_have_exact_exit_and_stream_contracts"),
-    ("tests/unit/test_diagnosis_workflow.py", "test_verifier_rejects_generic_evidence_for_every_rule"): ("moved", "tests.unit.test_diagnosis_rules.DiagnosisRuleTests.test_generic_evidence_is_rejected_for_every_base_rule"),
-}
-BASE_REGRESSION_INVENTORY_SHA256 = (
-    "7c06cda8e97450106036b363baa1f9a152c3011e2728c6f1e2f992d6eefd377a"
-)
-REVIEWED_TARGET_EQUIVALENCE = {
-    (
-        "tests/unit/test_v03_diagnosis_workflow.py",
-        "test_partial_observation_is_supported",
-    ): (
-        "The restored workflow constructs PARTIAL_SUCCESS with a canonical "
-        "Docling document and requires diagnosis plus exact verification."
-    ),
-    (
-        "tests/unit/test_v03_diagnosis_workflow.py",
-        "test_verifier_rejects_self_consistent_v03_finding_metadata_tampering",
-    ): (
-        "The restored verifier test rewrites schema-valid finding metadata, "
-        "report bytes, and descriptors and still requires BROKEN integrity."
-    ),
-    (
-        "tests/unit/test_diagnosis_workflow.py",
-        "test_partial_success_is_accepted_and_corruption_is_detected",
-    ): (
-        "The restored workflow diagnoses a PARTIAL_SUCCESS observation, then "
-        "requires corrupted subject rejection and advisory non-replay."
-    ),
-    (
-        "tests/unit/test_diagnosis_workflow.py",
-        "test_unresolved_duplicate_caption_declarations_publish_one_valid_finding",
-    ): (
-        "The rule test supplies the same duplicate unresolved caption reference "
-        "and requires exactly one TCW-D006 finding."
-    ),
-    (
-        "tests/unit/test_diagnosis_workflow.py",
-        "test_verifier_rejects_generic_evidence_for_every_rule",
-    ): (
-        "The rule test supplies the same generic evidence shape to every base "
-        "diagnosis rule and requires contract rejection."
-    ),
-    (
-        "tests/unit/test_diagnosis_workflow.py",
-        "test_canonical_collection_paths_are_required_before_publication",
-    ): (
-        "The restored workflow covers text, table, picture, group, and body "
-        "reference path mismatches and requires no diagnosis publication."
-    ),
-    (
-        "tests/unit/test_diagnosis_workflow.py",
-        "test_rerun_cannot_match_legacy_mismatched_self_refs",
-    ): (
-        "The restored workflow applies the legacy index traversal and proves "
-        "v0.5 rejects the mismatched self reference before publication."
-    ),
-    (
-        "tests/unit/test_diagnosis_workflow.py",
-        "test_staged_semantics_reject_duplicate_finding_identities",
-    ): (
-        "The restored workflow injects a duplicate finding identity and "
-        "requires integrity exit 5 with no publication."
-    ),
-}
 
 
 def docling(source: Path, destination: Path, model_root: Path):
@@ -282,7 +174,6 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 (manifest["record_type"], manifest["format_version"]),
                 ("diagnosis", 1),
             )
-            self.assertNotIn("build_provenance", manifest)
             self.assertNotIn("runtime", manifest)
             self.assertNotIn("milestone", manifest)
             code, stdout, stderr = self.invoke(
@@ -297,7 +188,6 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertEqual(result["subject_state"]["status"], "MATCH")
             self.assertEqual(result["derivation_state"]["status"], "MATCH")
             self.assertNotIn("schema_version", result)
-            self.assertNotIn("build_provenance", result)
 
     def test_partial_success_observation_with_canonical_docling_is_diagnosable(
         self,
@@ -482,18 +372,6 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertIn("self_ref", stderr)
             self.assertFalse(output.exists())
 
-    def test_old_diagnosis_input_exits_two(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "diagnosis-manifest.json").write_text(
-                json.dumps({"schema_version": OLD_DIAGNOSIS_SCHEMA}) + "\n",
-                "utf-8",
-            )
-            code, stdout, stderr = self.invoke("verify-diagnosis", str(root))
-            self.assertEqual(code, 2)
-            self.assertEqual(stdout, "")
-            self.assertIn("regenerate", stderr)
-
     def test_missing_canonical_artifact_is_exit_four_without_publication(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -527,14 +405,14 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertIn("output must not be inside", stderr)
             self.assertEqual(snapshot_tree(observation), before)
 
-    def test_build_provenance_is_not_accepted_in_current_manifest(self) -> None:
+    def test_unexpected_metadata_is_not_accepted_in_current_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation = self.observation(root / "observations")
             diagnosis = self.diagnose(observation, root / "diagnoses")
             manifest_path = diagnosis / "diagnosis-manifest.json"
             manifest = json.loads(manifest_path.read_text("utf-8"))
-            manifest["build_provenance"] = {"package_version": "0.5.0"}
+            manifest["unexpected_metadata"] = {"package_version": "0.5.0"}
             manifest_path.write_text(
                 json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n",
                 "utf-8",
@@ -964,92 +842,6 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(code, 0, stderr)
             self.assertNotEqual(stdout, "")
-
-    def test_base_regression_inventory_is_complete_and_classified(self) -> None:
-        snapshot = [
-            {
-                "classification": classification,
-                "source": source,
-                "target": target,
-                "test": test,
-            }
-            for (source, test), (
-                classification,
-                target,
-            ) in sorted(BASE_REGRESSION_INVENTORY.items())
-        ]
-        self.assertEqual(
-            hashlib.sha256(canonical_json(snapshot)).hexdigest(),
-            BASE_REGRESSION_INVENTORY_SHA256,
-        )
-        self.assertEqual(len(BASE_REGRESSION_INVENTORY), 40)
-        source_counts = {
-            source: sum(
-                base_source == source
-                for base_source, _test_name in BASE_REGRESSION_INVENTORY
-            )
-            for source in {
-                "tests/unit/test_v03_diagnosis_workflow.py",
-                "tests/unit/test_diagnosis_workflow.py",
-            }
-        }
-        self.assertEqual(
-            source_counts,
-            {
-                "tests/unit/test_v03_diagnosis_workflow.py": 14,
-                "tests/unit/test_diagnosis_workflow.py": 26,
-            },
-        )
-        classifications = {
-            classification
-            for classification, _target in BASE_REGRESSION_INVENTORY.values()
-        }
-        self.assertEqual(classifications, {"restored", "moved", "obsolete"})
-        counts = {
-            classification: sum(
-                value[0] == classification
-                for value in BASE_REGRESSION_INVENTORY.values()
-            )
-            for classification in classifications
-        }
-        self.assertEqual(counts, {"restored": 37, "moved": 2, "obsolete": 1})
-        moved = {
-            key: target
-            for key, (classification, target) in BASE_REGRESSION_INVENTORY.items()
-            if classification == "moved"
-        }
-        self.assertEqual(
-            set(moved),
-            {
-                key
-                for key in REVIEWED_TARGET_EQUIVALENCE
-                if BASE_REGRESSION_INVENTORY[key][0] == "moved"
-            },
-        )
-        self.assertEqual(len(REVIEWED_TARGET_EQUIVALENCE), 8)
-        for key, equivalence in REVIEWED_TARGET_EQUIVALENCE.items():
-            target = BASE_REGRESSION_INVENTORY[key][1]
-            with self.subTest(base_test=key, current_target=target):
-                module_name, class_name, method_name = target.rsplit(".", 2)
-                module = importlib.import_module(module_name)
-                test_class = getattr(module, class_name)
-                self.assertTrue(callable(getattr(test_class, method_name)))
-                self.assertNotEqual(equivalence.strip(), "")
-        obsolete = {
-            key
-            for key, (classification, _reason) in BASE_REGRESSION_INVENTORY.items()
-            if classification == "obsolete"
-        }
-        self.assertEqual(
-            obsolete,
-            {
-                (
-                    "tests/unit/test_v03_diagnosis_workflow.py",
-                    "test_existing_v02_diagnosis_remains_verifiable",
-                )
-            },
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

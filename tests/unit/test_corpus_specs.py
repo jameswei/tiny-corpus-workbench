@@ -12,7 +12,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from jsonschema import Draft202012Validator, ValidationError
-from referencing import Registry, Resource
 
 from tiny_corpus_workbench.artifacts import canonical_json
 from tiny_corpus_workbench.corpus import load_corpus_spec
@@ -81,16 +80,9 @@ def _assert_objects_closed(test: unittest.TestCase, value: object) -> None:
 
 
 def _validator(name: str) -> Draft202012Validator:
-    schemas = {
-        path.name: json.loads(path.read_text("utf-8"))
-        for path in SCHEMAS.glob("*.schema.json")
-    }
-    registry = Registry()
-    for schema in schemas.values():
-        registry = registry.with_resource(
-            schema["$id"], Resource.from_contents(schema)
-        )
-    return Draft202012Validator(schemas[name], registry=registry)
+    return Draft202012Validator(
+        json.loads((SCHEMAS / name).read_text("utf-8"))
+    )
 
 
 def _valid_manifest() -> dict:

@@ -30,7 +30,6 @@ FINDING_FIELDS = {
 FORBIDDEN = {
     "schema_version",
     "runtime",
-    "build_provenance",
     "projection_role",
     "relative_path",
     "path",

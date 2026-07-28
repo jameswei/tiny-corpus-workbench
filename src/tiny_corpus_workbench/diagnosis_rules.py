@@ -188,6 +188,8 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
     evidence = finding.get("evidence")
     if not isinstance(references, list) or not isinstance(evidence, dict):
         raise IntegrityError("finding violates its rule-specific evidence contract")
+    if references != sorted(set(references)):
+        raise IntegrityError("finding violates its rule-specific evidence contract")
     keys = set(evidence)
 
     def is_hash(value: Any) -> bool:
@@ -418,6 +420,45 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
         )
     if not valid:
         raise IntegrityError("finding violates its rule-specific evidence contract")
+
+
+def validate_finding_set_semantics(document: dict[str, Any]) -> None:
+    """Validate finding ordering, ruleset identity, and summary equations."""
+
+    findings = document["findings"]
+    finding_ids = [finding["finding_id"] for finding in findings]
+    if finding_ids != sorted(finding_ids) or len(finding_ids) != len(
+        set(finding_ids)
+    ):
+        raise ValueError("findings are not ordered and unique by finding_id")
+    for finding in findings:
+        validate_finding_contract(finding)
+    expected_ruleset = {
+        **CURRENT_RULESET,
+        "parameter_sha256": CURRENT_RULESET_PARAMETER_HASH,
+    }
+    if document["ruleset"] != expected_ruleset:
+        raise ValueError(
+            "diagnosis ruleset metadata or parameter hash is inconsistent"
+        )
+    summary = document["summary"]
+    by_rule = Counter(finding["rule_id"] for finding in findings)
+    by_severity = Counter(finding["severity"] for finding in findings)
+    if not (
+        summary["total"]
+        == len(findings)
+        == sum(summary["by_rule"].values())
+        == sum(summary["by_severity"].values())
+    ):
+        raise ValueError("diagnosis summary totals do not match findings")
+    if summary["by_rule"] != {
+        key: by_rule[key] for key in summary["by_rule"]
+    }:
+        raise ValueError("diagnosis by_rule counts do not match findings")
+    if summary["by_severity"] != {
+        key: by_severity[key] for key in summary["by_severity"]
+    }:
+        raise ValueError("diagnosis by_severity counts do not match findings")
 
 
 def _normalize(value: str) -> str:

@@ -30,11 +30,11 @@ from tiny_corpus_workbench import cli
 assert "jsonschema" not in sys.modules
 assert "tiny_corpus_workbench.diagnosis_rules" not in sys.modules
 """
-ACTIVE_RUNTIME_ERROR = (
-    "active runtime does not match this package provenance registry\n"
-)
 OBSERVATION_SCHEMA_ERROR = (
     "bundled observation schema validation is unavailable\n"
+)
+VERIFICATION_SCHEMA_ERROR = (
+    "bundled verification/schema runtime is unavailable or incompatible\n"
 )
 DIAGNOSIS_SCHEMA_ERROR = (
     "bundled diagnosis/schema runtime is unavailable or incompatible\n"
@@ -54,14 +54,6 @@ class BootstrapTests(unittest.TestCase):
             check=False,
         )
 
-    def assert_runtime_bootstrap_failure(
-        self, completed: subprocess.CompletedProcess
-    ) -> None:
-        self.assertEqual(completed.returncode, 6)
-        self.assertEqual(completed.stdout, "")
-        self.assertEqual(completed.stderr, ACTIVE_RUNTIME_ERROR)
-        self.assertNotIn("Traceback", completed.stderr)
-
     def test_fresh_process_without_jsonschema_handles_verify_bootstrap(self) -> None:
         script = BLOCK_JSONSCHEMA + r"""
 from pathlib import Path
@@ -72,7 +64,10 @@ raise SystemExit(cli.main(["verify", str(root)]))
 """
         with tempfile.TemporaryDirectory() as directory:
             completed = self.run_fresh(script, str(Path(directory) / "observation"))
-        self.assert_runtime_bootstrap_failure(completed)
+        self.assertEqual(completed.returncode, 6)
+        self.assertEqual(completed.stdout, "")
+        self.assertEqual(completed.stderr, VERIFICATION_SCHEMA_ERROR)
+        self.assertNotIn("Traceback", completed.stderr)
 
     def test_fresh_process_without_jsonschema_handles_observe_bootstrap(self) -> None:
         script = BLOCK_JSONSCHEMA + r"""

@@ -20,6 +20,40 @@ NUMERIC_METRICS = (
 )
 
 
+def validate_comparison_semantics(comparison: dict[str, Any]) -> None:
+    """Validate status-dependent fields and deterministic anchor ordering."""
+
+    views = comparison["views"]
+    present = sum(views[name] is not None for name in ("docling", "markitdown"))
+    delta_key = (
+        "docling_minus_markitdown"
+        if "docling_minus_markitdown" in comparison
+        else "deltas"
+    )
+    expected = {
+        "COMPLETE": (2, True),
+        "INCOMPLETE": (1, False),
+        "NOT_AVAILABLE": (0, False),
+    }[comparison["status"]]
+    if (present, comparison[delta_key] is not None) != expected:
+        raise ValueError(
+            "comparison status and nullable views/deltas are inconsistent"
+        )
+    for view in views.values():
+        if view is not None and "anchors" in view:
+            names = [item["name"] for item in view["anchors"]]
+            if names != sorted(names) or len(names) != len(set(names)):
+                raise ValueError(
+                    "comparison anchors are not ordered and unique"
+                )
+    if "anchors" in comparison:
+        names = [item["name"] for item in comparison["anchors"]]
+        if names != sorted(names) or len(names) != len(set(names)):
+            raise ValueError(
+                "comparison source anchors are not ordered and unique"
+            )
+
+
 def normalize_markdown(value: bytes | str) -> str:
     text = value.decode("utf-8", errors="strict") if isinstance(value, bytes) else value
     text = unicodedata.normalize("NFC", text.replace("\r\n", "\n").replace("\r", "\n"))

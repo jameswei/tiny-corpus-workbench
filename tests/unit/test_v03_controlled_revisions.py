@@ -42,9 +42,6 @@ from tiny_corpus_workbench.v03 import (
 )
 SOURCE = Path("fixtures/golden/policy-memo.md")
 PDF_SOURCE = Path("fixtures/diagnosis/repeated-margin.pdf")
-OLD_DIAGNOSIS_SCHEMA = "tcw.diagnosis-manifest/v0.3"
-OLD_REFINEMENT_DRAFT_SCHEMA = "tcw.refinement-draft/v0.3"
-OLD_REFINEMENT_SCHEMA = "tcw.refinement-manifest/v0.3"
 
 
 def docling_with_refinements(source: Path, destination: Path, model_root: Path):
@@ -91,62 +88,6 @@ class ControlledRevisionTests(unittest.TestCase):
         with redirect_stdout(stdout), redirect_stderr(stderr):
             code = cli.main(list(arguments))
         return code, stdout.getvalue(), stderr.getvalue()
-
-    def test_old_refinement_inputs_are_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            diagnosis = root / "diagnosis"
-            base = root / "base"
-            diagnosis.mkdir()
-            base.mkdir()
-            (diagnosis / "diagnosis-manifest.json").write_text(
-                json.dumps({"schema_version": OLD_DIAGNOSIS_SCHEMA}) + "\n",
-                "utf-8",
-            )
-            (diagnosis / "findings.json").write_text("{}\n", "utf-8")
-            code, stdout, stderr = self.invoke(
-                "draft-refinement",
-                str(diagnosis),
-                "--finding",
-                "a" * 64,
-                "--base",
-                str(base),
-                "--output",
-                str(root / "decision.json"),
-            )
-            self.assertEqual(code, 2)
-            self.assertEqual(stdout, "")
-            self.assertIn("regenerate", stderr)
-
-            old_draft = root / "old-decision.json"
-            old_draft.write_text(
-                json.dumps({"schema_version": OLD_REFINEMENT_DRAFT_SCHEMA}) + "\n",
-                "utf-8",
-            )
-            code, stdout, stderr = self.invoke(
-                "resolve-refinement",
-                str(old_draft),
-                "--diagnosis",
-                str(diagnosis),
-                "--base",
-                str(base),
-            )
-            self.assertEqual(code, 5)
-            self.assertEqual(stdout, "")
-            self.assertIn("refinement-draft validation failed", stderr)
-
-            old_record = root / "old-refinement"
-            old_record.mkdir()
-            (old_record / "refinement-manifest.json").write_text(
-                json.dumps({"schema_version": OLD_REFINEMENT_SCHEMA}) + "\n",
-                "utf-8",
-            )
-            code, stdout, stderr = self.invoke(
-                "verify-refinement", str(old_record)
-            )
-            self.assertEqual(code, 2)
-            self.assertEqual(stdout, "")
-            self.assertIn("regenerate", stderr)
 
     def observation(
         self,
@@ -1359,7 +1300,7 @@ class ControlledRevisionTests(unittest.TestCase):
                         json.loads(stdout)["base_state"]["status"], "CHANGED"
                     )
 
-    def test_refinement_records_omit_runtime_provenance(self) -> None:
+    def test_refinement_records_use_current_headers_only_at_the_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
@@ -1377,10 +1318,8 @@ class ControlledRevisionTests(unittest.TestCase):
                 self.assertNotIn("record_type", value)
                 self.assertNotIn("format_version", value)
                 self.assertNotIn("schema_version", value)
-                self.assertNotIn("build_provenance", value)
             result = verify_refinement(revision, diagnosis, observation)
             self.assertNotIn("schema_version", result)
-            self.assertNotIn("build_provenance", result)
 
     def test_replay_requires_exact_diagnosis_and_base(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1863,11 +1802,9 @@ class ControlledRevisionTests(unittest.TestCase):
             refinement_manifest = json.loads(
                 (revision / "refinement-manifest.json").read_text("utf-8")
             )
-            self.assertNotIn("build_provenance", decision_record)
             self.assertNotIn("schema_version", decision_record)
             self.assertEqual(refinement_manifest["record_type"], "refinement")
             self.assertEqual(refinement_manifest["format_version"], 1)
-            self.assertNotIn("build_provenance", refinement_manifest)
             self.assertNotIn("schema_version", refinement_manifest)
             self.assertNotIn("runtime", refinement_manifest)
             self.assertNotIn("milestone", refinement_manifest)

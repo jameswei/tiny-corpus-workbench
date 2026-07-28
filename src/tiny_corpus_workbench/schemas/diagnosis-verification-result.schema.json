@@ -1,35 +1,40 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/tcw/corpus-verification-result.schema.json",
-  "title": "tiny-corpus-workbench generated corpus verification result",
+  "$id": "https://example.invalid/tcw/diagnosis-verification-result.schema.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "corpus_directory",
+    "diagnosis_directory",
     "artifact_integrity",
-    "specification_state",
-    "source_states",
-    "model_state",
-    "revision_states"
+    "subject_state",
+    "derivation_state"
   ],
   "properties": {
-    "corpus_directory": {
+    "diagnosis_directory": {
       "type": "string"
     },
     "artifact_integrity": {
       "$ref": "#/$defs/integrity"
     },
-    "specification_state": {
-      "type": "object"
+    "subject_state": {
+      "$ref": "#/$defs/external"
     },
-    "source_states": {
-      "type": "array"
-    },
-    "model_state": {
-      "type": "object"
-    },
-    "revision_states": {
-      "type": "array"
+    "derivation_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "NOT_CHECKED",
+            "MATCH",
+            "MISMATCH",
+            "ERROR"
+          ]
+        }
+      }
     }
   },
   "$defs": {
@@ -54,6 +59,16 @@
         "issues": {
           "type": "array",
           "items": {"$ref": "#/$defs/issue"}
+        }
+      }
+    },
+    "external": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "enum": ["NOT_CHECKED", "MATCH", "CHANGED", "MISSING", "ERROR"]
         }
       }
     }

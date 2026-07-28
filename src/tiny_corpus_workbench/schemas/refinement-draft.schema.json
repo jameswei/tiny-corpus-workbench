@@ -23,7 +23,7 @@
         "state": {"const": "REQUESTED"},
         "diagnosis_id": {"$ref": "#/$defs/hash"},
         "base": {"$ref": "#/$defs/proposal_base"},
-        "finding": {"$ref": "finding-set-v0.5.schema.json#/$defs/finding"},
+        "finding": {"$ref": "#/$defs/finding"},
         "refiner": {"$ref": "#/$defs/refiner"},
         "affected_refs": {
           "type": "array",
@@ -56,6 +56,63 @@
   },
   "$defs": {
     "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "evidence_value": {
+      "anyOf": [
+        {"type": "string"},
+        {"type": "integer"},
+        {"type": "number"},
+        {"type": "boolean"},
+        {
+          "type": "array",
+          "items": {"type": "integer"}
+        }
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "rule_id",
+        "rule_version",
+        "severity",
+        "summary",
+        "document_refs",
+        "evidence"
+      ],
+      "properties": {
+        "finding_id": {"$ref": "#/$defs/hash"},
+        "rule_id": {
+          "enum": [
+            "TCW-D001",
+            "TCW-D002",
+            "TCW-D003",
+            "TCW-D004",
+            "TCW-D005",
+            "TCW-D006",
+            "TCW-D007",
+            "TCW-D008",
+            "TCW-D009",
+            "TCW-D010"
+          ]
+        },
+        "rule_version": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["ERROR", "WARNING", "INFO"]},
+        "summary": {"type": "string", "minLength": 1},
+        "document_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^#/"}
+        },
+        "evidence": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/evidence_value"}
+        }
+      }
+    },
     "proposal_base": {
       "type": "object",
       "additionalProperties": false,

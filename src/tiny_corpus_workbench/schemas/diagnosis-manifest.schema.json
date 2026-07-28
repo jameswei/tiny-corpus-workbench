@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/tcw/diagnosis-manifest-v0.5.schema.json",
+  "$id": "https://example.invalid/tcw/diagnosis-manifest.schema.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -24,7 +24,7 @@
       "minLength": 1
     },
     "diagnosis_id": {
-      "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+      "$ref": "#/$defs/hash"
     },
     "created_at": {
       "type": "string",
@@ -64,17 +64,17 @@
           ]
         },
         "identity_value": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "#/$defs/hash"
         },
         "run_id": {
           "type": "string",
           "minLength": 1
         },
         "manifest_sha256": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "#/$defs/hash"
         },
         "canonical_document_sha256": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "#/$defs/hash"
         }
       },
       "allOf": [
@@ -113,10 +113,10 @@
       ]
     },
     "ruleset": {
-      "$ref": "finding-set-v0.5.schema.json#/$defs/ruleset"
+      "$ref": "#/$defs/ruleset"
     },
     "summary": {
-      "$ref": "finding-set-v0.5.schema.json#/$defs/summary"
+      "$ref": "#/$defs/summary"
     },
     "artifacts": {
       "type": "array",
@@ -128,6 +128,88 @@
     }
   },
   "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "name", "version", "severity", "parameters"],
+      "properties": {
+        "rule_id": {
+          "enum": [
+            "TCW-D001",
+            "TCW-D002",
+            "TCW-D003",
+            "TCW-D004",
+            "TCW-D005",
+            "TCW-D006",
+            "TCW-D007",
+            "TCW-D008",
+            "TCW-D009",
+            "TCW-D010"
+          ]
+        },
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["ERROR", "WARNING", "INFO"]},
+        "parameters": {"type": "object"}
+      }
+    },
+    "ruleset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "parameter_sha256", "rules"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "parameter_sha256": {"$ref": "#/$defs/hash"},
+        "rules": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "items": {"$ref": "#/$defs/rule"}
+        }
+      }
+    },
+    "count_map": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "by_severity", "by_rule"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "by_severity": {
+          "$ref": "#/$defs/count_map",
+          "minProperties": 3,
+          "maxProperties": 3,
+          "propertyNames": {"enum": ["ERROR", "WARNING", "INFO"]}
+        },
+        "by_rule": {
+          "$ref": "#/$defs/count_map",
+          "minProperties": 10,
+          "maxProperties": 10,
+          "propertyNames": {
+            "enum": [
+              "TCW-D001",
+              "TCW-D002",
+              "TCW-D003",
+              "TCW-D004",
+              "TCW-D005",
+              "TCW-D006",
+              "TCW-D007",
+              "TCW-D008",
+              "TCW-D009",
+              "TCW-D010"
+            ]
+          }
+        }
+      }
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,
@@ -151,7 +233,7 @@
           "minimum": 1
         },
         "sha256": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "#/$defs/hash"
         }
       }
     },
@@ -190,7 +272,7 @@
           "minimum": 1
         },
         "sha256": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "#/$defs/hash"
         },
         "application_immutable": {
           "const": true
