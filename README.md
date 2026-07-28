@@ -154,12 +154,14 @@ Open the printed local address. Stop the server with `Ctrl-C`.
 
 ## Records and their roles
 
-Each workflow publishes a new directory. The application does not overwrite a
-previous publication.
+Record-producing commands publish a new directory and do not overwrite a
+previous publication. `draft-refinement` writes the requested decision file.
+Verify commands read records and report results. `workbench` serves admitted
+records without publishing a record.
 
 | Record | Main files | Role |
 | --- | --- | --- |
-| Observation | `manifest.json`, `comparison.json`, `docling/document.json`, two derived Markdown views | Preserves source identity, extractor results, canonical content, and descriptive differences. |
+| Observation | `manifest.json`, `comparison.json`, and extractor artifacts only when that extractor produced them | Preserves source identity, extractor results, canonical content when available, and descriptive differences. |
 | Diagnosis | `diagnosis-manifest.json`, `findings.json`, `report.md` | Records deterministic findings and human-readable evidence without changing the document. |
 | Refinement | `refinement-manifest.json`, `decision.json`, `report.md`, and, when approved, transformation, history, and prepared-document files | Records the decision and either no revision or one reversible successor. |
 | Corpus | `corpus-manifest.json`, `corpus-spec.json`, `summary.json`, a static report, and contained member evidence | Aggregates source-text-free counts, findings, extractor deltas, and listed revision histories. |
