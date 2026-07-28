@@ -108,6 +108,7 @@ class ExtractorCompatibilitySpike(unittest.TestCase):
         )
 
     def test_exact_versions_and_all_extraction_views_offline(self) -> None:
+        self.fail("controlled full probe")
         expected_versions = {
             "docling": "2.113.0",
             "docling-core": "2.87.1",
