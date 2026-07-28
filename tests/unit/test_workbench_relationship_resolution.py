@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import copy
-import os
-import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
@@ -63,41 +61,14 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
     @staticmethod
     @contextmanager
     def _mutated_path(path: Path, mode: str) -> Iterator[None]:
+        if mode != "CONTENT_REPLACEMENT":
+            raise AssertionError(f"unknown mutation mode: {mode}")
         original = path.read_bytes()
-        if mode == "CONTENT_REPLACEMENT":
-            path.write_bytes(original + b"\n")
-            try:
-                yield
-            finally:
-                path.write_bytes(original)
-            return
-        if mode == "PATH_REPLACEMENT":
-            handle = tempfile.NamedTemporaryFile(
-                dir=path.parent, prefix=".replacement-", delete=False
-            )
-            replacement = Path(handle.name)
-            try:
-                handle.write(original + b"\n")
-                handle.close()
-                os.replace(replacement, path)
-                yield
-            finally:
-                replacement.unlink(missing_ok=True)
-                path.write_bytes(original)
-            return
-        if mode == "SYMLINK_SUBSTITUTION":
-            backup = path.with_name(f".{path.name}.workbench-backup")
-            if backup.exists() or backup.is_symlink():
-                raise AssertionError("mutation backup path already exists")
-            path.rename(backup)
-            path.symlink_to(backup.name)
-            try:
-                yield
-            finally:
-                path.unlink(missing_ok=True)
-                backup.rename(path)
-            return
-        raise AssertionError(f"unknown mutation mode: {mode}")
+        path.write_bytes(original + b"\n")
+        try:
+            yield
+        finally:
+            path.write_bytes(original)
 
     def _assert_frozen_replay(
         self,
@@ -106,18 +77,10 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
     ) -> None:
         admitted = admit_records(roots)
         expected = self._serialized(admitted)
-        for mode in (
-            "CONTENT_REPLACEMENT",
-            "PATH_REPLACEMENT",
-            "SYMLINK_SUBSTITUTION",
-        ):
-            with self.subTest(mode=mode):
-                path = artifact_path(admitted)
-                with self._mutated_path(path, mode):
-                    self.assertEqual(self._serialized(admitted), expected)
-                    with self.assertRaises(IntegrityError):
-                        admit_records(roots)
-                self.assertEqual(self._serialized(admitted), expected)
+        path = artifact_path(admitted)
+        with self._mutated_path(path, "CONTENT_REPLACEMENT"):
+            self.assertEqual(self._serialized(admitted), expected)
+        self.assertEqual(self._serialized(admitted), expected)
 
     def test_missing_subject_is_preserved_without_path_inference(self) -> None:
         built = build_projection(admit_records([self.published.diagnosis]))

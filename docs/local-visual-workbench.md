@@ -50,10 +50,10 @@ uv run --frozen tcw workbench OBSERVATION_DIRECTORY \
 ```
 
 Each root must contain one supported v0.5 root manifest. The command accepts
-observation, diagnosis, refinement, and corpus records. It verifies intrinsic
-integrity, supported provenance, relationships, containment, file type,
-recorded size, and recorded hashes before startup. It then keeps the admitted
-manifest and listed-artifact bytes in memory.
+observation, diagnosis, refinement, and corpus records. Before startup, it
+verifies current record integrity, relationships, containment, file type,
+recorded size, and recorded hashes. It also captures the admitted manifest and
+listed-artifact bytes once and keeps them in memory.
 
 The workbench does not scan parent directories. It does not follow source
 paths or accept URLs. Corpus records can add their verified contained

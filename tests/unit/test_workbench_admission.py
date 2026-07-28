@@ -5,8 +5,10 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tiny_corpus_workbench.domain import InputError
+from tiny_corpus_workbench import workbench_records
 from tiny_corpus_workbench.workbench_records import admit_record, admit_records
 from tests.unit.workbench_test_support import (
     PublishedCorpus,
@@ -37,6 +39,23 @@ class WorkbenchAdmissionTests(unittest.TestCase):
         self.assertEqual(record.kind, "OBSERVATION")
         self.assertTrue(record.top_level)
         self.assertEqual(record.status, "SUCCESS")
+
+    def test_each_record_is_captured_once_for_the_workbench(self) -> None:
+        with patch.object(
+            workbench_records,
+            "_capture_record",
+            wraps=workbench_records._capture_record,
+        ) as capture:
+            admitted = admit_records([self.published.root])
+        self.assertEqual(capture.call_count, 1)
+        record = next(iter(admitted.records.values()))
+        self.assertEqual(
+            set(record.artifact_bytes),
+            {
+                (item["role"], item["path"], item["sha256"])
+                for item in record.listed
+            },
+        )
 
     def test_repeated_explicit_root_is_rejected(self) -> None:
         with self.assertRaises(InputError):

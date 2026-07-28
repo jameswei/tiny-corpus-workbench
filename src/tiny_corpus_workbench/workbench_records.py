@@ -9,12 +9,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import stat
-import tempfile
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable
 
 from tiny_corpus_workbench.artifacts import canonical_json as artifact_json
 from tiny_corpus_workbench.application.records import require_record_header
@@ -209,329 +206,94 @@ def _safe_relative(value: object) -> PurePosixPath:
 
 def _safe_path(root: Path, relative: object) -> Path:
     rel = _safe_relative(relative)
-    current = root
-    for part in rel.parts:
-        current /= part
-        mode = current.lstat().st_mode
-        if stat.S_ISLNK(mode):
-            raise IntegrityError("accessed record node is a symbolic link")
-    current.resolve(strict=True).relative_to(root.resolve(strict=True))
-    return current
-
-
-def _stat_identity(metadata: os.stat_result) -> tuple[int, ...]:
-    return (
-        metadata.st_dev,
-        metadata.st_ino,
-        metadata.st_mode,
-        metadata.st_nlink,
-        metadata.st_size,
-        metadata.st_mtime_ns,
-        metadata.st_ctime_ns,
-    )
-
-
-def _directory_identity(
-    metadata: os.stat_result, *, root: bool
-) -> tuple[int, ...]:
-    return (
-        metadata.st_dev,
-        metadata.st_ino,
-        stat.S_IFMT(metadata.st_mode),
-    )
-
-
-@dataclass(frozen=True)
-class _CapturedFile:
-    identity: tuple[int, ...]
-    content: bytes
-
-
-@dataclass(frozen=True)
-class _InventoryEntry:
-    relative_path: str
-    kind: str
-    mode: int
-    identity: tuple[int, ...]
-    content: bytes | None
+    return root.joinpath(*rel.parts)
 
 
 @dataclass(frozen=True)
 class _AdmissionCapture:
     canonical_root: str
-    root_name: str
-    directory_identities: tuple[tuple[int, ...], ...]
-    inventory: tuple[_InventoryEntry, ...]
     manifest_name: str
     manifest: dict[str, Any]
-    manifest_file: _CapturedFile
-    listed: tuple[tuple[tuple[str, str, str], _CapturedFile], ...]
+    manifest_bytes: bytes
+    listed: tuple[tuple[tuple[str, str, str], bytes], ...]
 
 
-def _open_no_follow(
-    path: str, flags: int, *, dir_fd: int | None = None
-) -> int:
-    options = flags | os.O_CLOEXEC | os.O_NOFOLLOW
-    if dir_fd is None:
-        return os.open(path, options)
-    return os.open(path, options, dir_fd=dir_fd)
-
-
-def _close_descriptors(descriptors: list[int]) -> None:
-    for descriptor in reversed(descriptors):
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
-
-
-def _open_root_components(root: Path) -> list[int]:
-    descriptors: list[int] = []
+def _read_regular(path: Path, message: str) -> bytes:
     try:
-        descriptors.append(
-            _open_no_follow("/", os.O_RDONLY | os.O_DIRECTORY)
-        )
-        components = root.parts[1:]
-        for index, component in enumerate(components):
-            metadata = os.stat(
-                component,
-                dir_fd=descriptors[-1],
-                follow_symlinks=False,
-            )
-            if stat.S_ISLNK(metadata.st_mode):
-                raise IntegrityError(
-                    "record root or ancestor is a symbolic link"
-                )
-            if not stat.S_ISDIR(metadata.st_mode):
-                if index == len(components) - 1:
-                    raise InputError(
-                        "RECORD must be one local non-symlink directory"
-                    )
-                raise IntegrityError("record root or ancestor is unsafe")
-            descriptors.append(
-                _open_no_follow(
-                    component,
-                    os.O_RDONLY | os.O_DIRECTORY,
-                    dir_fd=descriptors[-1],
-                )
-            )
-        return descriptors
-    except Exception:
-        _close_descriptors(descriptors)
-        raise
-
-
-@contextmanager
-def _opened_root(
-    root: Path,
-) -> Iterator[tuple[int, str, tuple[tuple[int, ...], ...], tuple[int, ...]]]:
-    try:
-        descriptors = _open_root_components(root)
-        canonical = root.resolve(strict=True)
-        identities = tuple(
-            _directory_identity(
-                os.fstat(descriptor),
-                root=index == len(descriptors) - 1,
-            )
-            for index, descriptor in enumerate(descriptors)
-        )
-        yield (
-            descriptors[-1],
-            os.fspath(canonical),
-            identities,
-            identities[-1],
-        )
-        current_descriptors = _open_root_components(root)
-        try:
-            current_identities = tuple(
-                _directory_identity(
-                    os.fstat(descriptor),
-                    root=index == len(current_descriptors) - 1,
-                )
-                for index, descriptor in enumerate(current_descriptors)
-            )
-            current_canonical = root.resolve(strict=True)
-            if (
-                current_canonical != canonical
-                or current_identities != identities
-            ):
-                raise IntegrityError("record root or ancestor changed")
-        finally:
-            _close_descriptors(current_descriptors)
-    except InputError:
-        raise
+        if not path.is_file():
+            raise IntegrityError(message)
+        return path.read_bytes()
     except IntegrityError:
         raise
     except OSError as error:
-        raise IntegrityError("record root or ancestor is unsafe") from error
-    finally:
-        _close_descriptors(locals().get("descriptors", []))
+        raise IntegrityError(message) from error
 
 
-def _read_open_regular(file_descriptor: int) -> _CapturedFile:
-    before = os.fstat(file_descriptor)
-    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
-        raise IntegrityError(
-            "accessed record artifact is not a single-link regular file"
-        )
-    chunks: list[bytes] = []
-    while True:
-        chunk = os.read(file_descriptor, 1024 * 1024)
-        if not chunk:
-            break
-        chunks.append(chunk)
-    after = os.fstat(file_descriptor)
-    if _stat_identity(after) != _stat_identity(before):
-        raise IntegrityError("record artifact changed during capture")
-    content = b"".join(chunks)
-    if len(content) != before.st_size:
-        raise IntegrityError("record artifact size changed during capture")
-    return _CapturedFile(_stat_identity(before), content)
-
-
-def _capture_inventory(
-    directory_fd: int, prefix: PurePosixPath | None = None
-) -> list[_InventoryEntry]:
-    before = _directory_identity(os.fstat(directory_fd), root=False)
+def _record_manifest(root: Path) -> tuple[str, str]:
     try:
-        names = sorted(os.listdir(directory_fd))
+        if not root.is_dir():
+            raise InputError("RECORD must be one local directory")
+        present = [name for name in ROOTS if _safe_path(root, name).is_file()]
+    except InputError:
+        raise
     except OSError as error:
-        raise IntegrityError("record directory cannot be inventoried") from error
-    entries: list[_InventoryEntry] = []
-    for name in names:
-        relative = PurePosixPath(name) if prefix is None else prefix / name
-        _safe_relative(relative.as_posix())
-        descriptor: int | None = None
-        try:
-            descriptor = _open_no_follow(
-                name, os.O_RDONLY, dir_fd=directory_fd
-            )
-            metadata = os.fstat(descriptor)
-            if stat.S_ISDIR(metadata.st_mode):
-                entries.append(
-                    _InventoryEntry(
-                        relative.as_posix(),
-                        "DIRECTORY",
-                        stat.S_IMODE(metadata.st_mode),
-                        _directory_identity(metadata, root=False),
-                        None,
-                    )
-                )
-                entries.extend(_capture_inventory(descriptor, relative))
-            elif stat.S_ISREG(metadata.st_mode):
-                captured = _read_open_regular(descriptor)
-                entries.append(
-                    _InventoryEntry(
-                        relative.as_posix(),
-                        "FILE",
-                        stat.S_IMODE(metadata.st_mode),
-                        captured.identity,
-                        captured.content,
-                    )
-                )
-            else:
-                raise IntegrityError(
-                    "record inventory contains an unsafe node"
-                )
-        except IntegrityError:
-            raise
-        except OSError as error:
-            raise IntegrityError(
-                "record inventory contains an unsafe node"
-            ) from error
-        finally:
-            if descriptor is not None:
-                try:
-                    os.close(descriptor)
-                except OSError:
-                    pass
-    if (
-        _directory_identity(os.fstat(directory_fd), root=False) != before
-        or sorted(os.listdir(directory_fd)) != names
-    ):
-        raise IntegrityError("record directory changed during capture")
-    return entries
+        raise IntegrityError("record root is unavailable") from error
+    if len(present) != 1:
+        raise IntegrityError(
+            "record root must contain exactly one known manifest"
+        )
+    name = present[0]
+    return ROOTS[name][0], name
 
 
-def _capture_record(root: Path) -> _AdmissionCapture:
-    with _opened_root(root) as (
-        root_fd,
-        canonical_root,
-        directory_identities,
-        _,
-    ):
-        inventory = tuple(_capture_inventory(root_fd))
-        by_path = {item.relative_path: item for item in inventory}
-        names = {
-            item.relative_path
-            for item in inventory
-            if "/" not in item.relative_path
-        }
-        present = [name for name in ROOTS if name in names]
-        if len(present) != 1:
-            raise IntegrityError(
-                "record root must contain exactly one known manifest"
+def _capture_record(root: Path, kind: str, name: str) -> _AdmissionCapture:
+    try:
+        canonical_root = root.resolve(strict=True)
+    except OSError as error:
+        raise IntegrityError("record root is unavailable") from error
+    if ROOTS[name][0] != kind:
+        raise IntegrityError("record kind changed during admission")
+
+    raw = _read_regular(
+        _safe_path(canonical_root, name),
+        "record manifest is not a regular file",
+    )
+    try:
+        manifest = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise IntegrityError("record manifest is not canonical JSON") from error
+    if not isinstance(manifest, dict) or raw != artifact_json(manifest):
+        raise IntegrityError("record manifest is not canonical JSON")
+    require_record_header(manifest, kind.lower())
+
+    captured: list[tuple[tuple[str, str, str], bytes]] = []
+    for descriptor in _listed_descriptors(kind, manifest):
+        content = _read_regular(
+            _safe_path(canonical_root, descriptor["path"]),
+            "authorized artifact is not a regular file",
         )
-        name = present[0]
-        manifest_entry = by_path[name]
-        if manifest_entry.kind != "FILE" or manifest_entry.content is None:
-            raise IntegrityError("record manifest is not a regular file")
-        manifest_file = _CapturedFile(
-            manifest_entry.identity, manifest_entry.content
-        )
-        raw = manifest_file.content
-        try:
-            manifest = json.loads(raw.decode("utf-8"))
-        except (UnicodeError, json.JSONDecodeError) as error:
-            raise IntegrityError("record manifest is not canonical JSON") from error
-        if not isinstance(manifest, dict) or raw != artifact_json(manifest):
-            raise IntegrityError("record manifest is not canonical JSON")
-        kind, schema, _ = ROOTS[name]
-        if kind in {"OBSERVATION", "DIAGNOSIS", "REFINEMENT", "CORPUS"}:
-            require_record_header(manifest, kind.lower())
-        elif manifest.get("schema_version") != schema:
-            raise InputError("workbench requires a v0.5 record")
-        listed = _listed_descriptors(kind, manifest)
-        captured: list[tuple[tuple[str, str, str], _CapturedFile]] = []
-        for descriptor in listed:
-            try:
-                entry = by_path[descriptor["path"]]
-            except KeyError as error:
-                raise IntegrityError(
-                    "authorized artifact is unavailable"
-                ) from error
-            if entry.kind != "FILE" or entry.content is None:
-                raise IntegrityError(
-                    "authorized artifact is not a regular file"
-                )
-            item = _CapturedFile(entry.identity, entry.content)
-            if (
-                len(item.content) != descriptor["size"]
-                or _sha(item.content) != descriptor["sha256"]
-            ):
-                raise IntegrityError(
-                    "authorized artifact descriptor differs"
-                )
-            captured.append(
+        if (
+            len(content) != descriptor["size"]
+            or _sha(content) != descriptor["sha256"]
+        ):
+            raise IntegrityError("authorized artifact descriptor differs")
+        captured.append(
+            (
                 (
-                    (
-                        descriptor["role"],
-                        descriptor["path"],
-                        descriptor["sha256"],
-                    ),
-                    item,
-                )
+                    descriptor["role"],
+                    descriptor["path"],
+                    descriptor["sha256"],
+                ),
+                content,
             )
-        return _AdmissionCapture(
-            canonical_root=canonical_root,
-            root_name=Path(canonical_root).name,
-            directory_identities=directory_identities,
-            inventory=inventory,
-            manifest_name=name,
-            manifest=manifest,
-            manifest_file=manifest_file,
-            listed=tuple(captured),
         )
+    return _AdmissionCapture(
+        canonical_root=os.fspath(canonical_root),
+        manifest_name=name,
+        manifest=manifest,
+        manifest_bytes=raw,
+        listed=tuple(captured),
+    )
 
 
 def _identity(kind: str, manifest: dict[str, Any]) -> dict[str, Any]:
@@ -613,34 +375,6 @@ def _verify_intrinsic(kind: str, root: Path) -> None:
         raise IntegrityError("record does not have verified intrinsic integrity")
 
 
-def _verify_intrinsic_capture(
-    kind: str, capture: _AdmissionCapture
-) -> None:
-    root_name = _safe_relative(capture.root_name)
-    if len(root_name.parts) != 1:
-        raise IntegrityError("captured record root name is unsafe")
-    with tempfile.TemporaryDirectory(
-        prefix="tcw-workbench-admission-"
-    ) as temporary:
-        root = Path(temporary).resolve(strict=True) / root_name.name
-        root.mkdir()
-        directories: list[tuple[Path, int]] = []
-        for entry in capture.inventory:
-            relative = _safe_relative(entry.relative_path)
-            destination = root.joinpath(*relative.parts)
-            if entry.kind == "DIRECTORY":
-                destination.mkdir()
-                directories.append((destination, entry.mode))
-                continue
-            if entry.kind != "FILE" or entry.content is None:
-                raise IntegrityError("captured inventory entry is invalid")
-            destination.write_bytes(entry.content)
-            os.chmod(destination, entry.mode)
-        for directory, mode in reversed(directories):
-            os.chmod(directory, mode)
-        _verify_intrinsic(kind, root)
-
-
 def _supplied_root(root: Path) -> Path:
     raw = os.fspath(root)
     if not isinstance(raw, str) or not raw:
@@ -654,16 +388,13 @@ def _supplied_root(root: Path) -> Path:
 
 def admit_record(root: Path, *, backing: Backing | None = None) -> AdmittedRecord:
     root = _supplied_root(root)
-    before_capture = _capture_record(root)
-    canonical_root = Path(before_capture.canonical_root)
-    name = before_capture.manifest_name
-    before = before_capture.manifest_file.content
-    manifest = before_capture.manifest
-    kind, schema, _ = ROOTS[name]
-    _verify_intrinsic_capture(kind, before_capture)
-    after_capture = _capture_record(root)
-    if after_capture != before_capture:
-        raise IntegrityError("record changed during admission")
+    kind, name = _record_manifest(root)
+    capture = _capture_record(root, kind, name)
+    _verify_intrinsic(kind, root)
+    canonical_root = Path(capture.canonical_root)
+    before = capture.manifest_bytes
+    manifest = capture.manifest
+    _, schema, _ = ROOTS[name]
     identity = _identity(kind, manifest)
     manifest_hash = _sha(before)
     logical = logical_copy_key(
@@ -673,9 +404,7 @@ def admit_record(root: Path, *, backing: Backing | None = None) -> AdmittedRecor
         run_id=manifest["run_id"],
     )
     listed = _listed_descriptors(kind, manifest)
-    captured = {
-        key: item.content for key, item in before_capture.listed
-    }
+    captured = dict(capture.listed)
     canonical_backing = (
         Backing(root=canonical_root, top_level=True)
         if backing is None
