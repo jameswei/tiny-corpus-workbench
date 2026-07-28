@@ -12,15 +12,15 @@ decision supplies an actor label in `decided_by`.
 Diagnose an observation or an applied revision:
 
 ```bash
-uv run --frozen tcw diagnose DOCUMENT_DIRECTORY
-uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY \
+uv run corpus diagnose DOCUMENT_DIRECTORY
+uv run corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
   --subject DOCUMENT_DIRECTORY
 ```
 
 Draft one supported finding:
 
 ```bash
-uv run --frozen tcw draft-refinement DIAGNOSIS_DIRECTORY \
+uv run corpus draft-refinement DIAGNOSIS_DIRECTORY \
   --finding FINDING_ID \
   --base DOCUMENT_DIRECTORY \
   --output decision.json
@@ -35,11 +35,11 @@ The draft is a closed JSON document. Its proposal is immutable. Edit only:
 Resolve and verify the decision:
 
 ```bash
-uv run --frozen tcw resolve-refinement decision.json \
+uv run corpus resolve-refinement decision.json \
   --diagnosis DIAGNOSIS_DIRECTORY \
   --base DOCUMENT_DIRECTORY
 
-uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY \
+uv run corpus verify-refinement REFINEMENT_DIRECTORY \
   --diagnosis DIAGNOSIS_DIRECTORY \
   --base DOCUMENT_DIRECTORY
 ```
@@ -98,7 +98,7 @@ An applied child copies the verified parent history and appends one
 transformation. Re-diagnose the child before you draft another change:
 
 ```bash
-uv run --frozen tcw diagnose FIRST_REFINEMENT_DIRECTORY
+uv run corpus diagnose FIRST_REFINEMENT_DIRECTORY
 ```
 
 Use that new diagnosis and the first refinement directory as the base for the

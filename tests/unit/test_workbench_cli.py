@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import argparse
+import importlib.metadata
 import io
+import shutil
 import socket
+import subprocess
+import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
@@ -20,6 +25,73 @@ class WorkbenchCliTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls) -> None:
         cls.published.close()
+
+    def test_parser_exposes_exactly_ten_subcommands(self) -> None:
+        subparsers = next(
+            action
+            for action in cli.parser()._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        self.assertEqual(
+            set(subparsers.choices),
+            {
+                "observe",
+                "verify",
+                "diagnose",
+                "verify-diagnosis",
+                "draft-refinement",
+                "resolve-refinement",
+                "verify-refinement",
+                "inspect",
+                "verify-corpus",
+                "workbench",
+            },
+        )
+
+    def test_console_script_metadata_contains_only_corpus(self) -> None:
+        project_scripts = {
+            entry_point.name
+            for entry_point in importlib.metadata.entry_points(group="console_scripts")
+            if entry_point.value == "tiny_corpus_workbench.cli:main"
+        }
+        self.assertEqual(project_scripts, {"corpus"})
+
+    def test_top_level_version_is_exact(self) -> None:
+        executable = shutil.which("corpus")
+        self.assertIsNotNone(executable)
+        completed = subprocess.run(
+            [executable, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        expected = importlib.metadata.version("tiny-corpus-workbench")
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(completed.stdout, f"{expected}\n")
+        self.assertEqual(completed.stderr, "")
+
+    def test_module_version_is_exact(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, "-m", "tiny_corpus_workbench", "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0)
+        expected = importlib.metadata.version("tiny-corpus-workbench")
+        self.assertEqual(completed.stdout, f"{expected}\n")
+        self.assertEqual(completed.stderr, "")
+
+    def test_removed_inspect_corpus_name_is_rejected(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, "-m", "tiny_corpus_workbench", "inspect-corpus"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(completed.stdout, "")
+        self.assertTrue(completed.stderr.startswith("usage: corpus "))
 
     def test_parser_exposes_only_fixed_port_and_browser_options(self) -> None:
         args = cli.parser().parse_args(

@@ -14,6 +14,23 @@ POLICY_PATHS = (
     Path("docs/roadmap.md"),
     Path("docs/releases/v0.5.0.md"),
 )
+ACTIVE_USAGE_PATHS = (
+    Path("README.md"),
+    Path("docs/controlled-revisions.md"),
+    Path("docs/corpus-inspection-comparison.md"),
+    Path("docs/evidence-based-diagnosis.md"),
+    Path("docs/extraction-observatory.md"),
+    Path("docs/local-visual-workbench.md"),
+    Path("docs/releases/v0.5.0.md"),
+    Path("fixtures/README.md"),
+    Path("learning/README.md"),
+    Path("learning/v0.1-extraction-observatory.md"),
+    Path("learning/v0.2-evidence-based-diagnosis.md"),
+    Path("learning/v0.3-controlled-revisions.md"),
+    Path("learning/v0.4-corpus-inspection-comparison.md"),
+    Path("learning/v0.5-local-visual-workbench.md"),
+    Path("site/index.html"),
+)
 HISTORICAL_PATHS = (
     "docs/plans/v0.5-local-visual-workbench.md",
     "docs/plans/v0.5-local-visual-workbench-ledger.md",
@@ -70,6 +87,11 @@ def _reject_claims(path: Path, text: str) -> None:
             raise PolicyError(f"{path.as_posix()}: prohibited {topic}")
 
 
+def _reject_stale_usage(path: Path, text: str) -> None:
+    if re.search(r"\btcw\b|\binspect-corpus\b", text):
+        raise PolicyError(f"{path.as_posix()}: stale CLI command")
+
+
 def _require_historical_links(text: str) -> None:
     for historical_path in HISTORICAL_PATHS:
         link = re.search(
@@ -94,8 +116,11 @@ def _require_historical_links(text: str) -> None:
 
 def verify(root: Path) -> None:
     documents = {path: _read(root, path) for path in POLICY_PATHS}
+    usage_documents = {path: _read(root, path) for path in ACTIVE_USAGE_PATHS}
     for path, text in documents.items():
         _reject_claims(path, text)
+    for path, text in usage_documents.items():
+        _reject_stale_usage(path, text)
 
     current = documents[Path("CURRENT.md")]
     current_path = Path("CURRENT.md")
@@ -144,6 +169,20 @@ def verify(root: Path) -> None:
         "not a public or stable API",
         "internal bridge",
     )
+    readme = usage_documents[Path("README.md")]
+    _require(
+        Path("README.md"),
+        readme,
+        "distributed as source from this repository",
+        "source repository distribution",
+    )
+    _require(
+        Path("README.md"),
+        readme,
+        "prebuilt binaries",
+        "prebuilt binary limit",
+    )
+    _require(Path("README.md"), readme, "does not ship", "delivery limit")
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -201,7 +201,7 @@ class CorpusWorkflowTests(unittest.TestCase):
             ), redirect_stdout(stdout), redirect_stderr(stderr):
                 code = cli.main(
                     [
-                        "inspect-corpus",
+                        "inspect",
                         str(spec),
                         "--output-root",
                         str(output),
@@ -503,7 +503,7 @@ class CorpusWorkflowTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 code = cli.main(
                     [
-                        "inspect-corpus",
+                        "inspect",
                         str(spec),
                         "--output-root",
                         str(output),

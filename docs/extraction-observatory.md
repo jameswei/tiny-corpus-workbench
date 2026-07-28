@@ -17,7 +17,7 @@ PDF observation requires Docling's layout and table-structure models. Prefetch
 them once while network access is intentionally available:
 
 ```bash
-uv run --frozen docling-tools models download layout tableformer \
+uv run docling-tools models download layout tableformer \
   --output-dir .cache/docling/models
 ```
 
@@ -28,13 +28,13 @@ records a canonical inventory hash. Symlinks are rejected.
 ## Observe one source
 
 ```bash
-uv run tcw observe fixtures/golden/policy-memo.pdf
+uv run corpus observe fixtures/golden/policy-memo.pdf
 ```
 
 Optional locations are explicit:
 
 ```bash
-uv run tcw observe SOURCE \
+uv run corpus observe SOURCE \
   --output-root build/extraction-observatory \
   --docling-artifacts .cache/docling/models
 ```
@@ -45,7 +45,7 @@ OOXML, non-UTF-8 text, and NUL-containing text are rejected before extraction.
 Empty Markdown and text files are also rejected because the manifest requires a
 positive source size. There is no directory or batch command.
 
-Before capture, `tcw` checks each adapter API used for conversion and
+Before capture, `corpus` checks each adapter API used for conversion and
 serialization. It then opens the non-symlink source once and copies it into an
 owner-only private snapshot. The descriptor metadata must remain stable
 throughout that copy. Both extractors consume the same validated snapshot,
@@ -125,7 +125,7 @@ Usage and syntax errors are reported directly by Python's standard-library
 Their wording and rendering are not a stable evidence or machine-output
 interface, so v0.1 does not add a custom parser solely to sanitize arbitrary
 bytes in invalid command-line arguments. Automation should use exit status,
-successful-command JSON stdout, published manifests, and `tcw verify` reports
+successful-command JSON stdout, published manifests, and `corpus verify` reports
 instead of parsing `argparse` stderr.
 
 ## Verify a published observation
@@ -133,7 +133,7 @@ instead of parsing `argparse` stderr.
 Verification is self-contained by default and does not import either extractor:
 
 ```bash
-uv run tcw verify OBSERVATION_DIRECTORY
+uv run corpus verify OBSERVATION_DIRECTORY
 ```
 
 The verifier/schema runtime is loaded only for this command. If it is
@@ -158,8 +158,8 @@ identity: its name and version are `null`.
 Current source and model checks are opt-in and advisory:
 
 ```bash
-uv run tcw verify OBSERVATION_DIRECTORY --source SOURCE
-uv run tcw verify OBSERVATION_DIRECTORY \
+uv run corpus verify OBSERVATION_DIRECTORY --source SOURCE
+uv run corpus verify OBSERVATION_DIRECTORY \
   --docling-artifacts .cache/docling/models
 ```
 
@@ -175,8 +175,8 @@ model inventory may be checked from a different absolute directory.
 
 Every invocation creates a new UTC/randomized run ID. Published directories
 are never reused, overwritten, repaired, or modified by the application. A
-rerun preserves all earlier evidence. Rebuilding means running `tcw observe`
-again to create a new observation; `tcw verify` never repairs or quarantines a
+rerun preserves all earlier evidence. Rebuilding means running `corpus observe`
+again to create a new observation; `corpus verify` never repairs or quarantines a
 run.
 
 Readers accept only the current observation header. A missing or unknown
@@ -185,7 +185,7 @@ with the current project. The project does not migrate or overwrite an old
 observation. Extractor versions and the Docling schema identity remain
 descriptive evidence. They are not runtime compatibility gates.
 
-“Application-immutable” describes `tcw` behavior, not filesystem enforcement.
+“Application-immutable” describes `corpus` behavior, not filesystem enforcement.
 The local hashes and verifier make runs tamper-evident for ordinary corruption
 and uncoordinated changes. v0.1 trusts the local user, operating system, Python
 process, and filesystem. It does not provide signatures, attribution, trusted
@@ -211,7 +211,7 @@ the original local record and is not a v0.1 verification failure.
 | `5` | Source mutation, publication conflict, or artifact-integrity failure. |
 | `6` | Extractor runtime, schema runtime, or required model artifacts unavailable. |
 
-`tcw verify` uses `0` for `VERIFIED`, `2` for an invalid observation-directory
+`corpus verify` uses `0` for `VERIFIED`, `2` for an invalid observation-directory
 argument, `5` for `INTEGRITY_MISMATCH` or `BROKEN`, `6` when its bundled schema
 runtime is unavailable or incompatible, and `1` for an unexpected verifier
 failure. Advisory source and model states do not affect those codes.

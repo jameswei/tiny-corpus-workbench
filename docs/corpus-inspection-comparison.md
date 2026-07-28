@@ -12,14 +12,14 @@ drafts, approves, rejects, or applies a refinement.
 Inspect a committed example corpus:
 
 ```bash
-uv run --frozen tcw inspect-corpus \
+uv run corpus inspect \
   fixtures/corpus/golden-matrix.json
 ```
 
 Select other local output and model directories:
 
 ```bash
-uv run --frozen tcw inspect-corpus CORPUS_SPEC \
+uv run corpus inspect CORPUS_SPEC \
   --output-root build/corpus-inspection \
   --docling-artifacts .cache/docling/models
 ```
@@ -27,17 +27,17 @@ uv run --frozen tcw inspect-corpus CORPUS_SPEC \
 Verify a published corpus:
 
 ```bash
-uv run --frozen tcw verify-corpus CORPUS_DIRECTORY
+uv run corpus verify-corpus CORPUS_DIRECTORY
 ```
 
 Compare the historical run with its current live inputs:
 
 ```bash
-uv run --frozen tcw verify-corpus CORPUS_DIRECTORY \
+uv run corpus verify-corpus CORPUS_DIRECTORY \
   --spec CORPUS_SPEC
 ```
 
-`inspect-corpus` writes one compact JSON line to stdout. The line contains the
+`corpus inspect` writes one compact JSON line to stdout. The line contains the
 corpus ID, snapshot ID, run ID, member count, status, and absolute manifest
 path. Diagnostics use stderr.
 

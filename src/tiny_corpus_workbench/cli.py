@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import importlib.metadata
 import json
 import os
 import stat
@@ -32,6 +33,7 @@ WORKBENCH_ROOT_MANIFESTS = (
     "refinement-manifest.json",
     "corpus-manifest.json",
 )
+PROJECT_VERSION = importlib.metadata.version("tiny-corpus-workbench")
 
 
 def _runtime_import_message(error: Exception, fallback: str) -> str:
@@ -116,7 +118,8 @@ def _corpus_callable(module_name: str, name: str) -> Any:
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="tcw")
+    root = argparse.ArgumentParser(prog="corpus")
+    root.add_argument("--version", action="version", version=PROJECT_VERSION)
     commands = root.add_subparsers(dest="command", required=True)
     observe = commands.add_parser(
         "observe", help="publish one application-immutable extraction observation"
@@ -176,7 +179,7 @@ def parser() -> argparse.ArgumentParser:
     verify_refinement.add_argument("--diagnosis", type=Path)
     verify_refinement.add_argument("--base", type=Path)
     inspect_corpus = commands.add_parser(
-        "inspect-corpus",
+        "inspect",
         help="publish one static inspection report for an explicit local corpus",
     )
     inspect_corpus.add_argument(
@@ -256,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             if server is not None:
                 server.server_close()
-    if args.command == "inspect-corpus":
+    if args.command == "inspect":
         try:
             command = _corpus_callable(
                 "application.corpus", "inspect_corpus"

@@ -11,7 +11,7 @@ from tests.unit.workbench_test_support import (
     PublishedDiagnosis,
     PublishedFailedObservation,
     PublishedObservation,
-    run_tcw,
+    run_corpus,
 )
 
 
@@ -133,7 +133,7 @@ class WorkbenchIntegrationTests(unittest.TestCase):
             source = Path(temporary) / "unsafe.md"
             unsafe = '<img src=x onerror="alert(1)"> **not rendered**\n'
             source.write_text(unsafe, "utf-8")
-            result = run_tcw(
+            result = run_corpus(
                 "observe",
                 str(source),
                 "--output-root",

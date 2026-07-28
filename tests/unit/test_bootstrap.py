@@ -148,7 +148,7 @@ raise SystemExit(cli.main(["verify-corpus", str(root)]))
         self.assertNotIn("Traceback", completed.stderr)
 
         script = BLOCK_JSONSCHEMA + r"""
-raise SystemExit(cli.main(["inspect-corpus", sys.argv[1]]))
+raise SystemExit(cli.main(["inspect", sys.argv[1]]))
 """
         with tempfile.TemporaryDirectory() as directory:
             completed = self.run_fresh(

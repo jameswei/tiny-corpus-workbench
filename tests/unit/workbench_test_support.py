@@ -17,7 +17,7 @@ from tiny_corpus_workbench.artifacts import canonical_json
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
-def run_tcw(*arguments: str) -> dict:
+def run_corpus(*arguments: str) -> dict:
     completed = subprocess.run(
         [sys.executable, "-m", "tiny_corpus_workbench", *arguments],
         cwd=REPOSITORY,
@@ -33,7 +33,7 @@ class PublishedObservation:
         self.temporary = tempfile.TemporaryDirectory(
             dir=Path(tempfile.gettempdir()).resolve()
         )
-        result = run_tcw(
+        result = run_corpus(
             "observe",
             str(REPOSITORY / "fixtures/golden/policy-memo.md"),
             "--output-root",
@@ -48,7 +48,7 @@ class PublishedObservation:
 class PublishedDiagnosis(PublishedObservation):
     def __init__(self) -> None:
         super().__init__()
-        result = run_tcw(
+        result = run_corpus(
             "diagnose",
             str(self.root),
             "--output-root",
@@ -130,8 +130,8 @@ class PublishedCorpus:
                 }
             )
         )
-        result = run_tcw(
-            "inspect-corpus",
+        result = run_corpus(
+            "inspect",
             str(corpus_spec),
             "--output-root",
             str(temporary_root / "output"),
@@ -149,14 +149,14 @@ class PublishedRefinements:
         self.temporary = tempfile.TemporaryDirectory(
             dir=Path(tempfile.gettempdir()).resolve()
         )
-        result = run_tcw(
+        result = run_corpus(
             "observe",
             str(REPOSITORY / "fixtures/refinement/whitespace-cleanup.md"),
             "--output-root",
             self.temporary.name,
         )
         self.observation = Path(result["manifest"]).parent
-        result = run_tcw(
+        result = run_corpus(
             "diagnose",
             str(self.observation),
             "--output-root",
@@ -174,7 +174,7 @@ class PublishedRefinements:
 
     def _resolve(self, finding_id: str, state: str, label: str) -> Path:
         decision_path = Path(self.temporary.name) / f"{label}-decision.json"
-        run_tcw(
+        run_corpus(
             "draft-refinement",
             str(self.diagnosis),
             "--finding",
@@ -191,7 +191,7 @@ class PublishedRefinements:
             "note": None,
         }
         decision_path.write_bytes(canonical_json(decision))
-        result = run_tcw(
+        result = run_corpus(
             "resolve-refinement",
             str(decision_path),
             "--diagnosis",
@@ -229,7 +229,7 @@ class PublishedChain:
             "national example remains available for deterministic repair."
         )
         document.save(source)
-        observed = run_tcw(
+        observed = run_corpus(
             "observe",
             str(source),
             "--output-root",
@@ -256,7 +256,7 @@ class PublishedChain:
         self.second_diagnosis = second_diagnosis
 
     def _diagnose(self, base: Path, label: str) -> Path:
-        result = run_tcw(
+        result = run_corpus(
             "diagnose",
             str(base),
             "--output-root",
@@ -277,7 +277,7 @@ class PublishedChain:
         self, diagnosis: Path, base: Path, finding_id: str, label: str
     ) -> Path:
         decision_path = Path(self.temporary.name) / f"{label}.json"
-        run_tcw(
+        run_corpus(
             "draft-refinement",
             str(diagnosis),
             "--finding",
@@ -294,7 +294,7 @@ class PublishedChain:
             "note": None,
         }
         decision_path.write_bytes(canonical_json(decision))
-        result = run_tcw(
+        result = run_corpus(
             "resolve-refinement",
             str(decision_path),
             "--diagnosis",

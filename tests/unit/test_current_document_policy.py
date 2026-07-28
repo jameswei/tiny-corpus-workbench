@@ -12,8 +12,22 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 VALIDATOR = REPOSITORY / "tools/verify_current_document_policy.py"
 POLICY_PATHS = (
     Path("CURRENT.md"),
+    Path("README.md"),
+    Path("docs/controlled-revisions.md"),
+    Path("docs/corpus-inspection-comparison.md"),
+    Path("docs/evidence-based-diagnosis.md"),
+    Path("docs/extraction-observatory.md"),
+    Path("docs/local-visual-workbench.md"),
     Path("docs/roadmap.md"),
     Path("docs/releases/v0.5.0.md"),
+    Path("fixtures/README.md"),
+    Path("learning/README.md"),
+    Path("learning/v0.1-extraction-observatory.md"),
+    Path("learning/v0.2-evidence-based-diagnosis.md"),
+    Path("learning/v0.3-controlled-revisions.md"),
+    Path("learning/v0.4-corpus-inspection-comparison.md"),
+    Path("learning/v0.5-local-visual-workbench.md"),
+    Path("site/index.html"),
 )
 
 
@@ -93,6 +107,15 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
                     Path("docs/releases/v0.5.0.md"),
                     f"\n{claim}\n",
                     "binary or registry deliverable",
+                )
+
+    def test_rejects_stale_cli_commands(self) -> None:
+        for command in ("tcw observe SOURCE", "corpus inspect-corpus SPEC"):
+            with self.subTest(command=command):
+                self.assert_policy_failure(
+                    Path("README.md"),
+                    f"\n```bash\n{command}\n```\n",
+                    "stale CLI command",
                 )
 
     def test_rejects_misclassified_historical_paths(self) -> None:
