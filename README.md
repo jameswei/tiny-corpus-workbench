@@ -27,7 +27,7 @@ a concise overview.
 - **One source, two extraction views.** Docling and MarkItDown process the same
   captured source bytes. Their outputs remain separate for comparison.
 - **One canonical working document.** Lossless `DoclingDocument` JSON is the
-  canonical representation. Markdown and HTML are derived views.
+  canonical representation. Its Markdown rendering is a derived document view.
 - **Findings with evidence.** Ten fixed rules identify mechanical conditions
   and cite affected document items. A finding does not approve a change.
 - **Human-controlled revisions.** One explicit decision can reject a proposal
@@ -166,10 +166,12 @@ records without publishing a record.
 | Refinement | `refinement-manifest.json`, `decision.json`, `report.md`, and, when approved, transformation, history, and prepared-document files | Records the decision and either no revision or one reversible successor. |
 | Corpus | `corpus-manifest.json`, `corpus-spec.json`, `summary.json`, a static report, and contained member evidence | Aggregates source-text-free counts, findings, extractor deltas, and listed revision histories. |
 
-The lossless Docling JSON is the canonical content. Derived Markdown and HTML
-help people inspect it. Local hashes and verification detect ordinary
-corruption under the trusted-local model; they do not establish authorship,
-authenticity, or a trusted timestamp.
+The lossless Docling JSON is the canonical content. Derived Markdown helps
+people inspect that content. The static corpus report renders aggregate
+source-text-free evidence as HTML. Bundled HTML provides the Workbench
+interface. Local hashes and verification detect ordinary corruption under the
+trusted-local model; they do not establish authorship, authenticity, or a
+trusted timestamp.
 
 ## Corpus inspection
 
