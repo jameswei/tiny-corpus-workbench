@@ -7,7 +7,6 @@ from tiny_corpus_workbench.domain import StableError, sanitize_message
 
 class MessageSanitizerTests(unittest.TestCase):
     def test_forbidden_message_separators_are_replaced_before_collapse(self) -> None:
-        self.fail("controlled fast probe")
         cases = (
             ("nul", "left\x00right", "left right"),
             ("tab", "left\tright", "left right"),
