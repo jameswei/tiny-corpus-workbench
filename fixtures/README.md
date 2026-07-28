@@ -49,3 +49,7 @@ uv run --frozen python tools/verify_corpus_specs.py
 
 The checker validates membership, paths, family and format metadata, and
 expected rule coverage. It does not rewrite a fixture or specification.
+
+Use `uv run corpus observe FIXTURE_PATH` to inspect one fixture. Use
+`uv run corpus inspect fixtures/corpus/golden-matrix.json` to inspect the
+complete golden corpus.

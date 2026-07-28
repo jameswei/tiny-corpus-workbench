@@ -82,11 +82,11 @@ def _record_root(result: dict) -> Path:
 
 
 def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
-    tcw = (sys.executable, "-m", "tiny_corpus_workbench")
+    corpus_command = (sys.executable, "-m", "tiny_corpus_workbench")
     observation = _record_root(
         _json_line(
             run(
-                *tcw,
+                *corpus_command,
                 "observe",
                 str(export / "fixtures/refinement/whitespace-cleanup.md"),
                 "--output-root",
@@ -96,11 +96,13 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
             )
         )
     )
-    _json_line(run(*tcw, "verify", str(observation), cwd=export, env=env))
+    _json_line(
+        run(*corpus_command, "verify", str(observation), cwd=export, env=env)
+    )
     diagnosis = _record_root(
         _json_line(
             run(
-                *tcw,
+                *corpus_command,
                 "diagnose",
                 str(observation),
                 "--output-root",
@@ -112,7 +114,7 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
     )
     _json_line(
         run(
-            *tcw,
+            *corpus_command,
             "verify-diagnosis",
             str(diagnosis),
             "--subject",
@@ -130,7 +132,7 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
     decision = runtime / "decision.json"
     _json_line(
         run(
-            *tcw,
+            *corpus_command,
             "draft-refinement",
             str(diagnosis),
             "--finding",
@@ -156,7 +158,7 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
     refinement = _record_root(
         _json_line(
             run(
-                *tcw,
+                *corpus_command,
                 "resolve-refinement",
                 str(decision),
                 "--diagnosis",
@@ -172,7 +174,7 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
     )
     _json_line(
         run(
-            *tcw,
+            *corpus_command,
             "verify-refinement",
             str(refinement),
             "--diagnosis",
@@ -214,8 +216,8 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
     corpus = _record_root(
         _json_line(
             run(
-                *tcw,
-                "inspect-corpus",
+                *corpus_command,
+                "inspect",
                 str(corpus_spec),
                 "--output-root",
                 str(runtime / "corpora"),
@@ -228,7 +230,7 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
     )
     _json_line(
         run(
-            *tcw,
+            *corpus_command,
             "verify-corpus",
             str(corpus),
             "--spec",

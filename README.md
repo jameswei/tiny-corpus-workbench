@@ -53,28 +53,28 @@ read-only local browser workbench for explicit records.
 
 ## What you can do today
 
-- **Observe extraction.** `tcw observe` runs Docling and MarkItDown against the
+- **Observe extraction.** `corpus observe` runs Docling and MarkItDown against the
   same captured source snapshot. It preserves both outputs instead of choosing
   a winner.
-- **Verify an observation.** `tcw verify` checks the published structure,
+- **Verify an observation.** `corpus verify` checks the published structure,
   artifact hashes, and recorded document relationships without changing the
   record.
-- **Diagnose the canonical document.** `tcw diagnose` evaluates ten fixed,
+- **Diagnose the canonical document.** `corpus diagnose` evaluates ten fixed,
   deterministic rules against the canonical `DoclingDocument` JSON.
-- **Verify a diagnosis.** `tcw verify-diagnosis` checks diagnosis artifacts and
+- **Verify a diagnosis.** `corpus verify-diagnosis` checks diagnosis artifacts and
   can compare them with the original observation and a fresh rule evaluation.
-- **Draft one refinement.** `tcw draft-refinement` binds one supported finding
+- **Draft one refinement.** `corpus draft-refinement` binds one supported finding
   to its fixed refiner and writes a pending decision file.
-- **Resolve the decision.** `tcw resolve-refinement` records a rejection or
+- **Resolve the decision.** `corpus resolve-refinement` records a rejection or
   publishes one approved successor revision.
-- **Verify the revision.** `tcw verify-refinement` checks artifacts, lineage,
+- **Verify the revision.** `corpus verify-refinement` checks artifacts, lineage,
   forward derivation, and exact reversal.
-- **Inspect an explicit corpus.** `tcw inspect-corpus` processes a small local
+- **Inspect an explicit corpus.** `corpus inspect` processes a small local
   corpus sequentially and publishes a static offline report.
-- **Verify a corpus report.** `tcw verify-corpus` checks the corpus record,
+- **Verify a corpus report.** `corpus verify-corpus` checks the corpus record,
   its snapshot identity, every nested observation and diagnosis, and exact
   report regeneration.
-- **Inspect records in a browser.** `tcw workbench` admits explicit local
+- **Inspect records in a browser.** `corpus workbench` admits explicit local
   observation, diagnosis, refinement, or corpus records and serves one frozen,
   read-only view on `127.0.0.1`.
 
@@ -122,35 +122,40 @@ outside the project boundary.
 
 The workbench requires CPython 3.12 and
 [uv](https://docs.astral.sh/uv/). `uv.lock` pins the dependencies.
+The project is distributed as source from this repository. It does not ship
+prebuilt binaries.
 
 ```bash
 uv sync --frozen --python 3.12
-uv run --frozen docling-tools models download layout tableformer \
+uv run docling-tools models download layout tableformer \
   --output-dir .cache/docling/models
-uv run --frozen tcw observe fixtures/golden/policy-memo.pdf
-uv run --frozen tcw verify OBSERVATION_DIRECTORY
-uv run --frozen tcw diagnose OBSERVATION_DIRECTORY
-uv run --frozen tcw verify-diagnosis DIAGNOSIS_DIRECTORY \
+uv run corpus observe fixtures/golden/policy-memo.pdf
+uv run corpus verify OBSERVATION_DIRECTORY
+uv run corpus diagnose OBSERVATION_DIRECTORY
+uv run corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
   --subject OBSERVATION_DIRECTORY
-uv run --frozen tcw draft-refinement DIAGNOSIS_DIRECTORY \
+uv run corpus draft-refinement DIAGNOSIS_DIRECTORY \
   --finding FINDING_ID --base OBSERVATION_DIRECTORY \
   --output decision.json
 # Edit only decision.state, decision.decided_by, and decision.note.
-uv run --frozen tcw resolve-refinement decision.json \
+uv run corpus resolve-refinement decision.json \
   --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
-uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY \
+uv run corpus verify-refinement REFINEMENT_DIRECTORY \
   --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
-uv run --frozen tcw inspect-corpus \
+uv run corpus inspect \
   fixtures/corpus/golden-matrix.json
-uv run --frozen tcw verify-corpus CORPUS_DIRECTORY \
+uv run corpus verify-corpus CORPUS_DIRECTORY \
   --spec fixtures/corpus/golden-matrix.json
-uv run --frozen tcw workbench RECORD_DIRECTORY --no-open
+uv run corpus workbench RECORD_DIRECTORY --no-open
 ```
 
-Workflow commands print a compact JSON result. `tcw workbench` prints only its
+After `uv sync`, activate `.venv` to run the same commands directly as
+`corpus ...`.
+
+Workflow commands print a compact JSON result. `corpus workbench` prints only its
 serving address. Replace `OBSERVATION_DIRECTORY` with the directory containing
-the `manifest` path printed by `tcw observe`. Replace `DIAGNOSIS_DIRECTORY`
-with the directory containing the `manifest` path printed by `tcw diagnose`.
+the `manifest` path printed by `corpus observe`. Replace `DIAGNOSIS_DIRECTORY`
+with the directory containing the `manifest` path printed by `corpus diagnose`.
 
 The PDF example requires the local Docling models downloaded in the second
 step. Observation then runs locally and offline. OCR, plugins, remote services,

@@ -28,7 +28,7 @@ Repository = "https://github.com/jameswei/tiny-corpus-workbench"
 Website = "https://lifeplayer.space/tiny-corpus-workbench/"
 
 [project.scripts]
-tcw = "tiny_corpus_workbench.cli:main"
+corpus = "tiny_corpus_workbench.cli:main"
 
 [build-system]
 requires = ["hatchling"]

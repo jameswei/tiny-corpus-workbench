@@ -18,8 +18,8 @@ uv sync --frozen --python 3.12
 Create an observation that needs no model files:
 
 ```bash
-uv run --frozen tcw observe fixtures/golden/policy-memo.md \
-  --output-root /tmp/tcw-workbench-observations
+uv run corpus observe fixtures/golden/policy-memo.md \
+  --output-root /tmp/corpus-workbench-observations
 ```
 
 The command prints one JSON object. Use the parent directory of its `manifest`
@@ -28,7 +28,7 @@ value as `OBSERVATION_DIRECTORY`.
 Start the workbench without opening a browser automatically:
 
 ```bash
-uv run --frozen tcw workbench OBSERVATION_DIRECTORY --no-open
+uv run corpus workbench OBSERVATION_DIRECTORY --no-open
 ```
 
 The command prints only the serving address. The default address is
@@ -45,7 +45,7 @@ Use `--port PORT` to select an unused port from 1024 through 65535. Omit
 Pass one or more record root directories:
 
 ```bash
-uv run --frozen tcw workbench OBSERVATION_DIRECTORY \
+uv run corpus workbench OBSERVATION_DIRECTORY \
   DIAGNOSIS_DIRECTORY REFINEMENT_DIRECTORY CORPUS_DIRECTORY --no-open
 ```
 

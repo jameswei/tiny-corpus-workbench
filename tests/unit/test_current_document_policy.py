@@ -12,8 +12,22 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 VALIDATOR = REPOSITORY / "tools/verify_current_document_policy.py"
 POLICY_PATHS = (
     Path("CURRENT.md"),
+    Path("README.md"),
+    Path("docs/controlled-revisions.md"),
+    Path("docs/corpus-inspection-comparison.md"),
+    Path("docs/evidence-based-diagnosis.md"),
+    Path("docs/extraction-observatory.md"),
+    Path("docs/local-visual-workbench.md"),
     Path("docs/roadmap.md"),
     Path("docs/releases/v0.5.0.md"),
+    Path("fixtures/README.md"),
+    Path("learning/README.md"),
+    Path("learning/v0.1-extraction-observatory.md"),
+    Path("learning/v0.2-evidence-based-diagnosis.md"),
+    Path("learning/v0.3-controlled-revisions.md"),
+    Path("learning/v0.4-corpus-inspection-comparison.md"),
+    Path("learning/v0.5-local-visual-workbench.md"),
+    Path("site/index.html"),
 )
 
 
@@ -94,6 +108,39 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
                     f"\n{claim}\n",
                     "binary or registry deliverable",
                 )
+
+    def test_rejects_stale_cli_commands(self) -> None:
+        for command in ("uv run tcw observe SOURCE", "uv run corpus inspect-corpus SPEC"):
+            with self.subTest(command=command):
+                self.assert_policy_failure(
+                    Path("README.md"),
+                    f"\n```bash\n{command}\n```\n",
+                    "stale CLI command",
+                )
+
+    def test_rejects_frozen_normal_use_but_allows_validation_and_setup(self) -> None:
+        self.assert_policy_failure(
+            Path("README.md"),
+            "\n```bash\nuv run --frozen corpus observe SOURCE\n```\n",
+            "normal-use frozen uv command",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.copied_policy_tree(root)
+            readme = root / "README.md"
+            readme.write_text(
+                readme.read_text("utf-8")
+                + "\n```bash\n"
+                + "uv sync --frozen --python 3.12\n"
+                + "uv run --frozen --group test python -m unittest discover -s tests\n"
+                + "uv run --frozen python tools/verify_fixtures.py\n"
+                + "```\n",
+                "utf-8",
+            )
+            result = self.invoke(root)
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, "")
+            self.assertEqual(result.stderr, "")
 
     def test_rejects_misclassified_historical_paths(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
