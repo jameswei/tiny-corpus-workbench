@@ -91,8 +91,9 @@ def _reject_stale_usage(path: Path, text: str) -> None:
     if re.search(r"\btcw\b|\binspect-corpus\b", text):
         raise PolicyError(f"{path.as_posix()}: stale CLI command")
     allowed_frozen_run = re.compile(
-        r"\buv\s+run\s+--frozen\s+"
-        r"(?:--group\b|python\s+(?:tools/|-m\s+(?:compileall|unittest)\b))"
+        r"^\s*uv\s+run\s+--frozen\s+"
+        r"(?:(?:--group\s+(?:fixtures|test)\s+)?python\s+"
+        r"(?:tools/[A-Za-z0-9_./-]+\.py\b|-m\s+(?:compileall|unittest)\b))"
     )
     for line in text.splitlines():
         if re.search(r"\buv\s+run\s+--frozen\b", line) and not allowed_frozen_run.search(

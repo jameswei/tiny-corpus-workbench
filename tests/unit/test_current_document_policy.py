@@ -119,11 +119,18 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
                 )
 
     def test_rejects_frozen_normal_use_but_allows_validation_and_setup(self) -> None:
-        self.assert_policy_failure(
-            Path("README.md"),
-            "\n```bash\nuv run --frozen corpus observe SOURCE\n```\n",
-            "normal-use frozen uv command",
+        commands = (
+            "uv run --frozen corpus observe SOURCE",
+            "uv run --frozen --group test corpus observe SOURCE",
+            "uv run --frozen --group fixtures corpus inspect SPEC",
         )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_policy_failure(
+                    Path("README.md"),
+                    f"\n```bash\n{command}\n```\n",
+                    "normal-use frozen uv command",
+                )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.copied_policy_tree(root)
@@ -133,6 +140,8 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
                 + "\n```bash\n"
                 + "uv sync --frozen --python 3.12\n"
                 + "uv run --frozen --group test python -m unittest discover -s tests\n"
+                + "uv run --frozen --group test python -m compileall -q src tests\n"
+                + "uv run --frozen --group fixtures python tools/generate_fixtures.py --check\n"
                 + "uv run --frozen python tools/verify_fixtures.py\n"
                 + "```\n",
                 "utf-8",
