@@ -15,8 +15,8 @@ Future work may use whichever sound engineering practices fit the task.
   evidence.
 - The original milestone PRs
   [#13](https://github.com/jameswei/tiny-corpus-workbench/pull/13) and
-  [#17](https://github.com/jameswei/tiny-corpus-workbench/pull/17) are merged
-  history before the correction.
+  [#17](https://github.com/jameswei/tiny-corpus-workbench/pull/17) are merged.
+  They represent pre-correction history.
 - This tree contains the final PR 9 documentation closeout. v0.5 is unreleased.
   Independent PR 9 review, squash merge, post-merge main CI, the
   required retrospective, and separate release approval remain required.

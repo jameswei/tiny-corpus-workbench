@@ -16,8 +16,8 @@ raw source
 ```
 
 The project makes each step inspectable. It preserves raw evidence, separates
-findings from authority, and records reversible changes. Corpus reports and a
-local visual Workbench help you inspect the same evidence at different scales.
+findings from authority, and records reversible changes. Corpus reports and the
+Local Visual Workbench help you inspect the same evidence at different scales.
 
 Visit the [project website](https://lifeplayer.space/tiny-corpus-workbench/) for
 a concise overview.
