@@ -6,6 +6,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import UTC, datetime
@@ -27,13 +28,13 @@ from tiny_corpus_workbench.artifacts import REQUIRED_MODEL_FILES, canonical_json
 from tiny_corpus_workbench.domain import (
     InputError,
     IntegrityError,
-    RuntimeContractError,
 )
 from tiny_corpus_workbench.v03 import (
     _apply_edits,
     _diagnosis_identity,
     _diagnosis_report,
     _normalize_whitespace,
+    _prepared_bytes,
     _target,
     make_finding_set,
     verify_diagnosis,
@@ -91,7 +92,7 @@ class ControlledRevisionTests(unittest.TestCase):
             code = cli.main(list(arguments))
         return code, stdout.getvalue(), stderr.getvalue()
 
-    def test_old_refinement_inputs_exit_two(self) -> None:
+    def test_old_refinement_inputs_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             diagnosis = root / "diagnosis"
@@ -130,9 +131,9 @@ class ControlledRevisionTests(unittest.TestCase):
                 "--base",
                 str(base),
             )
-            self.assertEqual(code, 2)
+            self.assertEqual(code, 5)
             self.assertEqual(stdout, "")
-            self.assertIn("v0.5 refinement draft", stderr)
+            self.assertIn("refinement-draft validation failed", stderr)
 
             old_record = root / "old-refinement"
             old_record.mkdir()
@@ -145,7 +146,7 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             self.assertEqual(code, 2)
             self.assertEqual(stdout, "")
-            self.assertIn("v0.5 refinement", stderr)
+            self.assertIn("regenerate", stderr)
 
     def observation(
         self,
@@ -227,7 +228,6 @@ class ControlledRevisionTests(unittest.TestCase):
             for key, value in decision["proposal"].items()
             if key != "draft_id"
         }
-        proposal_identity["build_provenance"] = decision["build_provenance"]
         draft_id = hashlib.sha256(
             canonical_json(proposal_identity).rstrip(b"\n")
         ).hexdigest()
@@ -260,11 +260,7 @@ class ControlledRevisionTests(unittest.TestCase):
         ).hexdigest()
         manifest["revision_id"] = revision_id
         history["revision_id"] = revision_id
-        history["transformations"][-1] = {
-            key: value
-            for key, value in transformation.items()
-            if key != "schema_version"
-        }
+        history["transformations"][-1] = transformation
         for name, value in (
             ("decision.json", decision),
             ("transformation.json", transformation),
@@ -320,6 +316,84 @@ class ControlledRevisionTests(unittest.TestCase):
                 descriptor["size"] = path.stat().st_size
                 descriptor["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         (record / "refinement-manifest.json").write_bytes(canonical_json(manifest))
+
+    def rewrite_proposal_identity_chain(
+        self,
+        record: Path,
+        mutate,
+    ) -> None:
+        manifest = json.loads(
+            (record / "refinement-manifest.json").read_text("utf-8")
+        )
+        decision = json.loads((record / "decision.json").read_text("utf-8"))
+        transformation = json.loads(
+            (record / "transformation.json").read_text("utf-8")
+        )
+        history = json.loads((record / "history.json").read_text("utf-8"))
+        proposal = decision["proposal"]
+        mutate(proposal)
+        proposal_identity = {
+            key: value for key, value in proposal.items() if key != "draft_id"
+        }
+        draft_id = hashlib.sha256(
+            canonical_json(proposal_identity).rstrip(b"\n")
+        ).hexdigest()
+        proposal["draft_id"] = draft_id
+        manifest["draft_id"] = draft_id
+        prepared_sha256 = hashlib.sha256(
+            (record / "prepared/document.json").read_bytes()
+        ).hexdigest()
+        revision_id = hashlib.sha256(
+            canonical_json(
+                {
+                    "parent": manifest["base"]["identity_value"],
+                    "base_sha256": manifest["base"][
+                        "canonical_document_sha256"
+                    ],
+                    "draft_id": draft_id,
+                    "prepared_sha256": prepared_sha256,
+                }
+            ).rstrip(b"\n")
+        ).hexdigest()
+        transformation.update(
+            {
+                "revision_id": revision_id,
+                "finding_id": proposal["finding"]["finding_id"],
+                "decision_id": draft_id,
+                "refiner": proposal["refiner"],
+                "affected_refs": proposal["affected_refs"],
+                "forward_edits": proposal["forward_edits"],
+                "inverse_edits": proposal["inverse_edits"],
+                "prepared_document_sha256": prepared_sha256,
+            }
+        )
+        transformation["transformation_id"] = hashlib.sha256(
+            canonical_json(
+                {
+                    "revision_id": revision_id,
+                    "draft_id": draft_id,
+                    "refiner": transformation["refiner"],
+                }
+            ).rstrip(b"\n")
+        ).hexdigest()
+        manifest["revision_id"] = revision_id
+        history["revision_id"] = revision_id
+        history["transformations"][-1] = transformation
+        for name, value in (
+            ("decision.json", decision),
+            ("transformation.json", transformation),
+            ("history.json", history),
+        ):
+            (record / name).write_bytes(canonical_json(value))
+        self.refresh_descriptors(
+            record,
+            manifest,
+            "decision.json",
+            "transformation.json",
+            "history.json",
+            "prepared/document.json",
+            "prepared/document.md",
+        )
 
     def subject(self) -> dict:
         document = DoclingDocument(name="rules")
@@ -504,6 +578,78 @@ class ControlledRevisionTests(unittest.TestCase):
         self.assertEqual(changed["furniture"]["children"], [{"$ref": "#/texts/0"}])
         self.assertEqual(payload["texts"][0]["content_layer"], "body")
 
+    def test_apply_edits_rejects_noncanonical_target_and_membership_matrix(
+        self,
+    ) -> None:
+        document = DoclingDocument(name="invalid-membership")
+        item = document.add_text(DocItemLabel.TEXT, "Footer")
+        payload = document.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        valid = {
+            "target": {"ref": item.self_ref, "field": "content_layer"},
+            "before": {
+                "content_layer": "body",
+                "body_index": 0,
+                "parent": {"$ref": "#/body"},
+            },
+            "after": {
+                "content_layer": "furniture",
+                "furniture_index": 0,
+                "parent": {"$ref": "#/furniture"},
+            },
+        }
+        cases = {}
+
+        content_coordinates = deepcopy(valid)
+        content_coordinates["target"].update({"row": 0, "column": 0})
+        cases["content-layer-coordinates"] = content_coordinates
+
+        body_with_furniture_index = deepcopy(valid)
+        body_with_furniture_index["before"] = {
+            "content_layer": "body",
+            "furniture_index": 0,
+            "parent": {"$ref": "#/body"},
+        }
+        cases["body-with-furniture-index"] = body_with_furniture_index
+
+        furniture_with_body_index = deepcopy(valid)
+        furniture_with_body_index["after"] = {
+            "content_layer": "furniture",
+            "body_index": 0,
+            "parent": {"$ref": "#/furniture"},
+        }
+        cases["furniture-with-body-index"] = furniture_with_body_index
+
+        mismatched_parent = deepcopy(valid)
+        mismatched_parent["after"]["parent"] = {"$ref": "#/body"}
+        cases["mismatched-parent"] = mismatched_parent
+
+        text_coordinates = {
+            "target": {
+                "ref": item.self_ref,
+                "field": "text",
+                "row": 0,
+                "column": 0,
+            },
+            "before": "Footer",
+            "after": "Changed",
+        }
+        cases["non-table-text-coordinates"] = text_coordinates
+
+        table_without_coordinates = {
+            "target": {"ref": "#/tables/0", "field": "text"},
+            "before": "Footer",
+            "after": "Changed",
+        }
+        cases["table-without-coordinates"] = table_without_coordinates
+
+        baseline = canonical_json(payload)
+        for label, edit in cases.items():
+            with self.subTest(label=label), self.assertRaises(IntegrityError):
+                _apply_edits(payload, [edit])
+            self.assertEqual(canonical_json(payload), baseline)
+
     def test_repeated_boilerplate_inverse_restores_lexical_refs_by_position(
         self,
     ) -> None:
@@ -579,15 +725,201 @@ class ControlledRevisionTests(unittest.TestCase):
                         broken, diagnosis, observation
                     )
                     self.assertEqual(
-                        broken_result["artifact_integrity"]["status"], "VERIFIED"
+                        broken_result["artifact_integrity"]["status"], "BROKEN"
                     )
                     self.assertEqual(
                         broken_result["derivation_state"]["status"], "MATCH"
                     )
-                    self.assertIn(
+                    self.assertEqual(
                         broken_result["reversibility_state"]["status"],
-                        {"MISMATCH", "ERROR"},
+                        "MISMATCH",
                     )
+                    code, stdout, stderr = self.invoke(
+                        "verify-refinement", str(broken)
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(
+                        json.loads(stdout)["artifact_integrity"]["status"],
+                        "BROKEN",
+                    )
+                    code, stdout, stderr = self.invoke(
+                        "verify-refinement",
+                        str(broken),
+                        "--diagnosis",
+                        str(diagnosis),
+                        "--base",
+                        str(observation),
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(
+                        json.loads(stdout)["reversibility_state"]["status"],
+                        "MISMATCH",
+                    )
+
+    def test_hash_consistent_forged_edits_fail_canonical_refiner_replay(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation, diagnosis, revision = self.approve_rule(
+                root / "base", "TCW-D009"
+            )
+            forged = self.copy_record(revision, root / "forged")
+            decision = json.loads(
+                (forged / "decision.json").read_text("utf-8")
+            )
+            forward = deepcopy(decision["proposal"]["forward_edits"])
+            forward[0]["after"] += " Forged deterministic-looking output."
+            inverse = [
+                {
+                    "target": deepcopy(edit["target"]),
+                    "before": deepcopy(edit["after"]),
+                    "after": deepcopy(edit["before"]),
+                }
+                for edit in forward
+            ]
+            base_payload = json.loads(
+                (observation / "docling/document.json").read_text("utf-8")
+            )
+            prepared_payload = _apply_edits(base_payload, forward)
+            prepared_bytes, markdown_bytes = _prepared_bytes(prepared_payload)
+            (forged / "prepared/document.json").write_bytes(prepared_bytes)
+            (forged / "prepared/document.md").write_bytes(markdown_bytes)
+
+            def replace_edits(proposal: dict) -> None:
+                proposal["forward_edits"] = forward
+                proposal["inverse_edits"] = inverse
+
+            self.rewrite_proposal_identity_chain(forged, replace_edits)
+            intrinsic = verify_refinement(forged)
+            self.assertEqual(
+                intrinsic["artifact_integrity"]["status"], "VERIFIED"
+            )
+            self.assertEqual(
+                intrinsic["derivation_state"]["status"], "NOT_CHECKED"
+            )
+            checked = verify_refinement(forged, diagnosis, observation)
+            self.assertEqual(
+                checked["artifact_integrity"]["status"], "VERIFIED"
+            )
+            self.assertEqual(
+                checked["diagnosis_state"]["status"], "MATCH"
+            )
+            self.assertEqual(checked["base_state"]["status"], "MATCH")
+            self.assertEqual(
+                checked["derivation_state"]["status"], "MISMATCH"
+            )
+            self.assertEqual(
+                checked["reversibility_state"]["status"], "MISMATCH"
+            )
+
+            code, stdout, stderr = self.invoke(
+                "verify-refinement", str(forged)
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["derivation_state"]["status"],
+                "NOT_CHECKED",
+            )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(forged),
+                "--diagnosis",
+                str(diagnosis),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["derivation_state"]["status"],
+                "MISMATCH",
+            )
+
+            findings = json.loads(
+                (diagnosis / "findings.json").read_text("utf-8")
+            )
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            rejected_draft = root / "rejected.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, rejected_draft
+            )
+            rejected_value = json.loads(
+                rejected_draft.read_text("utf-8")
+            )
+            rejected_value["decision"] = {
+                "state": "REJECTED",
+                "decided_by": "test-owner",
+                "note": None,
+            }
+            rejected_draft.write_bytes(canonical_json(rejected_value))
+            rejected = cli._diagnosis_callable(
+                "v03", "resolve_refinement"
+            )(
+                rejected_draft,
+                diagnosis,
+                observation,
+                root / "rejected-records",
+            )
+            forged_rejected = self.copy_record(
+                rejected, root / "forged-rejected"
+            )
+            decision_path = forged_rejected / "decision.json"
+            manifest_path = forged_rejected / "refinement-manifest.json"
+            decision = json.loads(decision_path.read_text("utf-8"))
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            decision["proposal"]["forward_edits"] = forward
+            decision["proposal"]["inverse_edits"] = inverse
+            decision["proposal"]["draft_id"] = hashlib.sha256(
+                canonical_json(
+                    {
+                        key: value
+                        for key, value in decision["proposal"].items()
+                        if key != "draft_id"
+                    }
+                ).rstrip(b"\n")
+            ).hexdigest()
+            manifest["draft_id"] = decision["proposal"]["draft_id"]
+            decision_path.write_bytes(canonical_json(decision))
+            self.refresh_descriptors(
+                forged_rejected, manifest, "decision.json"
+            )
+            self.assertEqual(
+                verify_refinement(forged_rejected)[
+                    "artifact_integrity"
+                ]["status"],
+                "VERIFIED",
+            )
+            checked_rejected = verify_refinement(
+                forged_rejected, diagnosis, observation
+            )
+            self.assertEqual(
+                checked_rejected["artifact_integrity"]["status"], "BROKEN"
+            )
+            self.assertEqual(
+                checked_rejected["derivation_state"]["status"],
+                "NOT_APPLICABLE",
+            )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(forged_rejected),
+                "--diagnosis",
+                str(diagnosis),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["artifact_integrity"]["status"], "BROKEN"
+            )
 
     def test_hash_consistent_semantic_tampering_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -659,6 +991,232 @@ class ControlledRevisionTests(unittest.TestCase):
                     self.assertEqual(
                         result["artifact_integrity"]["status"], "BROKEN"
                     )
+
+    def test_hash_consistent_base_and_refiner_relationship_tampering_exits_five(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, _, revision = self.approve_rule(root / "base", "TCW-D009")
+
+            def assert_broken(record: Path) -> None:
+                result = verify_refinement(record)
+                self.assertEqual(
+                    result["artifact_integrity"]["status"], "BROKEN"
+                )
+                code, stdout, stderr = self.invoke(
+                    "verify-refinement", str(record)
+                )
+                self.assertEqual(code, 5)
+                self.assertEqual(stderr, "")
+                self.assertEqual(
+                    json.loads(stdout)["artifact_integrity"]["status"],
+                    "BROKEN",
+                )
+
+            mismatched_base = self.copy_record(
+                revision, root / "base-identity-type"
+            )
+            manifest_path = mismatched_base / "refinement-manifest.json"
+            manifest = json.loads(manifest_path.read_text("utf-8"))
+            manifest["base"]["identity_type"] = "revision_id"
+            manifest_path.write_bytes(canonical_json(manifest))
+            assert_broken(mismatched_base)
+
+            for label, replacement in (
+                (
+                    "refiner-descriptor",
+                    {
+                        "refiner_id": "TCW-R001",
+                        "name": "DETERMINISTIC_DEHYPHENATION",
+                        "version": "1",
+                    },
+                ),
+                (
+                    "proposal-refiner",
+                    {
+                        "refiner_id": "TCW-R003",
+                        "name": "DETERMINISTIC_DEHYPHENATION",
+                        "version": "1",
+                    },
+                ),
+            ):
+                with self.subTest(label=label):
+                    copied = self.copy_record(revision, root / label)
+                    manifest = json.loads(
+                        (copied / "refinement-manifest.json").read_text("utf-8")
+                    )
+                    decision = json.loads(
+                        (copied / "decision.json").read_text("utf-8")
+                    )
+                    transformation = json.loads(
+                        (copied / "transformation.json").read_text("utf-8")
+                    )
+                    history = json.loads(
+                        (copied / "history.json").read_text("utf-8")
+                    )
+
+                    decision["proposal"]["refiner"] = replacement
+                    proposal_identity = {
+                        key: value
+                        for key, value in decision["proposal"].items()
+                        if key != "draft_id"
+                    }
+                    draft_id = hashlib.sha256(
+                        canonical_json(proposal_identity).rstrip(b"\n")
+                    ).hexdigest()
+                    decision["proposal"]["draft_id"] = draft_id
+                    manifest["draft_id"] = draft_id
+                    prepared_sha256 = hashlib.sha256(
+                        (copied / "prepared/document.json").read_bytes()
+                    ).hexdigest()
+                    revision_id = hashlib.sha256(
+                        canonical_json(
+                            {
+                                "parent": manifest["base"]["identity_value"],
+                                "base_sha256": manifest["base"][
+                                    "canonical_document_sha256"
+                                ],
+                                "draft_id": draft_id,
+                                "prepared_sha256": prepared_sha256,
+                            }
+                        ).rstrip(b"\n")
+                    ).hexdigest()
+                    transformation["refiner"] = replacement
+                    transformation["decision_id"] = draft_id
+                    transformation["revision_id"] = revision_id
+                    transformation["transformation_id"] = hashlib.sha256(
+                        canonical_json(
+                            {
+                                "revision_id": revision_id,
+                                "draft_id": draft_id,
+                                "refiner": replacement,
+                            }
+                        ).rstrip(b"\n")
+                    ).hexdigest()
+                    manifest["revision_id"] = revision_id
+                    history["revision_id"] = revision_id
+                    history["transformations"][-1] = transformation
+                    for name, value in (
+                        ("decision.json", decision),
+                        ("transformation.json", transformation),
+                        ("history.json", history),
+                    ):
+                        (copied / name).write_bytes(canonical_json(value))
+                    self.refresh_descriptors(
+                        copied,
+                        manifest,
+                        "decision.json",
+                        "transformation.json",
+                        "history.json",
+                    )
+                    assert_broken(copied)
+
+    def test_hash_consistent_finding_and_edit_contract_tampering_exits_five(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, _, text_revision = self.approve_rule(
+                root / "text-base", "TCW-D009"
+            )
+            _, _, membership_revision = self.approve_rule(
+                root / "membership-base",
+                "TCW-D007",
+                converter=docling_with_repeated_margins,
+                source=PDF_SOURCE,
+            )
+
+            def assert_broken(record: Path) -> None:
+                result = verify_refinement(record)
+                self.assertEqual(
+                    result["artifact_integrity"]["status"], "BROKEN"
+                )
+                code, stdout, stderr = self.invoke(
+                    "verify-refinement", str(record)
+                )
+                self.assertEqual(code, 5)
+                self.assertEqual(stderr, "")
+                self.assertEqual(
+                    json.loads(stdout)["artifact_integrity"]["status"],
+                    "BROKEN",
+                )
+
+            def finding_id(proposal: dict) -> str:
+                finding = proposal["finding"]
+                return hashlib.sha256(
+                    canonical_json(
+                        {
+                            "diagnosis_id": proposal["diagnosis_id"],
+                            "rule_id": finding["rule_id"],
+                            "rule_version": finding["rule_version"],
+                            "document_refs": finding["document_refs"],
+                            "evidence": finding["evidence"],
+                        }
+                    ).rstrip(b"\n")
+                ).hexdigest()
+
+            finding_mutations = {
+                "finding-metadata": lambda proposal: proposal["finding"].update(
+                    {"severity": "ERROR"}
+                ),
+                "finding-identity": lambda proposal: proposal["finding"].update(
+                    {"finding_id": "f" * 64}
+                ),
+            }
+
+            def invalidate_evidence(proposal: dict) -> None:
+                proposal["finding"]["evidence"]["occurrence_count"] += 1
+                proposal["finding"]["finding_id"] = finding_id(proposal)
+
+            finding_mutations["finding-evidence"] = invalidate_evidence
+            for label, mutate in finding_mutations.items():
+                with self.subTest(label=label):
+                    copied = self.copy_record(text_revision, root / label)
+                    self.rewrite_proposal_identity_chain(copied, mutate)
+                    assert_broken(copied)
+
+            def add_content_coordinates(proposal: dict) -> None:
+                for collection in ("forward_edits", "inverse_edits"):
+                    for edit in proposal[collection]:
+                        edit["target"].update({"row": 0, "column": 0})
+
+            def contradict_membership(proposal: dict) -> None:
+                invalid = {
+                    "content_layer": "body",
+                    "furniture_index": 0,
+                    "parent": {"$ref": "#/body"},
+                }
+                proposal["forward_edits"][0]["after"] = invalid
+                proposal["inverse_edits"][0]["before"] = invalid
+
+            membership_mutations = {
+                "content-layer-coordinates": add_content_coordinates,
+                "contradictory-membership": contradict_membership,
+            }
+            for label, mutate in membership_mutations.items():
+                with self.subTest(label=label):
+                    copied = self.copy_record(
+                        membership_revision, root / label
+                    )
+                    self.rewrite_proposal_identity_chain(copied, mutate)
+                    assert_broken(copied)
+
+            def make_table_target_without_coordinates(proposal: dict) -> None:
+                for collection in ("forward_edits", "inverse_edits"):
+                    for edit in proposal[collection]:
+                        edit["target"] = {
+                            "ref": "#/tables/0",
+                            "field": "text",
+                        }
+
+            copied = self.copy_record(
+                text_revision, root / "noncanonical-text-target"
+            )
+            self.rewrite_proposal_identity_chain(
+                copied, make_table_target_without_coordinates
+            )
+            assert_broken(copied)
 
     def test_rejected_status_requires_exact_inventory_and_null_revision(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -787,48 +1345,42 @@ class ControlledRevisionTests(unittest.TestCase):
                     self.assertEqual(
                         result["base_state"]["status"], "CHANGED"
                     )
+                    code, stdout, stderr = self.invoke(
+                        "verify-refinement",
+                        str(copied),
+                        "--diagnosis",
+                        str(diagnosis),
+                        "--base",
+                        str(observation),
+                    )
+                    self.assertEqual(code, 5)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(
+                        json.loads(stdout)["base_state"]["status"], "CHANGED"
+                    )
 
-    def test_refinement_runtime_provenance_is_verified(self) -> None:
+    def test_refinement_records_omit_runtime_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
                 root / "base", "TCW-D009"
             )
-            for field, replacement, malformed in (
-                ("lockfile_sha256", "f" * 64, False),
-                ("package_version", "0.5.1", False),
-                (
-                    "dependencies",
-                    None,
-                    True,
-                ),
-            ):
-                with self.subTest(field=field):
-                    copied = self.copy_record(revision, root / field)
-                    manifest_path = copied / "refinement-manifest.json"
-                    manifest = json.loads(manifest_path.read_text("utf-8"))
-                    if field == "dependencies":
-                        replacement = dict(
-                            manifest["build_provenance"]["dependencies"]
-                        )
-                        replacement.pop("jsonschema")
-                    manifest["build_provenance"][field] = replacement
-                    manifest_path.write_bytes(canonical_json(manifest))
-                    if malformed:
-                        self.assertEqual(
-                            verify_refinement(
-                                copied, diagnosis, observation
-                            )["artifact_integrity"]["status"],
-                            "BROKEN",
-                        )
-                    else:
-                        with self.assertRaisesRegex(
-                            RuntimeContractError,
-                            "recorded provenance is unsupported",
-                        ):
-                            verify_refinement(
-                                copied, diagnosis, observation
-                            )
+            manifest = json.loads(
+                (revision / "refinement-manifest.json").read_text("utf-8")
+            )
+            self.assertEqual(
+                (manifest["record_type"], manifest["format_version"]),
+                ("refinement", 1),
+            )
+            for name in ("decision.json", "transformation.json", "history.json"):
+                value = json.loads((revision / name).read_text("utf-8"))
+                self.assertNotIn("record_type", value)
+                self.assertNotIn("format_version", value)
+                self.assertNotIn("schema_version", value)
+                self.assertNotIn("build_provenance", value)
+            result = verify_refinement(revision, diagnosis, observation)
+            self.assertNotIn("schema_version", result)
+            self.assertNotIn("build_provenance", result)
 
     def test_replay_requires_exact_diagnosis_and_base(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -853,6 +1405,19 @@ class ControlledRevisionTests(unittest.TestCase):
                 missing_diagnosis["reversibility_state"]["status"],
                 "NOT_CHECKED",
             )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(revision),
+                "--diagnosis",
+                str(root / "missing-diagnosis"),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["diagnosis_state"]["status"], "MISSING"
+            )
 
             missing_base = verify_refinement(
                 revision, diagnosis, root / "missing-base"
@@ -866,6 +1431,19 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             self.assertEqual(
                 missing_base["reversibility_state"]["status"], "NOT_CHECKED"
+            )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(revision),
+                "--diagnosis",
+                str(diagnosis),
+                "--base",
+                str(root / "missing-base"),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["base_state"]["status"], "MISSING"
             )
 
             changed = self.copy_record(
@@ -923,6 +1501,19 @@ class ControlledRevisionTests(unittest.TestCase):
                 changed_result["reversibility_state"]["status"],
                 "NOT_CHECKED",
             )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(revision),
+                "--diagnosis",
+                str(changed),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 5)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["diagnosis_state"]["status"], "CHANGED"
+            )
 
     def test_chained_parent_reference_is_exact_and_bound_to_base(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -978,7 +1569,7 @@ class ControlledRevisionTests(unittest.TestCase):
             self.assertEqual(result["artifact_integrity"]["status"], "BROKEN")
             self.assertNotEqual(result["base_state"]["status"], "MATCH")
 
-    def test_supplied_relationship_provenance_failures_use_exact_cli_streams(
+    def test_supplied_relationship_format_failures_use_exact_cli_streams(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1072,14 +1663,15 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             parent_manifest = unsupported_parent / "refinement-manifest.json"
             value = json.loads(parent_manifest.read_text("utf-8"))
-            value["build_provenance"]["provenance_id"] = "0" * 64
+            value["format_version"] = 99
             parent_manifest.write_bytes(canonical_json(value))
             parent_cases = [
                 (
-                    "parent-unsupported",
+                    "parent-unknown-format",
                     unsupported_parent,
-                    6,
-                    "recorded provenance is unsupported by this v0.5 package\n",
+                    2,
+                    "refinement record format is unsupported; "
+                    "regenerate the record with the current project\n",
                 )
             ]
             malformed_parent = self.copy_record(
@@ -1087,14 +1679,15 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             parent_manifest = malformed_parent / "refinement-manifest.json"
             value = json.loads(parent_manifest.read_text("utf-8"))
-            del value["build_provenance"]["command_id"]
+            del value["record_type"]
             parent_manifest.write_bytes(canonical_json(value))
             parent_cases.append(
                 (
-                    "parent-malformed",
+                    "parent-missing-header",
                     malformed_parent,
-                    5,
-                    "supplied base is malformed or unavailable\n",
+                    2,
+                    "refinement record format is unsupported; "
+                    "regenerate the record with the current project\n",
                 )
             )
 
@@ -1270,20 +1863,28 @@ class ControlledRevisionTests(unittest.TestCase):
             refinement_manifest = json.loads(
                 (revision / "refinement-manifest.json").read_text("utf-8")
             )
-            self.assertEqual(
-                decision_record["build_provenance"]["command_id"],
-                "tcw.draft-refinement",
-            )
-            self.assertEqual(
-                refinement_manifest["build_provenance"]["command_id"],
-                "tcw.resolve-refinement",
-            )
+            self.assertNotIn("build_provenance", decision_record)
+            self.assertNotIn("schema_version", decision_record)
+            self.assertEqual(refinement_manifest["record_type"], "refinement")
+            self.assertEqual(refinement_manifest["format_version"], 1)
+            self.assertNotIn("build_provenance", refinement_manifest)
+            self.assertNotIn("schema_version", refinement_manifest)
             self.assertNotIn("runtime", refinement_manifest)
             self.assertNotIn("milestone", refinement_manifest)
             result = verify_refinement(revision, diagnosis, observation)
             self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
             self.assertEqual(result["derivation_state"]["status"], "MATCH")
             self.assertEqual(result["reversibility_state"]["status"], "MATCH")
+            code, _, stderr = self.invoke(
+                "verify-refinement",
+                str(revision),
+                "--diagnosis",
+                str(diagnosis),
+                "--base",
+                str(observation),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
             original = json.loads(
                 (observation / "docling/document.json").read_text("utf-8")
             )
@@ -1329,6 +1930,20 @@ class ControlledRevisionTests(unittest.TestCase):
                 verify_refinement(record)["reversibility_state"]["status"],
                 "NOT_APPLICABLE",
             )
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(record),
+                "--diagnosis",
+                str(diagnosis2),
+                "--base",
+                str(revision),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["reversibility_state"]["status"],
+                "NOT_APPLICABLE",
+            )
 
             draft2 = root / "dehyphenation-decision.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -1346,6 +1961,19 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             history = json.loads((revision2 / "history.json").read_text("utf-8"))
             self.assertEqual(len(history["transformations"]), 2)
+            code, stdout, stderr = self.invoke(
+                "verify-refinement",
+                str(revision2),
+                "--diagnosis",
+                str(diagnosis2),
+                "--base",
+                str(revision),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr, "")
+            self.assertEqual(
+                json.loads(stdout)["derivation_state"]["status"], "MATCH"
+            )
 
             broken_chain = self.copy_record(revision2, root / "broken-chain")
             broken_manifest = json.loads(

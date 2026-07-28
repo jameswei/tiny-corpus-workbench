@@ -46,11 +46,6 @@ from tiny_corpus_workbench.domain import (
     sanitize_message,
 )
 from tiny_corpus_workbench.schema_catalog import validate_document
-from tiny_corpus_workbench.supported_provenance import (
-    RECORDED_PROVENANCE_ERROR,
-    active_build_provenance,
-    validate_recorded_provenance,
-)
 from tiny_corpus_workbench.source import sha256_file
 from tiny_corpus_workbench.verification import verify_observation
 
@@ -280,12 +275,13 @@ def _observation_subject(root: Path) -> dict[str, Any]:
 
 
 def _refinement_subject(root: Path) -> dict[str, Any]:
-    report = verify_refinement(root)
-    if report["artifact_integrity"]["status"] != "VERIFIED":
-        raise InputError("refinement integrity is not verified")
     manifest_bytes, manifest = _load_json_regular(
         root / "refinement-manifest.json", "refinement manifest"
     )
+    require_record_header(manifest, "refinement")
+    report = verify_refinement(root)
+    if report["artifact_integrity"]["status"] != "VERIFIED":
+        raise InputError("refinement integrity is not verified")
     if manifest["status"] != "APPLIED":
         raise InputError("a rejected refinement cannot be a diagnosis subject")
     document_bytes, payload = _load_json_regular(
@@ -874,13 +870,21 @@ def _proposal(
         "refiner": refiner,
         "affected_refs": finding["document_refs"],
         "forward_edits": edits,
-        "inverse_edits": [
-            {"target": edit["target"], "before": edit["after"], "after": edit["before"]}
-            for edit in edits
-        ],
+        "inverse_edits": _inverse_edits(edits),
     }
     proposal["draft_id"] = _hash(canonical_json(proposal).rstrip(b"\n"))
     return proposal, base
+
+
+def _inverse_edits(edits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "target": copy.deepcopy(edit["target"]),
+            "before": copy.deepcopy(edit["after"]),
+            "after": copy.deepcopy(edit["before"]),
+        }
+        for edit in edits
+    ]
 
 
 def draft_refinement(
@@ -889,17 +893,12 @@ def draft_refinement(
     diagnosis_before = snapshot_tree(diagnosis_root)
     base_before = snapshot_tree(base_root)
     proposal, _ = _proposal(diagnosis_root, finding_id, base_root)
-    build_provenance = active_build_provenance(
-        command_id="tcw.draft-refinement"
-    )
-    proposal["draft_id"] = _draft_identity(proposal, build_provenance)
+    proposal["draft_id"] = _draft_identity(proposal)
     draft = {
-        "schema_version": "tcw.refinement-draft/v0.5",
         "proposal": proposal,
         "decision": {"state": "PENDING", "decided_by": None, "note": None},
-        "build_provenance": build_provenance,
     }
-    _validate("tcw.refinement-draft/v0.5", draft)
+    _validate("refinement-draft", draft)
     _ensure_outside([diagnosis_root, base_root], output)
     if snapshot_tree(diagnosis_root) != diagnosis_before or snapshot_tree(base_root) != base_before:
         raise IntegrityError("refinement input changed during drafting")
@@ -907,7 +906,85 @@ def draft_refinement(
     return {"draft_id": proposal["draft_id"], "decision": str(output.resolve()), "state": "PENDING"}
 
 
+def _validate_membership_contract(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise IntegrityError("membership edit value is invalid")
+    layer = value.get("content_layer")
+    expected_index = (
+        "body_index"
+        if layer == "body"
+        else "furniture_index"
+        if layer == "furniture"
+        else None
+    )
+    expected_parent = (
+        "#/body"
+        if layer == "body"
+        else "#/furniture"
+        if layer == "furniture"
+        else None
+    )
+    if (
+        expected_index is None
+        or set(value) != {"content_layer", expected_index, "parent"}
+        or type(value[expected_index]) is not int
+        or value[expected_index] < 0
+        or value["parent"] != {"$ref": expected_parent}
+    ):
+        raise IntegrityError("membership edit value is invalid")
+
+
+def _validate_edit_contract(edit: Any) -> None:
+    if not isinstance(edit, dict) or set(edit) != {"target", "before", "after"}:
+        raise IntegrityError("edit contract is invalid")
+    target = edit["target"]
+    if not isinstance(target, dict):
+        raise IntegrityError("edit target is invalid")
+    reference = target.get("ref")
+    field = target.get("field")
+    coordinates = ("row" in target, "column" in target)
+    if field == "text":
+        if not isinstance(edit["before"], str) or not isinstance(edit["after"], str):
+            raise IntegrityError("text edit value is invalid")
+        if coordinates == (False, False):
+            valid_reference = (
+                isinstance(reference, str)
+                and re.fullmatch(r"#/(?:texts|field_items)/[0-9]+", reference)
+                is not None
+            )
+            expected_keys = {"ref", "field"}
+        elif coordinates == (True, True):
+            valid_reference = (
+                isinstance(reference, str)
+                and re.fullmatch(r"#/tables/[0-9]+", reference) is not None
+                and type(target["row"]) is int
+                and target["row"] >= 0
+                and type(target["column"]) is int
+                and target["column"] >= 0
+            )
+            expected_keys = {"ref", "field", "row", "column"}
+        else:
+            valid_reference = False
+            expected_keys = set()
+        if set(target) != expected_keys or not valid_reference:
+            raise IntegrityError("text edit target is invalid")
+        return
+    if (
+        field != "content_layer"
+        or set(target) != {"ref", "field"}
+        or not isinstance(reference, str)
+        or re.fullmatch(r"#/texts/[0-9]+", reference) is None
+    ):
+        raise IntegrityError("membership edit target is invalid")
+    _validate_membership_contract(edit["before"])
+    _validate_membership_contract(edit["after"])
+
+
 def _apply_edits(payload: dict[str, Any], edits: list[dict[str, Any]]) -> dict[str, Any]:
+    if not isinstance(edits, list) or not edits:
+        raise IntegrityError("edit list is invalid")
+    for edit in edits:
+        _validate_edit_contract(edit)
     value = copy.deepcopy(payload)
     initial_index = _index(value)
     initial_body = [
@@ -995,12 +1072,8 @@ def _apply_edits(payload: dict[str, Any], edits: list[dict[str, Any]]) -> dict[s
     return value
 
 
-def _draft_identity(
-    proposal: dict[str, Any],
-    build_provenance: dict[str, Any],
-) -> str:
+def _draft_identity(proposal: dict[str, Any]) -> str:
     identity = {key: value for key, value in proposal.items() if key != "draft_id"}
-    identity["build_provenance"] = build_provenance
     return _hash(canonical_json(identity).rstrip(b"\n"))
 
 
@@ -1104,17 +1177,7 @@ def resolve_refinement(
     diagnosis_before = snapshot_tree(diagnosis_root)
     base_before = snapshot_tree(base_root)
     _, draft = _load_json_regular(decision_file, "decision file")
-    if draft.get("schema_version") != "tcw.refinement-draft/v0.5":
-        raise InputError("resolution requires a v0.5 refinement draft")
-    _validate("tcw.refinement-draft/v0.5", draft)
-    try:
-        validate_recorded_provenance(
-            draft["build_provenance"], command_id="tcw.draft-refinement"
-        )
-    except ValueError as error:
-        if str(error) == RECORDED_PROVENANCE_ERROR:
-            raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
-        raise IntegrityError("draft build provenance is malformed") from error
+    _validate("refinement-draft", draft)
     state = draft["decision"]["state"]
     if state not in {"APPROVED", "REJECTED"}:
         raise InputError("decision must be APPROVED or REJECTED")
@@ -1123,9 +1186,7 @@ def resolve_refinement(
     expected, base = _proposal(
         diagnosis_root, draft["proposal"]["finding"]["finding_id"], base_root
     )
-    expected["draft_id"] = _draft_identity(
-        expected, draft["build_provenance"]
-    )
+    expected["draft_id"] = _draft_identity(expected)
     if draft["proposal"] != expected:
         raise IntegrityError("draft proposal was modified or is stale")
     now = datetime.now(UTC)
@@ -1175,7 +1236,6 @@ def resolve_refinement(
                 _hash(document_bytes),
             )
             transformation = {
-                "schema_version": "tcw.transformation/v0.5",
                 "transformation_id": _transformation_identity(
                     revision_id, expected["draft_id"], expected["refiner"]
                 ),
@@ -1196,30 +1256,22 @@ def resolve_refinement(
                 "prepared_document_sha256": _hash(document_bytes),
             }
             history = {
-                "schema_version": "tcw.transformation-history/v0.5",
                 "origin_observation_id": base["origin_observation_id"],
                 "revision_id": revision_id,
-                "transformations": [
-                    *base["history"],
-                    {
-                        key: value
-                        for key, value in transformation.items()
-                        if key != "schema_version"
-                    },
-                ],
+                "transformations": [*base["history"], transformation],
             }
             (staging / "prepared").mkdir()
             (staging / "prepared/document.json").write_bytes(document_bytes)
             (staging / "prepared/document.md").write_bytes(markdown_bytes)
             (staging / "transformation.json").write_bytes(canonical_json(transformation))
             (staging / "history.json").write_bytes(canonical_json(history))
-            _validate("tcw.transformation/v0.5", transformation)
-            _validate("tcw.transformation-history/v0.5", history)
+            _validate("transformation", transformation)
+            _validate("transformation-history", history)
         base_kind = (
             "OBSERVATION" if base["kind"] == "OBSERVATION" else "REFINEMENT"
         )
         manifest = {
-            "schema_version": "tcw.refinement-manifest/v0.5",
+            **record_header("refinement"),
             "run_id": run_id,
             "created_at": now.isoformat().replace("+00:00", "Z"),
             "status": "APPLIED" if state == "APPROVED" else "REJECTED",
@@ -1257,9 +1309,6 @@ def resolve_refinement(
                 if state == "APPROVED" and base_kind == "REFINEMENT"
                 else None
             ),
-            "build_provenance": active_build_provenance(
-                command_id="tcw.resolve-refinement"
-            ),
         }
         (staging / "report.md").write_bytes(_render_refinement(manifest, finalized))
         for relative, (role, media_type) in REFINEMENT_ARTIFACTS.items():
@@ -1268,7 +1317,7 @@ def resolve_refinement(
                 artifacts.append(_artifact(path, staging, role, media_type))
         manifest["artifacts"] = artifacts
         (staging / "refinement-manifest.json").write_bytes(canonical_json(manifest))
-        _validate("tcw.refinement-manifest/v0.5", manifest)
+        _validate("refinement-manifest", manifest)
         if snapshot_tree(diagnosis_root) != diagnosis_before or snapshot_tree(base_root) != base_before or _file_identity(decision_file) != decision_before:
             raise IntegrityError("refinement input changed during resolution")
         return _publish_directory(staging, destination)
@@ -1308,10 +1357,31 @@ def _validate_refinement_semantics(
     status = manifest["status"]
     proposal = decision["proposal"]
     decision_value = decision["decision"]
-    if proposal["draft_id"] != _draft_identity(
-        proposal, decision["build_provenance"]
-    ):
+    if proposal["draft_id"] != _draft_identity(proposal):
         raise IntegrityError("draft identity is inconsistent")
+    if proposal["inverse_edits"] != _inverse_edits(proposal["forward_edits"]):
+        raise IntegrityError("proposal inverse edits differ")
+    validate_finding_contract(proposal["finding"])
+    expected_finding_id = _hash(
+        canonical_json(
+            {
+                "diagnosis_id": proposal["diagnosis_id"],
+                "rule_id": proposal["finding"]["rule_id"],
+                "rule_version": proposal["finding"]["rule_version"],
+                "document_refs": proposal["finding"]["document_refs"],
+                "evidence": proposal["finding"]["evidence"],
+            }
+        ).rstrip(b"\n")
+    )
+    if proposal["finding"]["finding_id"] != expected_finding_id:
+        raise IntegrityError("proposal finding identity is inconsistent")
+    expected_refiner = REFINERS.get(proposal["finding"]["rule_id"])
+    if (
+        expected_refiner is None
+        or proposal["refiner"] != expected_refiner
+        or proposal["affected_refs"] != proposal["finding"]["document_refs"]
+    ):
+        raise IntegrityError("proposal finding and refiner differ")
     if (
         manifest["draft_id"] != proposal["draft_id"]
         or manifest["diagnosis"]["diagnosis_id"] != proposal["diagnosis_id"]
@@ -1379,18 +1449,15 @@ def _validate_refinement_semantics(
             )
     elif manifest["parent"] is not None:
         raise IntegrityError("observation-based refinement has a parent")
-    _validate("tcw.transformation/v0.5", transformation)
-    _validate("tcw.transformation-history/v0.5", history)
+    _validate("transformation", transformation)
+    _validate("transformation-history", history)
     if (root / "transformation.json").read_bytes() != canonical_json(transformation):
         raise IntegrityError("transformation is not canonical")
     if (root / "history.json").read_bytes() != canonical_json(history):
         raise IntegrityError("history is not canonical")
-    transformation_history_value = {
-        key: value for key, value in transformation.items() if key != "schema_version"
-    }
     if (
         not history["transformations"]
-        or history["transformations"][-1] != transformation_history_value
+        or history["transformations"][-1] != transformation
     ):
         raise IntegrityError("transformation is not the history tail")
     if (
@@ -1413,6 +1480,8 @@ def _validate_refinement_semantics(
 
     previous = None
     for index, item in enumerate(history["transformations"]):
+        if item["inverse_edits"] != _inverse_edits(item["forward_edits"]):
+            raise IntegrityError("history inverse edits differ")
         expected_revision_id = _revision_identity(
             item["parent"]["subject_id"],
             item["parent"]["canonical_document_sha256"],
@@ -1556,7 +1625,7 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
                     expected_findings = make_finding_set(subject)
                     derivation_state = {"status": "MATCH" if expected_findings == findings else "MISMATCH"}
             except InputError as error:
-                if str(error).startswith("observation record format is unsupported"):
+                if "record format is unsupported" in str(error):
                     raise
                 subject_state = {"status": "ERROR"}
             except RuntimeContractError:
@@ -1605,31 +1674,14 @@ def verify_refinement(
     diagnosis_root: Path | None = None,
     base_root: Path | None = None,
 ) -> dict[str, Any]:
-    build_provenance = active_build_provenance(
-        command_id="tcw.verify-refinement"
-    )
     files, directories, issues = _inventory(root)
     manifest = decision = transformation = history = None
     try:
         _, manifest = _load_json_regular(root / "refinement-manifest.json", "manifest")
         _, decision = _load_json_regular(root / "decision.json", "decision")
-        if manifest.get("schema_version") != "tcw.refinement-manifest/v0.5":
-            raise InputError("verification requires a v0.5 refinement")
-        _validate("tcw.refinement-manifest/v0.5", manifest)
-        _validate("tcw.refinement-draft/v0.5", decision)
-        try:
-            validate_recorded_provenance(
-                manifest["build_provenance"],
-                command_id="tcw.resolve-refinement",
-            )
-            validate_recorded_provenance(
-                decision["build_provenance"],
-                command_id="tcw.draft-refinement",
-            )
-        except ValueError as error:
-            if str(error) == RECORDED_PROVENANCE_ERROR:
-                raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
-            raise IntegrityError("refinement build provenance is malformed") from error
+        require_record_header(manifest, "refinement")
+        _validate("refinement-manifest", manifest)
+        _validate("refinement-draft", decision)
         if manifest["status"] == "APPLIED":
             _, transformation = _load_json_regular(
                 root / "transformation.json", "transformation"
@@ -1723,6 +1775,8 @@ def verify_refinement(
                 ) from error
     base_matches = False
     base = None
+    expected_proposal = None
+    expected_proposal_error = False
     if base_root is not None and manifest is not None:
         if not base_root.exists():
             base_state = {"status": "MISSING"}
@@ -1780,7 +1834,7 @@ def verify_refinement(
                     "status": "MATCH" if base_matches else "CHANGED"
                 }
             except InputError as error:
-                if str(error).startswith("observation record format is unsupported"):
+                if "record format is unsupported" in str(error):
                     raise
                 raise IntegrityError(
                     "supplied base is malformed or unavailable"
@@ -1794,58 +1848,112 @@ def verify_refinement(
         if (
             diagnosis_matches
             and base_matches
+            and decision is not None
+            and base is not None
+        ):
+            try:
+                expected_proposal, _ = _proposal(
+                    diagnosis_root,
+                    decision["proposal"]["finding"]["finding_id"],
+                    base_root,
+                )
+            except RuntimeContractError:
+                raise
+            except Exception:
+                expected_proposal_error = True
+            if manifest["status"] == "REJECTED" and (
+                expected_proposal_error
+                or expected_proposal is None
+                or decision["proposal"]["forward_edits"]
+                != expected_proposal["forward_edits"]
+                or decision["proposal"]["inverse_edits"]
+                != expected_proposal["inverse_edits"]
+            ):
+                issues.append(
+                    {
+                        "code": "MANIFEST_INVALID",
+                        "path": "decision.json",
+                        "message": "refinement edits differ from the selected refiner",
+                    }
+                )
+        if (
+            diagnosis_matches
+            and base_matches
             and manifest["status"] == "APPLIED"
             and transformation is not None
             and base is not None
         ):
-            try:
-                forward = _apply_edits(base["payload"], transformation["forward_edits"])
-                forward_bytes, _ = _prepared_bytes(forward)
-                prepared_bytes, prepared_payload = _load_json_regular(
-                    root / "prepared/document.json", "prepared document"
-                )
-                derivation = {
-                    "status": "MATCH"
-                    if forward_bytes == prepared_bytes
-                    else "MISMATCH"
-                }
-            except RuntimeContractError:
-                raise
-            except Exception:
+            if expected_proposal_error or expected_proposal is None:
                 derivation = {"status": "ERROR"}
-            try:
-                _, prepared_payload = _load_json_regular(
-                    root / "prepared/document.json", "prepared document"
-                )
-                reversed_payload = _apply_edits(
-                    prepared_payload, transformation["inverse_edits"]
-                )
-                reversed_bytes = _json_bytes_like(
-                    reversed_payload,
-                    base["payload"],
-                    base["document_bytes"],
-                )
-                reversibility = {
-                    "status": "MATCH"
-                    if reversed_bytes == base["document_bytes"]
-                    else "MISMATCH"
-                }
-            except RuntimeContractError:
-                raise
-            except Exception:
                 reversibility = {"status": "ERROR"}
+            else:
+                if (
+                    transformation["forward_edits"]
+                    != expected_proposal["forward_edits"]
+                ):
+                    derivation = {"status": "MISMATCH"}
+                else:
+                    try:
+                        forward = _apply_edits(
+                            base["payload"], transformation["forward_edits"]
+                        )
+                        forward_bytes, _ = _prepared_bytes(forward)
+                        prepared_bytes, _ = _load_json_regular(
+                            root / "prepared/document.json",
+                            "prepared document",
+                        )
+                        derivation = {
+                            "status": (
+                                "MATCH"
+                                if forward_bytes == prepared_bytes
+                                else "MISMATCH"
+                            )
+                        }
+                    except RuntimeContractError:
+                        raise
+                    except Exception:
+                        derivation = {"status": "ERROR"}
+                if (
+                    transformation["inverse_edits"]
+                    != expected_proposal["inverse_edits"]
+                ):
+                    reversibility = {"status": "MISMATCH"}
+                else:
+                    try:
+                        _, prepared_payload = _load_json_regular(
+                            root / "prepared/document.json",
+                            "prepared document",
+                        )
+                        reversed_payload = _apply_edits(
+                            prepared_payload,
+                            transformation["inverse_edits"],
+                        )
+                        reversed_bytes = _json_bytes_like(
+                            reversed_payload,
+                            base["payload"],
+                            base["document_bytes"],
+                        )
+                        reversibility = {
+                            "status": (
+                                "MATCH"
+                                if reversed_bytes == base["document_bytes"]
+                                else "MISMATCH"
+                            )
+                        }
+                    except RuntimeContractError:
+                        raise
+                    except Exception:
+                        reversibility = {"status": "ERROR"}
     status = "VERIFIED" if not issues else ("BROKEN" if any(item["code"] == "MANIFEST_INVALID" for item in issues) else "INTEGRITY_MISMATCH")
     result = {
-        "schema_version": "tcw.refinement-verification-result/v0.5",
         "refinement_directory": str(root.resolve()),
         "artifact_integrity": {"status": status, "issues": issues},
         "diagnosis_state": diagnosis_state,
         "base_state": base_state,
         "derivation_state": derivation,
         "reversibility_state": reversibility,
-        "build_provenance": build_provenance,
     }
-    _validate("tcw.refinement-verification-result/v0.5", result)
+    _validate("refinement-verification-result", result)
     return result
 
 
@@ -1859,9 +1967,7 @@ def verify_refinement_command(
         _, candidate = _load_json_regular(
             root / "refinement-manifest.json", "refinement manifest"
         )
-        if candidate.get("schema_version") != "tcw.refinement-manifest/v0.5":
-            print("verification requires a v0.5 refinement", file=sys.stderr)
-            return 2
+        require_record_header(candidate, "refinement")
         report = verify_refinement(root, diagnosis_root, base_root)
     except InputError as error:
         print(sanitize_message(error), file=sys.stderr)
@@ -1876,4 +1982,24 @@ def verify_refinement_command(
         print(f"internal refinement verifier failure: {sanitize_message(error)}", file=sys.stderr)
         return 1
     print(json.dumps(report, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-    return 0 if report["artifact_integrity"]["status"] == "VERIFIED" else 5
+    supplied_states_match = (
+        (
+            diagnosis_root is None
+            or report["diagnosis_state"]["status"] == "MATCH"
+        )
+        and (
+            base_root is None
+            or report["base_state"]["status"] == "MATCH"
+        )
+    )
+    replay_states_pass = all(
+        report[name]["status"] in {"MATCH", "NOT_CHECKED", "NOT_APPLICABLE"}
+        for name in ("derivation_state", "reversibility_state")
+    )
+    return (
+        0
+        if report["artifact_integrity"]["status"] == "VERIFIED"
+        and supplied_states_match
+        and replay_states_pass
+        else 5
+    )

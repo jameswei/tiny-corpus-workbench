@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/refinement-draft.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposal", "decision"],
+  "properties": {
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "diagnosis_id",
+        "base",
+        "finding",
+        "refiner",
+        "affected_refs",
+        "forward_edits",
+        "inverse_edits",
+        "draft_id"
+      ],
+      "properties": {
+        "state": {"const": "REQUESTED"},
+        "diagnosis_id": {"$ref": "#/$defs/hash"},
+        "base": {"$ref": "#/$defs/proposal_base"},
+        "finding": {"$ref": "finding-set-v0.5.schema.json#/$defs/finding"},
+        "refiner": {"$ref": "#/$defs/refiner"},
+        "affected_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^#/"}
+        },
+        "forward_edits": {"$ref": "#/$defs/edits"},
+        "inverse_edits": {"$ref": "#/$defs/edits"},
+        "draft_id": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "decided_by", "note"],
+      "properties": {
+        "state": {"enum": ["PENDING", "APPROVED", "REJECTED"]},
+        "decided_by": {"type": ["string", "null"], "minLength": 1},
+        "note": {"type": ["string", "null"], "maxLength": 500}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "PENDING"}}},
+          "then": {"properties": {"decided_by": {"type": "null"}}},
+          "else": {"properties": {"decided_by": {"type": "string", "minLength": 1}}}
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "proposal_base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subject_id",
+        "canonical_document_sha256",
+        "origin_observation_id"
+      ],
+      "properties": {
+        "kind": {"enum": ["OBSERVATION", "REVISION"]},
+        "subject_id": {"$ref": "#/$defs/hash"},
+        "canonical_document_sha256": {"$ref": "#/$defs/hash"},
+        "origin_observation_id": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "refiner": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["refiner_id", "name", "version"],
+          "properties": {
+            "refiner_id": {"const": "TCW-R001"},
+            "name": {"const": "WHITESPACE_NORMALIZATION"},
+            "version": {"const": "1"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["refiner_id", "name", "version"],
+          "properties": {
+            "refiner_id": {"const": "TCW-R002"},
+            "name": {"const": "REPEATED_BOILERPLATE_REMOVAL"},
+            "version": {"const": "1"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["refiner_id", "name", "version"],
+          "properties": {
+            "refiner_id": {"const": "TCW-R003"},
+            "name": {"const": "DETERMINISTIC_DEHYPHENATION"},
+            "version": {"const": "1"}
+          }
+        }
+      ]
+    },
+    "edits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/edit"}
+    },
+    "edit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "before", "after"],
+      "properties": {
+        "target": {"$ref": "#/$defs/target"},
+        "before": {},
+        "after": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "target": {"properties": {"field": {"const": "text"}}}
+            }
+          },
+          "then": {
+            "properties": {
+              "before": {"type": "string"},
+              "after": {"type": "string"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "target": {"properties": {"field": {"const": "content_layer"}}}
+            }
+          },
+          "then": {
+            "properties": {
+              "before": {"$ref": "#/$defs/membership"},
+              "after": {"$ref": "#/$defs/membership"}
+            }
+          }
+        }
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "field"],
+      "properties": {
+        "ref": {"type": "string", "pattern": "^#/"},
+        "field": {"enum": ["text", "content_layer"]},
+        "row": {"type": "integer", "minimum": 0},
+        "column": {"type": "integer", "minimum": 0}
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "ref": {"pattern": "^#/(texts|field_items)/[0-9]+$"},
+            "field": {"const": "text"}
+          },
+          "not": {
+            "anyOf": [{"required": ["row"]}, {"required": ["column"]}]
+          }
+        },
+        {
+          "required": ["row", "column"],
+          "properties": {
+            "ref": {"pattern": "^#/tables/[0-9]+$"},
+            "field": {"const": "text"}
+          }
+        },
+        {
+          "properties": {
+            "ref": {"pattern": "^#/texts/[0-9]+$"},
+            "field": {"const": "content_layer"}
+          },
+          "not": {
+            "anyOf": [{"required": ["row"]}, {"required": ["column"]}]
+          }
+        }
+      ]
+    },
+    "membership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_layer", "parent"],
+      "properties": {
+        "content_layer": {"enum": ["body", "furniture"]},
+        "body_index": {"type": "integer", "minimum": 0},
+        "furniture_index": {"type": "integer", "minimum": 0},
+        "parent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$ref"],
+          "properties": {"$ref": {"enum": ["#/body", "#/furniture"]}}
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["body_index"],
+          "properties": {
+            "content_layer": {"const": "body"},
+            "parent": {
+              "properties": {"$ref": {"const": "#/body"}}
+            }
+          },
+          "not": {"required": ["furniture_index"]}
+        },
+        {
+          "required": ["furniture_index"],
+          "properties": {
+            "content_layer": {"const": "furniture"},
+            "parent": {
+              "properties": {"$ref": {"const": "#/furniture"}}
+            }
+          },
+          "not": {"required": ["body_index"]}
+        }
+      ]
+    }
+  }
+}

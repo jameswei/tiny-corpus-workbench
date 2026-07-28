@@ -88,7 +88,7 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
             run(
                 *tcw,
                 "observe",
-                str(export / "fixtures/refinement/v0.5/whitespace-cleanup.md"),
+                str(export / "fixtures/refinement/whitespace-cleanup.md"),
                 "--output-root",
                 str(runtime / "observations"),
                 cwd=export,

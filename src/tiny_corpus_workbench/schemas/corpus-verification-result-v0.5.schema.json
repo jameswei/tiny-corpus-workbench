@@ -22,7 +22,7 @@
       "type": "string"
     },
     "artifact_integrity": {
-      "$ref": "refinement-verification-result-v0.5.schema.json#/$defs/integrity"
+      "$ref": "refinement-verification-result.schema.json#/$defs/integrity"
     },
     "specification_state": {
       "$ref": "#/$defs/advisory"

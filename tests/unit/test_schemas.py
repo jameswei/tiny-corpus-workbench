@@ -128,7 +128,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_table_coordinates_are_an_all_or_nothing_pair(self) -> None:
         draft_schema = json.loads(
-            (SCHEMAS / "refinement-draft-v0.5.schema.json").read_text("utf-8")
+            (SCHEMAS / "refinement-draft.schema.json").read_text("utf-8")
         )
         target_validator = Draft202012Validator(draft_schema["$defs"]["target"])
         target_validator.validate(
@@ -140,6 +140,186 @@ class SchemaTests(unittest.TestCase):
         ):
             with self.assertRaises(ValidationError):
                 target_validator.validate(incomplete)
+
+    def test_refinement_target_and_membership_variants_are_exact(self) -> None:
+        draft = json.loads(
+            (SCHEMAS / "refinement-draft.schema.json").read_text("utf-8")
+        )
+        target_validator = Draft202012Validator(draft["$defs"]["target"])
+        valid_targets = (
+            {"ref": "#/texts/0", "field": "text"},
+            {"ref": "#/field_items/1", "field": "text"},
+            {
+                "ref": "#/tables/2",
+                "field": "text",
+                "row": 0,
+                "column": 1,
+            },
+            {"ref": "#/texts/3", "field": "content_layer"},
+        )
+        for target in valid_targets:
+            target_validator.validate(target)
+        invalid_targets = (
+            {
+                "ref": "#/texts/0",
+                "field": "content_layer",
+                "row": 0,
+                "column": 0,
+            },
+            {"ref": "#/field_items/0", "field": "content_layer"},
+            {"ref": "#/tables/0", "field": "text"},
+            {
+                "ref": "#/texts/0",
+                "field": "text",
+                "row": 0,
+                "column": 0,
+            },
+            {"ref": "#/pictures/0", "field": "text"},
+        )
+        for target in invalid_targets:
+            with self.assertRaises(ValidationError):
+                target_validator.validate(target)
+
+        membership_validator = Draft202012Validator(
+            draft["$defs"]["membership"]
+        )
+        valid_memberships = (
+            {
+                "content_layer": "body",
+                "body_index": 0,
+                "parent": {"$ref": "#/body"},
+            },
+            {
+                "content_layer": "furniture",
+                "furniture_index": 0,
+                "parent": {"$ref": "#/furniture"},
+            },
+        )
+        for membership in valid_memberships:
+            membership_validator.validate(membership)
+        invalid_memberships = (
+            {
+                "content_layer": "body",
+                "furniture_index": 0,
+                "parent": {"$ref": "#/body"},
+            },
+            {
+                "content_layer": "furniture",
+                "body_index": 0,
+                "parent": {"$ref": "#/furniture"},
+            },
+            {
+                "content_layer": "body",
+                "body_index": 0,
+                "parent": {"$ref": "#/furniture"},
+            },
+            {
+                "content_layer": "body",
+                "body_index": 0,
+                "furniture_index": 0,
+                "parent": {"$ref": "#/body"},
+            },
+        )
+        for membership in invalid_memberships:
+            with self.assertRaises(ValidationError):
+                membership_validator.validate(membership)
+
+    def test_refinement_relationship_definitions_are_coupled(self) -> None:
+        draft = json.loads(
+            (SCHEMAS / "refinement-draft.schema.json").read_text("utf-8")
+        )
+        manifest = json.loads(
+            (SCHEMAS / "refinement-manifest.schema.json").read_text("utf-8")
+        )
+
+        refiner_validator = Draft202012Validator(draft["$defs"]["refiner"])
+        refiners = (
+            ("TCW-R001", "WHITESPACE_NORMALIZATION"),
+            ("TCW-R002", "REPEATED_BOILERPLATE_REMOVAL"),
+            ("TCW-R003", "DETERMINISTIC_DEHYPHENATION"),
+        )
+        for refiner_id, name in refiners:
+            refiner_validator.validate(
+                {"refiner_id": refiner_id, "name": name, "version": "1"}
+            )
+        with self.assertRaises(ValidationError):
+            refiner_validator.validate(
+                {
+                    "refiner_id": "TCW-R001",
+                    "name": "DETERMINISTIC_DEHYPHENATION",
+                    "version": "1",
+                }
+            )
+
+        decision_validator = Draft202012Validator(
+            draft["properties"]["decision"]
+        )
+        decision_validator.validate(
+            {"state": "PENDING", "decided_by": None, "note": None}
+        )
+        decision_validator.validate(
+            {"state": "APPROVED", "decided_by": "owner", "note": None}
+        )
+        for invalid in (
+            {"state": "PENDING", "decided_by": "owner", "note": None},
+            {"state": "REJECTED", "decided_by": None, "note": None},
+        ):
+            with self.assertRaises(ValidationError):
+                decision_validator.validate(invalid)
+
+        edit_validator = Draft202012Validator(
+            {"$ref": "#/$defs/edit", "$defs": draft["$defs"]}
+        )
+        text_edit = {
+            "target": {"ref": "#/texts/0", "field": "text"},
+            "before": "before",
+            "after": "after",
+        }
+        edit_validator.validate(text_edit)
+        invalid_text = deepcopy(text_edit)
+        invalid_text["after"] = {
+            "content_layer": "body",
+            "body_index": 0,
+            "parent": {"$ref": "#/body"},
+        }
+        with self.assertRaises(ValidationError):
+            edit_validator.validate(invalid_text)
+
+        membership_edit = {
+            "target": {"ref": "#/texts/0", "field": "content_layer"},
+            "before": {
+                "content_layer": "body",
+                "body_index": 0,
+                "parent": {"$ref": "#/body"},
+            },
+            "after": {
+                "content_layer": "furniture",
+                "furniture_index": 0,
+                "parent": {"$ref": "#/furniture"},
+            },
+        }
+        edit_validator.validate(membership_edit)
+        invalid_membership = deepcopy(membership_edit)
+        invalid_membership["after"] = "furniture"
+        with self.assertRaises(ValidationError):
+            edit_validator.validate(invalid_membership)
+
+        base_validator = Draft202012Validator(
+            {"$ref": "#/$defs/base", "$defs": manifest["$defs"]}
+        )
+        observation_base = {
+            "kind": "OBSERVATION",
+            "identity_type": "observation_id",
+            "identity_value": "a" * 64,
+            "run_id": "run",
+            "base_manifest_sha256": "b" * 64,
+            "canonical_document_sha256": "c" * 64,
+        }
+        base_validator.validate(observation_base)
+        mismatched_base = deepcopy(observation_base)
+        mismatched_base["identity_type"] = "revision_id"
+        with self.assertRaises(ValidationError):
+            base_validator.validate(mismatched_base)
 
 
 if __name__ == "__main__":

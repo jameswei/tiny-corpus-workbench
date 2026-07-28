@@ -152,7 +152,7 @@ class PublishedRefinements:
         )
         result = run_tcw(
             "observe",
-            str(REPOSITORY / "fixtures/refinement/v0.5/whitespace-cleanup.md"),
+            str(REPOSITORY / "fixtures/refinement/whitespace-cleanup.md"),
             "--output-root",
             self.temporary.name,
         )

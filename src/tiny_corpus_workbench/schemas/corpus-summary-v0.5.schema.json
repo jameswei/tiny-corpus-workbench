@@ -494,7 +494,7 @@
           "$ref": "#/$defs/hash"
         },
         "refiner": {
-          "$ref": "refinement-draft-v0.5.schema.json#/$defs/refiner"
+          "$ref": "refinement-draft.schema.json#/$defs/refiner"
         }
       }
     },

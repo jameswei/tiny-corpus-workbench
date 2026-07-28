@@ -394,30 +394,34 @@ def main(argv: list[str] | None = None) -> int:
         return int(ExitCode.SUCCESS)
     if args.command in {"draft-refinement", "resolve-refinement", "verify-refinement"}:
         try:
+            from tiny_corpus_workbench.application.refinement import (
+                draft_refinement,
+                published_refinement_line,
+                resolve_refinement,
+                verify_refinement_command,
+            )
+
             if args.command == "draft-refinement":
-                command = _diagnosis_callable("v03", "draft_refinement")
-                result = command(
+                result = draft_refinement(
                     args.diagnosis_directory, args.finding, args.base, args.output
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
                 return int(ExitCode.SUCCESS)
             if args.command == "resolve-refinement":
-                command = _diagnosis_callable("v03", "resolve_refinement")
-                published = command(
+                published = resolve_refinement(
                     args.decision_file, args.diagnosis, args.base, args.output_root
                 )
-                manifest = json.loads(
-                    (published / "refinement-manifest.json").read_text("utf-8")
+                print(
+                    json.dumps(
+                        published_refinement_line(published),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
                 )
-                print(json.dumps({
-                    "manifest": str((published / "refinement-manifest.json").resolve()),
-                    "run_id": manifest["run_id"],
-                    "status": manifest["status"],
-                    "revision_id": manifest["revision_id"],
-                }, sort_keys=True, separators=(",", ":")))
                 return int(ExitCode.SUCCESS)
-            command = _diagnosis_callable("v03", "verify_refinement_command")
-            return command(args.refinement_directory, args.diagnosis, args.base)
+            return verify_refinement_command(
+                args.refinement_directory, args.diagnosis, args.base
+            )
         except WorkbenchError as error:
             print(sanitize_message(error), file=sys.stderr)
             return int(error.exit_code)

@@ -15,7 +15,7 @@ GOLDEN_SPEC = CORPUS / "golden-matrix.json"
 QUALITY_SPEC = CORPUS / "quality-corpus.json"
 GOLDEN_REGISTRY = ROOT / "fixtures/golden/fixtures.json"
 DIAGNOSIS_REGISTRY = ROOT / "fixtures/diagnosis/fixtures.json"
-REFINEMENT_REGISTRY = ROOT / "fixtures/refinement/v0.5/fixtures.json"
+REFINEMENT_REGISTRY = ROOT / "fixtures/refinement/fixtures.json"
 FORMATS = {"pdf", "docx", "md", "txt"}
 QUALITY_RULES = {
     "TCW-D002",

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tcw/transformation-history.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["origin_observation_id", "revision_id", "transformations"],
+  "properties": {
+    "origin_observation_id": {"$ref": "#/$defs/hash"},
+    "revision_id": {"$ref": "#/$defs/hash"},
+    "transformations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "transformation.schema.json"}
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

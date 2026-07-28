@@ -9,7 +9,7 @@ decision supplies an actor label in `decided_by`.
 
 ## Commands
 
-Diagnose an observation or an applied v0.5 revision:
+Diagnose an observation or an applied revision:
 
 ```bash
 uv run --frozen tcw diagnose DOCUMENT_DIRECTORY
@@ -79,6 +79,11 @@ prepared/document.md
 A rejected result has status `REJECTED`. It contains only the manifest,
 decision, and report. Its `revision_id` is null.
 
+Only `refinement-manifest.json` has the record-format header:
+`record_type` is `refinement`, and `format_version` is `1`. The decision,
+transformation, history, and verification result do not repeat format,
+release, package, Python, dependency, or lockfile identity.
+
 The publisher snapshots and rechecks the decision, diagnosis, and base. It
 uses an exclusive atomic directory rename. It does not overwrite a result or
 publish inside an input directory.
@@ -106,10 +111,10 @@ file kinds, sizes, hashes, identities, status, and history shape. It also
 checks canonical transformation and history JSON, the transformation history
 tail, revision identities, and every parent link.
 
-Every v0.5 draft, refinement, and verification result records the applicable
-registered build provenance. An unknown provenance ID or a mismatching
-recorded field is unsupported. The verifier never rewrites a diagnosis,
-decision, transformation, history, or prepared document.
+Refinement identities use only the decision, finding, base document, edits,
+refiner, and prepared document. A package update or a different Python
+environment does not change those identities. The verifier never rewrites a
+diagnosis, decision, transformation, history, or prepared document.
 
 Without optional inputs, diagnosis and base states are `NOT_CHECKED`. A
 rejected record uses `NOT_APPLICABLE` for derivation and reversibility.
@@ -135,7 +140,7 @@ in the copy and verify it. The verifier reports an integrity failure and exits
 | `2` | Input, usage, decision, or supported-finding validation failed. |
 | `4` | The canonical Docling document is unavailable. |
 | `5` | Input integrity changed, verification failed, or publication conflicted. |
-| `6` | The locked runtime, schema, or Docling API is incompatible. |
+| `6` | The installed schema or Docling API runtime is incompatible. |
 
 ## Integrity limits
 
