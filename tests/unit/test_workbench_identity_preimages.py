@@ -26,7 +26,7 @@ class WorkbenchIdentityPreimageTests(unittest.TestCase):
         identity = {"observation_id": "1" * 64}
         expected_target = {
             "kind": "OBSERVATION",
-            "record_schema_version": "tcw.preparation-manifest/v0.5",
+            "record_schema_version": "observation-manifest",
             "identity_type": "observation_id",
             "identity_value": "1" * 64,
             "run_id": "run-1",
@@ -37,15 +37,15 @@ class WorkbenchIdentityPreimageTests(unittest.TestCase):
             "logical": (
                 {
                     "kind": "OBSERVATION",
-                    "record_schema_version": "tcw.preparation-manifest/v0.5",
+                    "record_schema_version": "observation-manifest",
                     "identity": identity,
                     "run_id": "run-1",
                 },
-                b'{"identity":{"observation_id":"1111111111111111111111111111111111111111111111111111111111111111"},"kind":"OBSERVATION","record_schema_version":"tcw.preparation-manifest/v0.5","run_id":"run-1"}',
-                "dfb7b0e21f5b34895914d5b5ec9453aa3b489992263e3f624f09578c80e6ae91",
+                b'{"identity":{"observation_id":"1111111111111111111111111111111111111111111111111111111111111111"},"kind":"OBSERVATION","record_schema_version":"observation-manifest","run_id":"run-1"}',
+                "3ff38b8dde3aa777574b2402a630b3f8a4d0415aee7489bb33a077b6f15b3fd7",
                 logical_copy_key(
                     kind="OBSERVATION",
-                    record_schema_version="tcw.preparation-manifest/v0.5",
+                    record_schema_version="observation-manifest",
                     identity=identity,
                     run_id="run-1",
                 ),
@@ -53,16 +53,16 @@ class WorkbenchIdentityPreimageTests(unittest.TestCase):
             "record": (
                 {
                     "kind": "OBSERVATION",
-                    "record_schema_version": "tcw.preparation-manifest/v0.5",
+                    "record_schema_version": "observation-manifest",
                     "identity": identity,
                     "run_id": "run-1",
                     "manifest_sha256": "2" * 64,
                 },
-                b'{"identity":{"observation_id":"1111111111111111111111111111111111111111111111111111111111111111"},"kind":"OBSERVATION","manifest_sha256":"2222222222222222222222222222222222222222222222222222222222222222","record_schema_version":"tcw.preparation-manifest/v0.5","run_id":"run-1"}',
-                "126339b7672e33e1f84eb43f819acfb9a27600fe9775f600fd5f009421436250",
+                b'{"identity":{"observation_id":"1111111111111111111111111111111111111111111111111111111111111111"},"kind":"OBSERVATION","manifest_sha256":"2222222222222222222222222222222222222222222222222222222222222222","record_schema_version":"observation-manifest","run_id":"run-1"}',
+                "a7674fda10c857129b2125da9bd357ad35daaa08c7ed7370131d2c51d6f1ba68",
                 record_key(
                     kind="OBSERVATION",
-                    record_schema_version="tcw.preparation-manifest/v0.5",
+                    record_schema_version="observation-manifest",
                     identity=identity,
                     run_id="run-1",
                     manifest_sha256="2" * 64,
@@ -74,8 +74,8 @@ class WorkbenchIdentityPreimageTests(unittest.TestCase):
                     "from_record_key": "4" * 64,
                     "expected_target": expected_target,
                 },
-                b'{"expected_target":{"content_sha256":"3333333333333333333333333333333333333333333333333333333333333333","identity_type":"observation_id","identity_value":"1111111111111111111111111111111111111111111111111111111111111111","kind":"OBSERVATION","manifest_sha256":"2222222222222222222222222222222222222222222222222222222222222222","record_schema_version":"tcw.preparation-manifest/v0.5","run_id":"run-1"},"from_record_key":"4444444444444444444444444444444444444444444444444444444444444444","relation":"DIAGNOSIS_SUBJECT"}',
-                "cedde8014426d430e8560f2749e9e66c791e52ceb92b661c2906598d88d7c78d",
+                b'{"expected_target":{"content_sha256":"3333333333333333333333333333333333333333333333333333333333333333","identity_type":"observation_id","identity_value":"1111111111111111111111111111111111111111111111111111111111111111","kind":"OBSERVATION","manifest_sha256":"2222222222222222222222222222222222222222222222222222222222222222","record_schema_version":"observation-manifest","run_id":"run-1"},"from_record_key":"4444444444444444444444444444444444444444444444444444444444444444","relation":"DIAGNOSIS_SUBJECT"}',
+                "cb5e4e459920d4ded59fc6831b0ae7e89074362432e4618db2db379f60c35b86",
                 edge_key(
                     relation="DIAGNOSIS_SUBJECT",
                     from_record_key="4" * 64,

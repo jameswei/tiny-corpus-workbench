@@ -32,9 +32,6 @@ from markitdown import MarkItDown, StreamInfo
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 
-from tiny_corpus_workbench.runtime import RUNTIME_DEPENDENCIES
-
-
 MODEL_ROOT_ENV = "TCW_DOCLING_ARTIFACTS"
 
 
@@ -112,7 +109,9 @@ class ExtractorCompatibilitySpike(unittest.TestCase):
 
     def test_exact_versions_and_all_extraction_views_offline(self) -> None:
         expected_versions = {
-            **RUNTIME_DEPENDENCIES,
+            "docling": "2.113.0",
+            "docling-core": "2.87.1",
+            "markitdown": "0.1.6",
             "reportlab": "5.0.0",
             "python-docx": "1.2.0",
             "jsonschema": "4.26.0",

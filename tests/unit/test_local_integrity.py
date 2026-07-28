@@ -129,18 +129,10 @@ class LocalIntegrityTests(unittest.TestCase):
             self.assertGreaterEqual(calls, 2)
 
     def test_broken_import_or_adapter_api_fails_before_capture(self) -> None:
-        build_provenance = cli._active_build_provenance(
-            command_id="tcw.observe",
-            extracting=True,
-        )
         for failure in (ImportError("broken import"), RuntimeError("broken API")):
             with self.subTest(failure=type(failure).__name__), mock.patch.object(
                 SourceSnapshot, "capture", autospec=True
-            ) as capture, mock.patch.object(
-                cli,
-                "_active_build_provenance",
-                return_value=build_provenance,
-            ):
+            ) as capture:
                 if isinstance(failure, ImportError):
                     patcher = mock.patch(
                         "tiny_corpus_workbench.cli.importlib.import_module",
@@ -174,35 +166,6 @@ class LocalIntegrityTests(unittest.TestCase):
                 self.assertEqual(stdout, "")
                 self.assertIn("preflight", stderr)
                 capture.assert_not_called()
-
-    def test_python_runtime_metadata_does_not_gate_observation(self) -> None:
-        cases = (
-            mock.patch(
-                "tiny_corpus_workbench.runtime.platform.python_implementation",
-                return_value="PyPy",
-            ),
-            mock.patch(
-                "tiny_corpus_workbench.runtime.sys.version_info", (3, 13, 0)
-            ),
-        )
-        for index, runtime_patch in enumerate(cases):
-            with tempfile.TemporaryDirectory() as directory:
-                docling_patch, markitdown_patch = self.adapters()
-                with (
-                    self.subTest(index=index),
-                    runtime_patch,
-                    docling_patch,
-                    markitdown_patch,
-                ):
-                    code, stdout, stderr = self.invoke(
-                        "observe",
-                        str(MARKDOWN_FIXTURE),
-                        "--output-root",
-                        directory,
-                    )
-                self.assertEqual(code, 0)
-                self.assertNotEqual(stdout, "")
-                self.assertEqual(stderr, "")
 
     def test_pdf_model_changes_between_inventories_fail(self) -> None:
         operations = ("add", "remove", "bytes", "replace", "symlink")

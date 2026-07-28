@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/tcw/diagnosis-manifest-v0.5.schema.json",
+  "$id": "https://example.invalid/tcw/diagnosis-manifest.schema.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -24,7 +24,7 @@
       "minLength": 1
     },
     "diagnosis_id": {
-      "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+      "$ref": "finding-set.schema.json#/$defs/hash"
     },
     "created_at": {
       "type": "string",
@@ -64,17 +64,17 @@
           ]
         },
         "identity_value": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "finding-set.schema.json#/$defs/hash"
         },
         "run_id": {
           "type": "string",
           "minLength": 1
         },
         "manifest_sha256": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "finding-set.schema.json#/$defs/hash"
         },
         "canonical_document_sha256": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "finding-set.schema.json#/$defs/hash"
         }
       },
       "allOf": [
@@ -113,10 +113,10 @@
       ]
     },
     "ruleset": {
-      "$ref": "finding-set-v0.5.schema.json#/$defs/ruleset"
+      "$ref": "finding-set.schema.json#/$defs/ruleset"
     },
     "summary": {
-      "$ref": "finding-set-v0.5.schema.json#/$defs/summary"
+      "$ref": "finding-set.schema.json#/$defs/summary"
     },
     "artifacts": {
       "type": "array",
@@ -151,7 +151,7 @@
           "minimum": 1
         },
         "sha256": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "finding-set.schema.json#/$defs/hash"
         }
       }
     },
@@ -190,7 +190,7 @@
           "minimum": 1
         },
         "sha256": {
-          "$ref": "finding-set-v0.5.schema.json#/$defs/hash"
+          "$ref": "finding-set.schema.json#/$defs/hash"
         },
         "application_immutable": {
           "const": true

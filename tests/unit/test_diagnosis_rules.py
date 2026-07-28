@@ -130,7 +130,7 @@ class DiagnosisRuleTests(unittest.TestCase):
     ) -> None:
         schema_path = Path(
             "src/tiny_corpus_workbench/schemas/"
-            "finding-set-v0.5.schema.json"
+            "finding-set.schema.json"
         )
         schema = load_schema("finding-set")
         finding_schema = {

@@ -66,7 +66,6 @@ class SchemaTests(unittest.TestCase):
         )
         self.assertNotIn("schema_version", manifest)
         self.assertNotIn("schema_version", comparison)
-        self.assertNotIn("build_provenance", manifest)
         self.assertNotIn("path", manifest["models"])
 
     def test_observation_schemas_are_closed_and_require_domain_evidence(

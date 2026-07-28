@@ -149,7 +149,6 @@ class CorpusWorkflowTests(unittest.TestCase):
             )
             for value in (manifest, summary, first):
                 self.assertNotIn("schema_version", value)
-                self.assertNotIn("build_provenance", value)
                 self.assertNotIn("runtime", value)
             self.assertEqual(
                 first["artifact_integrity"]["status"], "VERIFIED"

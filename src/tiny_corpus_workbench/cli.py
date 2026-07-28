@@ -26,9 +26,6 @@ from tiny_corpus_workbench.domain import (
 )
 
 
-ACTIVE_RUNTIME_ERROR = (
-    "active runtime does not match this package provenance registry"
-)
 WORKBENCH_ROOT_MANIFESTS = (
     "manifest.json",
     "diagnosis-manifest.json",
@@ -38,20 +35,7 @@ WORKBENCH_ROOT_MANIFESTS = (
 
 
 def _runtime_import_message(error: Exception, fallback: str) -> str:
-    return ACTIVE_RUNTIME_ERROR if isinstance(error, ImportError) else fallback
-
-
-def _active_build_provenance(**arguments: Any) -> dict[str, Any]:
-    try:
-        from tiny_corpus_workbench.supported_provenance import (
-            active_build_provenance,
-        )
-
-        return active_build_provenance(**arguments)
-    except RuntimeContractError:
-        raise
-    except Exception as error:
-        raise RuntimeContractError(ACTIVE_RUNTIME_ERROR) from error
+    return fallback
 
 
 def _preflight_workbench_roots(roots: list[Path]) -> None:

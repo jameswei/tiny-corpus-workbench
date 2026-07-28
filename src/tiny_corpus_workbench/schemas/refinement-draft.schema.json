@@ -23,7 +23,7 @@
         "state": {"const": "REQUESTED"},
         "diagnosis_id": {"$ref": "#/$defs/hash"},
         "base": {"$ref": "#/$defs/proposal_base"},
-        "finding": {"$ref": "finding-set-v0.5.schema.json#/$defs/finding"},
+        "finding": {"$ref": "finding-set.schema.json#/$defs/finding"},
         "refiner": {"$ref": "#/$defs/refiner"},
         "affected_refs": {
           "type": "array",

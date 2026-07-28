@@ -24,10 +24,10 @@ from tiny_corpus_workbench.workbench_records import (
 
 
 SCHEMAS = {
-    "OBSERVATION": "tcw.preparation-manifest/v0.5",
-    "DIAGNOSIS": "tcw.diagnosis-manifest/v0.5",
-    "REFINEMENT": "tcw.refinement-manifest/v0.5",
-    "CORPUS": "tcw.corpus-manifest/v0.5",
+    "OBSERVATION": "observation-manifest",
+    "DIAGNOSIS": "diagnosis-manifest",
+    "REFINEMENT": "refinement-manifest",
+    "CORPUS": "corpus-manifest",
 }
 
 

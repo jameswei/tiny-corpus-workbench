@@ -33,22 +33,22 @@ MAX_ARTIFACT_CONTENT = 16 * 1024 * 1024
 ROOTS = {
     "manifest.json": (
         "OBSERVATION",
-        "tcw.preparation-manifest/v0.5",
-        "preparation-manifest",
+        "observation-manifest",
+        "observation-manifest",
     ),
     "diagnosis-manifest.json": (
         "DIAGNOSIS",
-        "tcw.diagnosis-manifest/v0.5",
+        "diagnosis-manifest",
         "diagnosis-manifest",
     ),
     "refinement-manifest.json": (
         "REFINEMENT",
-        "tcw.refinement-manifest/v0.5",
+        "refinement-manifest",
         "refinement-manifest",
     ),
     "corpus-manifest.json": (
         "CORPUS",
-        "tcw.corpus-manifest/v0.5",
+        "corpus-manifest",
         "corpus-manifest",
     ),
 }

@@ -9,7 +9,7 @@
       "authored_source": {
         "id": "meeting-minutes",
         "path": "fixtures/authored/meeting-minutes.json",
-        "sha256": "345bea8c02b6f3085548694a88eb8216f3142ad7a7fb1ac559bb5963d619c9f9"
+        "sha256": "4b8ebb612831ba6df767482a063512419fa1d9f0e6d5146824bdbeb875329e58"
       },
       "expected_docling_table_count": 1,
       "family": "meeting-minutes",
@@ -32,7 +32,7 @@
       "authored_source": {
         "id": "meeting-minutes",
         "path": "fixtures/authored/meeting-minutes.json",
-        "sha256": "345bea8c02b6f3085548694a88eb8216f3142ad7a7fb1ac559bb5963d619c9f9"
+        "sha256": "4b8ebb612831ba6df767482a063512419fa1d9f0e6d5146824bdbeb875329e58"
       },
       "expected_docling_table_count": 1,
       "family": "meeting-minutes",
@@ -55,7 +55,7 @@
       "authored_source": {
         "id": "meeting-minutes",
         "path": "fixtures/authored/meeting-minutes.json",
-        "sha256": "345bea8c02b6f3085548694a88eb8216f3142ad7a7fb1ac559bb5963d619c9f9"
+        "sha256": "4b8ebb612831ba6df767482a063512419fa1d9f0e6d5146824bdbeb875329e58"
       },
       "expected_docling_table_count": 1,
       "family": "meeting-minutes",
@@ -78,7 +78,7 @@
       "authored_source": {
         "id": "meeting-minutes",
         "path": "fixtures/authored/meeting-minutes.json",
-        "sha256": "345bea8c02b6f3085548694a88eb8216f3142ad7a7fb1ac559bb5963d619c9f9"
+        "sha256": "4b8ebb612831ba6df767482a063512419fa1d9f0e6d5146824bdbeb875329e58"
       },
       "expected_docling_table_count": 0,
       "family": "meeting-minutes",
@@ -101,7 +101,7 @@
       "authored_source": {
         "id": "policy-memo",
         "path": "fixtures/authored/policy-memo.json",
-        "sha256": "06680dfee3919270841fa312461d129157ba4d1b480ef5e53b8998a5c8bda5e4"
+        "sha256": "dcc31d7d2e5f9cfe6678705659e538ba65c2971a3a22ad0f2cfcb17a7dd7d4f0"
       },
       "expected_docling_table_count": 1,
       "family": "policy-memo",
@@ -124,7 +124,7 @@
       "authored_source": {
         "id": "policy-memo",
         "path": "fixtures/authored/policy-memo.json",
-        "sha256": "06680dfee3919270841fa312461d129157ba4d1b480ef5e53b8998a5c8bda5e4"
+        "sha256": "dcc31d7d2e5f9cfe6678705659e538ba65c2971a3a22ad0f2cfcb17a7dd7d4f0"
       },
       "expected_docling_table_count": 1,
       "family": "policy-memo",
@@ -147,7 +147,7 @@
       "authored_source": {
         "id": "policy-memo",
         "path": "fixtures/authored/policy-memo.json",
-        "sha256": "06680dfee3919270841fa312461d129157ba4d1b480ef5e53b8998a5c8bda5e4"
+        "sha256": "dcc31d7d2e5f9cfe6678705659e538ba65c2971a3a22ad0f2cfcb17a7dd7d4f0"
       },
       "expected_docling_table_count": 1,
       "family": "policy-memo",
@@ -170,7 +170,7 @@
       "authored_source": {
         "id": "policy-memo",
         "path": "fixtures/authored/policy-memo.json",
-        "sha256": "06680dfee3919270841fa312461d129157ba4d1b480ef5e53b8998a5c8bda5e4"
+        "sha256": "dcc31d7d2e5f9cfe6678705659e538ba65c2971a3a22ad0f2cfcb17a7dd7d4f0"
       },
       "expected_docling_table_count": 0,
       "family": "policy-memo",
@@ -193,7 +193,7 @@
       "authored_source": {
         "id": "release-notice",
         "path": "fixtures/authored/release-notice.json",
-        "sha256": "f9ef7f32ed71d9f32d58a8820ae0dde4259f503b0834fafc2e39f3e2bccbd6e6"
+        "sha256": "0d10b29ff25c4784d935b49b8efe6af4a71d28d980924678a080541b55749b2d"
       },
       "expected_docling_table_count": 1,
       "family": "release-notice",
@@ -216,7 +216,7 @@
       "authored_source": {
         "id": "release-notice",
         "path": "fixtures/authored/release-notice.json",
-        "sha256": "f9ef7f32ed71d9f32d58a8820ae0dde4259f503b0834fafc2e39f3e2bccbd6e6"
+        "sha256": "0d10b29ff25c4784d935b49b8efe6af4a71d28d980924678a080541b55749b2d"
       },
       "expected_docling_table_count": 1,
       "family": "release-notice",
@@ -239,7 +239,7 @@
       "authored_source": {
         "id": "release-notice",
         "path": "fixtures/authored/release-notice.json",
-        "sha256": "f9ef7f32ed71d9f32d58a8820ae0dde4259f503b0834fafc2e39f3e2bccbd6e6"
+        "sha256": "0d10b29ff25c4784d935b49b8efe6af4a71d28d980924678a080541b55749b2d"
       },
       "expected_docling_table_count": 1,
       "family": "release-notice",
@@ -262,7 +262,7 @@
       "authored_source": {
         "id": "release-notice",
         "path": "fixtures/authored/release-notice.json",
-        "sha256": "f9ef7f32ed71d9f32d58a8820ae0dde4259f503b0834fafc2e39f3e2bccbd6e6"
+        "sha256": "0d10b29ff25c4784d935b49b8efe6af4a71d28d980924678a080541b55749b2d"
       },
       "expected_docling_table_count": 0,
       "family": "release-notice",

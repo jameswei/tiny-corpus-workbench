@@ -20,10 +20,12 @@ def record_header(record_type: str) -> dict[str, Any]:
 def require_record_header(document: object, record_type: str) -> None:
     """Reject records that are not in the one current internal format."""
 
-    if not isinstance(document, dict) or (
-        document.get("record_type"),
-        document.get("format_version"),
-    ) != (record_type, CURRENT_FORMAT_VERSION):
+    if (
+        not isinstance(document, dict)
+        or document.get("record_type") != record_type
+        or type(document.get("format_version")) is not int
+        or document["format_version"] != CURRENT_FORMAT_VERSION
+    ):
         raise InputError(
             f"{record_type} record format is unsupported; "
             "regenerate the record with the current project"
