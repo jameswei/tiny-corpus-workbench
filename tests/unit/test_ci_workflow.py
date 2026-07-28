@@ -31,9 +31,12 @@ FAST_TOOLS = {
 }
 
 
-def _job(workflow: str, name: str, next_name: str | None = None) -> str:
-    start = workflow.index(f"  {name}:\n")
-    end = workflow.index(f"  {next_name}:\n", start) if next_name else len(workflow)
+def _job(workflow: str, name: str) -> str:
+    marker = f"  {name}:\n"
+    start = workflow.index(marker)
+    remainder = workflow[start + len(marker) :]
+    next_job = re.search(r"(?m)^  [A-Za-z_][A-Za-z0-9_-]*:\n", remainder)
+    end = start + len(marker) + next_job.start() if next_job else len(workflow)
     return workflow[start:end]
 
 
@@ -45,7 +48,7 @@ class CIWorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = WORKFLOW_PATH.read_text("utf-8")
-        cls.fast = _job(cls.workflow, "fast-validation", "full-extraction")
+        cls.fast = _job(cls.workflow, "fast-validation")
         cls.full = _job(cls.workflow, "full-extraction")
 
     def test_supported_triggers_remain_enabled(self) -> None:
@@ -78,6 +81,19 @@ class CIWorkflowTests(unittest.TestCase):
         self.assertFalse(
             _explicit_test_modules(self.fast) & _explicit_test_modules(self.full)
         )
+
+    def test_full_slice_stops_before_a_later_job(self) -> None:
+        appended_workflow = (
+            self.workflow
+            + "  later-validation:\n"
+            + "    steps:\n"
+            + "      - run: python tools/verify_checkout_portability.py\n"
+        )
+
+        full = _job(appended_workflow, "full-extraction")
+
+        self.assertNotIn("later-validation", full)
+        self.assertNotIn("tools/verify_checkout_portability.py", full)
 
 
 if __name__ == "__main__":
