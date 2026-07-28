@@ -1,30 +1,33 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/tcw/corpus-manifest-v0.5.schema.json",
-  "title": "tiny-corpus-workbench corpus manifest v0.5",
+  "$id": "https://example.invalid/tcw/corpus-manifest.schema.json",
+  "title": "tiny-corpus-workbench corpus manifest",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version",
+    "record_type",
+    "format_version",
     "corpus_id",
     "snapshot_id",
     "run_id",
     "created_at",
     "status",
     "input_specification",
-    "runtime",
+    "configuration",
     "summary",
     "members",
     "revisions",
-    "artifacts",
-    "build_provenance"
+    "artifacts"
   ],
   "properties": {
-    "schema_version": {
-      "const": "tcw.corpus-manifest/v0.5"
+    "record_type": {
+      "const": "corpus"
+    },
+    "format_version": {
+      "const": 1
     },
     "corpus_id": {
-      "$ref": "corpus-spec-v0.5.schema.json#/$defs/id"
+      "$ref": "corpus-spec.schema.json#/$defs/id"
     },
     "snapshot_id": {
       "$ref": "#/$defs/hash"
@@ -47,8 +50,8 @@
     "input_specification": {
       "$ref": "#/$defs/inputSpecification"
     },
-    "runtime": {
-      "$ref": "#/$defs/runtime"
+    "configuration": {
+      "$ref": "#/$defs/configuration"
     },
     "summary": {
       "$ref": "#/$defs/counts"
@@ -73,9 +76,6 @@
       "items": {
         "$ref": "#/$defs/artifact"
       }
-    },
-    "build_provenance": {
-      "$ref": "common-v0.5.schema.json#/$defs/BUILD_EXTRACTING_COMMAND"
     }
   },
   "$defs": {
@@ -194,19 +194,19 @@
         }
       }
     },
-    "runtime": {
+    "configuration": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "ruleset_id",
-        "configurations",
+        "extractors",
         "model_inventory"
       ],
       "properties": {
         "ruleset_id": {
           "$ref": "#/$defs/hash"
         },
-        "configurations": {
+        "extractors": {
           "$ref": "observation-manifest.schema.json#/$defs/configurations"
         },
         "model_inventory": {
@@ -339,104 +339,7 @@
             }
           ]
         }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "status": {
-              "const": "SUCCESS"
-            },
-            "observation_id": {
-              "$ref": "#/$defs/hash"
-            },
-            "run_id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "manifest": {
-              "$ref": "#/$defs/relativeDescriptor"
-            },
-            "canonical_document_sha256": {
-              "$ref": "#/$defs/hash"
-            }
-          }
-        },
-        {
-          "properties": {
-            "status": {
-              "const": "PARTIAL_SUCCESS"
-            },
-            "observation_id": {
-              "$ref": "#/$defs/hash"
-            },
-            "run_id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "manifest": {
-              "$ref": "#/$defs/relativeDescriptor"
-            }
-          }
-        },
-        {
-          "properties": {
-            "status": {
-              "const": "FAILED"
-            },
-            "observation_id": {
-              "$ref": "#/$defs/hash"
-            },
-            "run_id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "manifest": {
-              "$ref": "#/$defs/relativeDescriptor"
-            },
-            "canonical_document_sha256": {
-              "type": "null"
-            }
-          }
-        },
-        {
-          "properties": {
-            "status": {
-              "const": "FAILED"
-            },
-            "observation_id": {
-              "type": "null"
-            },
-            "run_id": {
-              "type": "null"
-            },
-            "manifest": {
-              "type": "null"
-            },
-            "canonical_document_sha256": {
-              "type": "null"
-            }
-          }
-        },
-        {
-          "properties": {
-            "status": {
-              "const": "NOT_RUN"
-            },
-            "observation_id": {
-              "type": "null"
-            },
-            "run_id": {
-              "type": "null"
-            },
-            "manifest": {
-              "type": "null"
-            },
-            "canonical_document_sha256": {
-              "type": "null"
-            }
-          }
-        }
-      ]
+      }
     },
     "diagnosis": {
       "type": "object",
@@ -494,87 +397,7 @@
             }
           ]
         }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "status": {
-              "const": "FINDINGS"
-            },
-            "diagnosis_id": {
-              "$ref": "#/$defs/hash"
-            },
-            "run_id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "manifest": {
-              "$ref": "#/$defs/relativeDescriptor"
-            },
-            "findings_sha256": {
-              "$ref": "#/$defs/hash"
-            }
-          }
-        },
-        {
-          "properties": {
-            "status": {
-              "const": "NO_FINDINGS"
-            },
-            "diagnosis_id": {
-              "$ref": "#/$defs/hash"
-            },
-            "run_id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "manifest": {
-              "$ref": "#/$defs/relativeDescriptor"
-            },
-            "findings_sha256": {
-              "$ref": "#/$defs/hash"
-            }
-          }
-        },
-        {
-          "properties": {
-            "status": {
-              "const": "FAILED"
-            },
-            "diagnosis_id": {
-              "type": "null"
-            },
-            "run_id": {
-              "type": "null"
-            },
-            "manifest": {
-              "type": "null"
-            },
-            "findings_sha256": {
-              "type": "null"
-            }
-          }
-        },
-        {
-          "properties": {
-            "status": {
-              "const": "NOT_RUN"
-            },
-            "diagnosis_id": {
-              "type": "null"
-            },
-            "run_id": {
-              "type": "null"
-            },
-            "manifest": {
-              "type": "null"
-            },
-            "findings_sha256": {
-              "type": "null"
-            }
-          }
-        }
-      ]
+      }
     },
     "member": {
       "type": "object",
@@ -591,10 +414,10 @@
       ],
       "properties": {
         "member_id": {
-          "$ref": "corpus-spec-v0.5.schema.json#/$defs/id"
+          "$ref": "corpus-spec.schema.json#/$defs/id"
         },
         "family": {
-          "$ref": "corpus-spec-v0.5.schema.json#/$defs/id"
+          "$ref": "corpus-spec.schema.json#/$defs/id"
         },
         "format": {
           "enum": [
@@ -630,121 +453,7 @@
             }
           ]
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "status": {
-                "const": "COMPLETE"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "error": {
-                "type": "null"
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "observation": {
-                "properties": {
-                  "status": {
-                    "const": "FAILED"
-                  },
-                  "manifest": {
-                    "type": "null"
-                  }
-                }
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "error": {
-                "allOf": [
-                  {
-                    "$ref": "#/$defs/error"
-                  },
-                  {
-                    "properties": {
-                      "code": {
-                        "const": "OBSERVATION_FAILED"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "observation": {
-                "properties": {
-                  "status": {
-                    "const": "NOT_RUN"
-                  }
-                }
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "error": {
-                "allOf": [
-                  {
-                    "$ref": "#/$defs/error"
-                  },
-                  {
-                    "properties": {
-                      "code": {
-                        "const": "MEMBER_INCOMPLETE"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "diagnosis": {
-                "properties": {
-                  "status": {
-                    "const": "FAILED"
-                  }
-                }
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "error": {
-                "allOf": [
-                  {
-                    "$ref": "#/$defs/error"
-                  },
-                  {
-                    "properties": {
-                      "code": {
-                        "const": "DIAGNOSIS_FAILED"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        }
-      ]
+      }
     },
     "parent": {
       "type": "object",
@@ -834,7 +543,7 @@
       ],
       "properties": {
         "member_id": {
-          "$ref": "corpus-spec-v0.5.schema.json#/$defs/id"
+          "$ref": "corpus-spec.schema.json#/$defs/id"
         },
         "revision_id": {
           "$ref": "#/$defs/hash"

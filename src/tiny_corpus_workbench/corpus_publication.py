@@ -15,16 +15,17 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from tiny_corpus_workbench.artifacts import AtomicObservation, canonical_json
+from tiny_corpus_workbench.application.records import record_header
 from tiny_corpus_workbench.corpus import AdmittedCorpusSpec, load_corpus_spec
 from tiny_corpus_workbench.corpus_execution import (
     CorpusExecutionResult,
     execute_corpus,
     recheck_corpus_inputs,
+    validate_corpus_manifest_semantics,
 )
 from tiny_corpus_workbench.corpus_report import render_report, render_stylesheet
 from tiny_corpus_workbench.domain import InputError, IntegrityError
 from tiny_corpus_workbench.source import sha256_file
-from tiny_corpus_workbench.supported_provenance import active_build_provenance
 from tiny_corpus_workbench.verification import FORMAT_CHECKER
 
 
@@ -234,7 +235,7 @@ def _write_publication(
 
     counts = result.summary["totals"]
     manifest = {
-        "schema_version": "tcw.corpus-manifest/v0.5",
+        **record_header("corpus"),
         "corpus_id": admitted.normalized["corpus_id"],
         "snapshot_id": result.snapshot_id,
         "run_id": run_id,
@@ -244,7 +245,7 @@ def _write_publication(
             **admitted.specification_identity,
             "normalized_sha256": sha256_file(specification_path),
         },
-        "runtime": result.runtime,
+        "configuration": result.configuration,
         "summary": {
             key: counts[key]
             for key in ("member_count", "complete", "partial", "failed")
@@ -277,12 +278,9 @@ def _write_publication(
                 media_type="text/css",
             ),
         ],
-        "build_provenance": active_build_provenance(
-            command_id="tcw.inspect-corpus",
-            extracting=True,
-        ),
     }
-    _schema_validator("corpus-manifest-v0.5.schema.json").validate(manifest)
+    _schema_validator("corpus-manifest.schema.json").validate(manifest)
+    validate_corpus_manifest_semantics(manifest)
     (staging / "corpus-manifest.json").write_bytes(canonical_json(manifest))
     _safe_tree(staging)
     recheck_corpus_inputs(result)

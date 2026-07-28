@@ -1,19 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/tcw/corpus-spec-v0.5.schema.json",
-  "title": "tiny-corpus-workbench corpus specification v0.5",
+  "$id": "https://example.invalid/tcw/corpus-spec.schema.json",
+  "title": "tiny-corpus-workbench corpus specification",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version",
     "corpus_id",
     "title",
     "members"
   ],
   "properties": {
-    "schema_version": {
-      "const": "tcw.corpus-spec/v0.5"
-    },
     "corpus_id": {
       "$ref": "#/$defs/id"
     },

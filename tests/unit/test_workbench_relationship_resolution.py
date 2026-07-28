@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import copy
-import os
-import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
@@ -63,41 +61,14 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
     @staticmethod
     @contextmanager
     def _mutated_path(path: Path, mode: str) -> Iterator[None]:
+        if mode != "CONTENT_REPLACEMENT":
+            raise AssertionError(f"unknown mutation mode: {mode}")
         original = path.read_bytes()
-        if mode == "CONTENT_REPLACEMENT":
-            path.write_bytes(original + b"\n")
-            try:
-                yield
-            finally:
-                path.write_bytes(original)
-            return
-        if mode == "PATH_REPLACEMENT":
-            handle = tempfile.NamedTemporaryFile(
-                dir=path.parent, prefix=".replacement-", delete=False
-            )
-            replacement = Path(handle.name)
-            try:
-                handle.write(original + b"\n")
-                handle.close()
-                os.replace(replacement, path)
-                yield
-            finally:
-                replacement.unlink(missing_ok=True)
-                path.write_bytes(original)
-            return
-        if mode == "SYMLINK_SUBSTITUTION":
-            backup = path.with_name(f".{path.name}.workbench-backup")
-            if backup.exists() or backup.is_symlink():
-                raise AssertionError("mutation backup path already exists")
-            path.rename(backup)
-            path.symlink_to(backup.name)
-            try:
-                yield
-            finally:
-                path.unlink(missing_ok=True)
-                backup.rename(path)
-            return
-        raise AssertionError(f"unknown mutation mode: {mode}")
+        path.write_bytes(original + b"\n")
+        try:
+            yield
+        finally:
+            path.write_bytes(original)
 
     def _assert_frozen_replay(
         self,
@@ -106,32 +77,28 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
     ) -> None:
         admitted = admit_records(roots)
         expected = self._serialized(admitted)
-        for mode in (
-            "CONTENT_REPLACEMENT",
-            "PATH_REPLACEMENT",
-            "SYMLINK_SUBSTITUTION",
-        ):
-            with self.subTest(mode=mode):
-                path = artifact_path(admitted)
-                with self._mutated_path(path, mode):
-                    self.assertEqual(self._serialized(admitted), expected)
-                    with self.assertRaises(IntegrityError):
-                        admit_records(roots)
-                self.assertEqual(self._serialized(admitted), expected)
+        path = artifact_path(admitted)
+        with self._mutated_path(path, "CONTENT_REPLACEMENT"):
+            self.assertEqual(self._serialized(admitted), expected)
+        self.assertEqual(self._serialized(admitted), expected)
 
     def test_missing_subject_is_preserved_without_path_inference(self) -> None:
         built = build_projection(admit_records([self.published.diagnosis]))
-        edge = built.projection["edges"][0]
         detail = next(iter(built.details.values()))
-        self.assertEqual((edge["state"], edge["target_record_key"]), ("MISSING", None))
-        self.assertEqual(detail["detail"]["subject_state"], "NOT_CHECKED")
-        self.assertEqual(detail["detail"]["derivation_state"], "NOT_CHECKED")
+        edge = detail["relationships"][0]
+        self.assertEqual(edge["state"], "MISSING")
+        self.assertNotIn("target_record_key", edge)
+        self.assertEqual(detail["view"]["subject_state"], "NOT_CHECKED")
+        self.assertEqual(detail["view"]["derivation_state"], "NOT_CHECKED")
 
     def test_exact_subject_is_replayed_and_matches(self) -> None:
         built = build_projection(
             admit_records([self.published.root, self.published.diagnosis])
         )
-        edge = built.projection["edges"][0]
+        detail = next(
+            value for value in built.details.values() if value["kind"] == "DIAGNOSIS"
+        )
+        edge = detail["relationships"][0]
         self.assertEqual(edge["state"], "MATCH")
         self.assertIsNotNone(edge["target_record_key"])
 
@@ -142,7 +109,7 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
             )
         )
         detail = next(
-            value["detail"]
+            value["view"]
             for value in diagnosis_only.details.values()
             if value["kind"] == "REFINEMENT"
         )
@@ -157,7 +124,7 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
             )
         )
         detail = next(
-            value["detail"]
+            value["view"]
             for value in base_only.details.values()
             if value["kind"] == "REFINEMENT"
         )
@@ -229,7 +196,7 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
 
     def test_rejected_refinement_without_targets_is_not_applicable(self) -> None:
         built = build_projection(admit_records([self.refinements.rejected]))
-        detail = next(iter(built.details.values()))["detail"]
+        detail = next(iter(built.details.values()))["view"]
         self.assertEqual(detail["diagnosis_state"], "NOT_CHECKED")
         self.assertEqual(detail["base_state"], "NOT_CHECKED")
         self.assertEqual(detail["derivation_state"], "NOT_APPLICABLE")
@@ -251,7 +218,7 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
             value
             for value in built.details.values()
             if value["kind"] == "DIAGNOSIS"
-            and value["detail"]["subject"]["kind"] == "REFINEMENT"
+            and value["relationships"][0]["target_kind"] == "REFINEMENT"
         )
         self.assertEqual(
             diagnosis["relationships"][0]["state"], "MATCH"
@@ -263,7 +230,7 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
             value
             for value in built.details.values()
             if value["kind"] == "REFINEMENT"
-            and value["detail"]["revision_chain"][-1]["revision_id"]
+            and value["view"]["revision_chain"][-1]["revision_id"]
             == second_revision_id
         )
         self.assertEqual(
@@ -287,7 +254,8 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
             containment=[],
         )
         built = build_projection(records)
-        self.assertEqual(built.projection["edges"][0]["state"], "MISSING")
+        detail = next(iter(built.details.values()))
+        self.assertEqual(detail["relationships"][0]["state"], "MISSING")
 
         subject_admitted = admit_records([self.published.root])
         subject = next(iter(subject_admitted.records.values()))

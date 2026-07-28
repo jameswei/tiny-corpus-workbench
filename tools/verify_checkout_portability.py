@@ -201,7 +201,6 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
                         "source": "corpus-source.md",
                     }
                 ],
-                "schema_version": "tcw.corpus-spec/v0.5",
                 "title": "Clean export model-free corpus",
             },
             sort_keys=True,
@@ -283,20 +282,14 @@ def _inspect_workbench(
         if not line:
             stderr = process.stderr.read() if process.poll() is not None else ""
             raise RuntimeError(f"workbench did not start from clean export: {stderr}")
-        startup = json.loads(line)
-        if (
-            startup.get("schema_version") != "tcw.workbench-startup/v0.5"
-            or startup.get("status") != "READY"
-            or startup.get("url") != f"http://127.0.0.1:{port}/"
-        ):
-            raise RuntimeError("workbench startup document differs from v0.5 contract")
+        if line != f"http://127.0.0.1:{port}/\n":
+            raise RuntimeError("workbench serving address differs from its contract")
         for route, expected_type in (
             ("/", "text/html"),
-            ("/api/v0.5/workbench", "application/json"),
+            ("/api/workbench", "application/json"),
         ):
             request = urllib.request.Request(
-                f"http://127.0.0.1:{port}{route}",
-                headers={"Origin": f"http://127.0.0.1:{port}"},
+                f"http://127.0.0.1:{port}{route}"
             )
             with urllib.request.urlopen(request, timeout=5) as response:
                 if response.status != 200 or expected_type not in response.headers[

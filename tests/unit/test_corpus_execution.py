@@ -32,20 +32,6 @@ HASH_B = "b" * 64
 HASH_C = "c" * 64
 
 
-def _runtime() -> dict:
-    return {
-        "python": "3.12.11",
-        "implementation": "CPython",
-        "lockfile_sha256": HASH_A,
-        "package_version": "0.4.0",
-        "dependencies": {
-            "docling": "2.113.0",
-            "docling-core": "2.87.1",
-            "markitdown": "0.1.6",
-        },
-    }
-
-
 def _models(root: Path, *, required: bool) -> dict:
     return {
         "required": required,
@@ -81,7 +67,6 @@ def _write_spec(root: Path, members: list[dict[str, object]]) -> Path:
     path.write_text(
         json.dumps(
             {
-                "schema_version": "tcw.corpus-spec/v0.5",
                 "corpus_id": "unit-corpus",
                 "title": "Unit corpus",
                 "members": members,
@@ -575,7 +560,6 @@ class CorpusExecutionTests(unittest.TestCase):
             run_id="corpus-run",
             observe_member=evidence.observe,
             diagnose_member=evidence.diagnose,
-            runtime_loader=_runtime,
             model_inventory_loader=kwargs.get("model_inventory_loader", _models),
         )
 
@@ -687,7 +671,9 @@ class CorpusExecutionTests(unittest.TestCase):
             self.assertEqual(
                 result.input_capture["model_identity"]["state"], "MISSING"
             )
-            self.assertEqual(result.runtime["model_inventory"]["inventory_hash"], None)
+            self.assertEqual(
+                result.configuration["model_inventory"]["inventory_hash"], None
+            )
             self.assertEqual(
                 [member["status"] for member in result.members],
                 ["COMPLETE", "PARTIAL", "COMPLETE"],
@@ -873,9 +859,7 @@ class CorpusExecutionTests(unittest.TestCase):
             ):
                 self.assertNotIn(forbidden, serialized)
 
-    def test_member_exception_is_sanitized_and_runtime_precedes_processing(
-        self,
-    ) -> None:
+    def test_member_exception_is_sanitized(self) -> None:
         secret = "PRIVATE SOURCE SENTENCE"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -891,26 +875,6 @@ class CorpusExecutionTests(unittest.TestCase):
             self.assertNotIn(secret, error["message"])
             self.assertNotIn(str(root), error["message"])
 
-            calls: list[str] = []
-
-            def bad_runtime() -> dict:
-                calls.append("runtime")
-                raise RuntimeContractError("runtime mismatch")
-
-            with self.assertRaises(RuntimeContractError):
-                execute_corpus(
-                    admitted,
-                    staging,
-                    staging / "models",
-                    run_id="never",
-                    observe_member=lambda *_: calls.append(  # type: ignore[arg-type]
-                        "observe"
-                    ),
-                    diagnose_member=evidence.diagnose,
-                    runtime_loader=bad_runtime,
-                    model_inventory_loader=_models,
-                )
-            self.assertEqual(calls, ["runtime"])
 
     def test_snapshot_uses_normalized_spec_not_json_formatting(self) -> None:
         with (
@@ -988,7 +952,6 @@ class CorpusExecutionTests(unittest.TestCase):
                     run_id="escaped",
                     observe_member=escaped_observe,
                     diagnose_member=lambda *_: outside,
-                    runtime_loader=_runtime,
                     model_inventory_loader=_models,
                 )
 

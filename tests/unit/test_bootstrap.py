@@ -39,6 +39,9 @@ OBSERVATION_SCHEMA_ERROR = (
 DIAGNOSIS_SCHEMA_ERROR = (
     "bundled diagnosis/schema runtime is unavailable or incompatible\n"
 )
+CORPUS_SCHEMA_ERROR = (
+    "bundled corpus/schema runtime is unavailable or incompatible\n"
+)
 
 
 class BootstrapTests(unittest.TestCase):
@@ -144,7 +147,10 @@ raise SystemExit(cli.main(["verify-corpus", str(root)]))
             completed = self.run_fresh(
                 script, str(Path(directory) / "corpus")
             )
-        self.assert_runtime_bootstrap_failure(completed)
+        self.assertEqual(completed.returncode, 6)
+        self.assertEqual(completed.stdout, "")
+        self.assertEqual(completed.stderr, CORPUS_SCHEMA_ERROR)
+        self.assertNotIn("Traceback", completed.stderr)
 
         script = BLOCK_JSONSCHEMA + r"""
 raise SystemExit(cli.main(["inspect-corpus", sys.argv[1]]))
@@ -153,7 +159,10 @@ raise SystemExit(cli.main(["inspect-corpus", sys.argv[1]]))
             completed = self.run_fresh(
                 script, str(Path(directory) / "corpus.json")
             )
-        self.assert_runtime_bootstrap_failure(completed)
+        self.assertEqual(completed.returncode, 6)
+        self.assertEqual(completed.stdout, "")
+        self.assertEqual(completed.stderr, CORPUS_SCHEMA_ERROR)
+        self.assertNotIn("Traceback", completed.stderr)
 
     def test_incompatible_verification_module_is_runtime_exit(self) -> None:
         stdout, stderr = io.StringIO(), io.StringIO()

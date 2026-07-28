@@ -100,13 +100,12 @@ class WorkbenchIdentityPreimageTests(unittest.TestCase):
             ),
             "session": (
                 {
-                    "schema_version": "tcw.workbench-projection/v0.5",
                     "top_level_record_keys": ["4" * 64],
                     "contained_record_keys": ["6" * 64],
                     "edge_keys": ["7" * 64],
                 },
-                b'{"contained_record_keys":["6666666666666666666666666666666666666666666666666666666666666666"],"edge_keys":["7777777777777777777777777777777777777777777777777777777777777777"],"schema_version":"tcw.workbench-projection/v0.5","top_level_record_keys":["4444444444444444444444444444444444444444444444444444444444444444"]}',
-                "c5a5ae55b944919c027ccaa51b8c3a76c1420c4753f7644995051e8725165358",
+                b'{"contained_record_keys":["6666666666666666666666666666666666666666666666666666666666666666"],"edge_keys":["7777777777777777777777777777777777777777777777777777777777777777"],"top_level_record_keys":["4444444444444444444444444444444444444444444444444444444444444444"]}',
+                "7d49f9954e120c887d5d730c2206a7879a030d2e8fc007673e0d11d7db7a21cf",
                 session_id(
                     top_level_record_keys=["4" * 64],
                     contained_record_keys=["6" * 64],

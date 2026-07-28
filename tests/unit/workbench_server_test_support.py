@@ -27,7 +27,7 @@ class ServerHarness:
         self.records = admit_records([root])
         self.projection = build_projection(self.records)
         self.port = available_port()
-        self.server = create_server(self.records, self.projection, self.port)
+        self.server = create_server(self.projection, self.port)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 

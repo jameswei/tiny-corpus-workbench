@@ -72,8 +72,8 @@ read-only local browser workbench for explicit records.
 - **Inspect an explicit corpus.** `tcw inspect-corpus` processes a small local
   corpus sequentially and publishes a static offline report.
 - **Verify a corpus report.** `tcw verify-corpus` checks the corpus record,
-  its runtime and snapshot identities, every nested observation and diagnosis,
-  and exact report regeneration.
+  its snapshot identity, every nested observation and diagnosis, and exact
+  report regeneration.
 - **Inspect records in a browser.** `tcw workbench` admits explicit local
   observation, diagnosis, refinement, or corpus records and serves one frozen,
   read-only view on `127.0.0.1`.
@@ -141,16 +141,16 @@ uv run --frozen tcw resolve-refinement decision.json \
 uv run --frozen tcw verify-refinement REFINEMENT_DIRECTORY \
   --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
 uv run --frozen tcw inspect-corpus \
-  fixtures/corpus/v0.5/golden-matrix.json
+  fixtures/corpus/golden-matrix.json
 uv run --frozen tcw verify-corpus CORPUS_DIRECTORY \
-  --spec fixtures/corpus/v0.5/golden-matrix.json
+  --spec fixtures/corpus/golden-matrix.json
 uv run --frozen tcw workbench RECORD_DIRECTORY --no-open
 ```
 
-Each command prints a compact JSON result. Replace `OBSERVATION_DIRECTORY` with
-the directory containing the `manifest` path printed by `tcw observe`. Replace
-`DIAGNOSIS_DIRECTORY` with the directory containing the `manifest` path printed
-by `tcw diagnose`.
+Workflow commands print a compact JSON result. `tcw workbench` prints only its
+serving address. Replace `OBSERVATION_DIRECTORY` with the directory containing
+the `manifest` path printed by `tcw observe`. Replace `DIAGNOSIS_DIRECTORY`
+with the directory containing the `manifest` path printed by `tcw diagnose`.
 
 The PDF example requires the local Docling models downloaded in the second
 step. Observation then runs locally and offline. OCR, plugins, remote services,
@@ -171,8 +171,9 @@ resources. It aggregates counts, extractor deltas, findings, and explicitly
 listed verified revision histories without embedding source passages.
 
 The visual workbench also accepts only explicit record roots. It binds only to
-`127.0.0.1`, keeps its projection in memory, and provides no execution,
-mutation, upload, discovery, or source-file route. Stop it with `Ctrl-C`.
+`127.0.0.1`, captures admitted artifact bytes in memory, and provides no
+execution, mutation, upload, discovery, or source-file route. Stop it with
+`Ctrl-C`.
 
 See the [Controlled Revisions guide](docs/controlled-revisions.md) for the
 supported findings, artifact layout, chaining rules, verification states, and

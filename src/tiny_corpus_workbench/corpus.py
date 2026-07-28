@@ -63,7 +63,7 @@ def _schema_validator() -> Draft202012Validator:
                 schema["$id"], Resource.from_contents(schema)
             )
         return Draft202012Validator(
-            schemas["corpus-spec-v0.5.schema.json"],
+            schemas["corpus-spec.schema.json"],
             registry=registry,
             format_checker=FORMAT_CHECKER,
         )
@@ -488,7 +488,6 @@ def load_corpus_spec(path: str | Path) -> AdmittedCorpusSpec:
         )
 
     normalized = {
-        "schema_version": "tcw.corpus-spec/v0.5",
         "corpus_id": value["corpus_id"],
         "title": value["title"],
         "members": normalized_members,

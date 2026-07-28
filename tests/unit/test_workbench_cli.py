@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import json
 import socket
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -61,17 +60,7 @@ class WorkbenchCliTests(unittest.TestCase):
             )
         self.assertEqual(code, 0)
         self.assertEqual(stderr.getvalue(), "")
-        raw = stdout.getvalue()
-        value = json.loads(raw)
-        self.assertEqual(
-            raw,
-            json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
-        )
-        self.assertEqual(value["status"], "READY")
-        self.assertEqual(value["record_count"], 1)
-        self.assertEqual(value["top_level_record_count"], 1)
-        self.assertEqual(value["contained_record_count"], 0)
-        self.assertEqual(value["url"], f"http://127.0.0.1:{port}/")
+        self.assertEqual(stdout.getvalue(), f"http://127.0.0.1:{port}/\n")
 
     def test_browser_failure_is_nonfatal_warning(self) -> None:
         port = available_port()
@@ -119,7 +108,7 @@ class WorkbenchCliTests(unittest.TestCase):
             )
         self.assertEqual(code, 0)
         self.assertEqual(stderr.getvalue(), "")
-        self.assertEqual(json.loads(stdout.getvalue())["status"], "READY")
+        self.assertEqual(stdout.getvalue(), f"http://127.0.0.1:{port}/\n")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             probe.bind(("127.0.0.1", port))
 

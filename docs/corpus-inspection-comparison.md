@@ -13,7 +13,7 @@ Inspect a committed example corpus:
 
 ```bash
 uv run --frozen tcw inspect-corpus \
-  fixtures/corpus/v0.5/golden-matrix.json
+  fixtures/corpus/golden-matrix.json
 ```
 
 Select other local output and model directories:
@@ -47,7 +47,6 @@ The specification is a closed JSON document:
 
 ```json
 {
-  "schema_version": "tcw.corpus-spec/v0.5",
   "corpus_id": "example-corpus",
   "title": "Example corpus",
   "members": [
@@ -102,16 +101,16 @@ draft or resolution function.
 
 ## Execution and output
 
-The command validates the full specification and locked runtime before it
-processes a member. It then processes members sequentially in sorted member-ID
-order.
+The command validates the full specification and prepares the configured
+extractors, diagnosis rules, and local model inventory before it processes a
+member. It then processes members sequentially in sorted member-ID order.
 
 Each member gets an observation. A usable Docling document also gets a
 diagnosis. MarkItDown remains a descriptive comparison view and never creates
 findings.
 
-One member failure does not stop the remaining members. A global runtime
-failure stops the run.
+One member failure does not stop the remaining members. An unavailable
+application dependency stops the run before publication.
 
 The output layout is:
 
@@ -135,6 +134,12 @@ then rechecks the specification, sources, model inventory, and revision
 bundles immediately before one exclusive atomic rename. An invalid staged run
 is never published. The publisher never overwrites an earlier run.
 
+The user-authored specification has a strict closed schema. Generated corpus
+records use compact structural schemas. Readable Python validation owns stage
+and nullability rules. The verifier rebuilds the summary from nested evidence
+and requires an exact match. This avoids a second copy of the aggregation
+rules in JSON Schema.
+
 ## Snapshot and aggregation
 
 The logical corpus ID comes from the specification. The snapshot ID binds:
@@ -142,9 +147,11 @@ The logical corpus ID comes from the specification. The snapshot ID binds:
 - the normalized specification
 - source identities and hashes
 - extractor and diagnosis configuration
-- the locked runtime
 - the PDF model inventory when required
 - verified revision identities and inventory fingerprints
+
+The identity does not contain package, Python, dependency, lockfile, or build
+metadata.
 
 `summary.json` contains no arbitrary source passages. It groups:
 
@@ -223,7 +230,7 @@ corpus result.
 | `3` | A partial report was published. |
 | `4` | A failed report was published with no usable member view. |
 | `5` | An input changed, an unsafe path was found, integrity failed, or publication conflicted. |
-| `6` | The locked runtime or global dependency contract is incompatible. |
+| `6` | A required application dependency is unavailable. |
 
 Missing PDF models produce member-level failures. Non-PDF members continue.
 The command never downloads a model.
@@ -233,8 +240,8 @@ The command never downloads a model.
 Default verification is self-contained. It checks:
 
 - closed schemas and canonical JSON
-- runtime, snapshot, member, revision, and nested-record identities
-- hashes, descriptor sizes, statuses, counts, and the exact model inventory
+- snapshot, member, revision, and nested-record identities
+- hashes, descriptor sizes, statuses, counts, and recorded domain configuration
 - every nested observation
 - every nested diagnosis and a fresh deterministic rule evaluation
 - exact regeneration of the summary, HTML, and CSS

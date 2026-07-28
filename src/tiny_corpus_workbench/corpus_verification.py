@@ -15,6 +15,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from tiny_corpus_workbench.artifacts import canonical_json, inventory_models
+from tiny_corpus_workbench.application.records import require_record_header
 from tiny_corpus_workbench.corpus import AdmittedCorpusSpec, _tree_inventory
 from tiny_corpus_workbench.corpus_execution import (
     _build_summary,
@@ -23,6 +24,7 @@ from tiny_corpus_workbench.corpus_execution import (
     _extractor_state,
     _ruleset_id,
     _snapshot_id_from_identity,
+    validate_corpus_manifest_semantics,
 )
 from tiny_corpus_workbench.corpus_report import render_report, render_stylesheet
 from tiny_corpus_workbench.domain import (
@@ -31,11 +33,6 @@ from tiny_corpus_workbench.domain import (
     RuntimeContractError,
 )
 from tiny_corpus_workbench.source import sha256_file
-from tiny_corpus_workbench.supported_provenance import (
-    RECORDED_PROVENANCE_ERROR,
-    active_build_provenance,
-    validate_recorded_provenance,
-)
 from tiny_corpus_workbench.verification import FORMAT_CHECKER
 
 
@@ -884,7 +881,7 @@ def _regenerate_summary(
                 revisions,
                 key=lambda item: (item["member_id"], item["revision_id"]),
             ),
-            validator=_validator("corpus-summary-v0.5.schema.json"),
+            validator=_validator("corpus-summary.schema.json"),
         )
     except Exception:
         issues.append(
@@ -985,7 +982,7 @@ def _advisories(
         }
         for member in manifest["members"]
     ]
-    model = manifest["runtime"]["model_inventory"]
+    model = manifest["configuration"]["model_inventory"]
     if not model["required"]:
         model_state = {"status": "MATCH"}
     else:
@@ -1004,7 +1001,6 @@ def _advisories(
                     "MISSING" if not Path(model["path"]).exists() else "ERROR"
                 )
             }
-
     revision_states = []
     report_directory = root / "report"
     for revision in manifest["revisions"]:
@@ -1029,7 +1025,7 @@ def _advisories(
     return specification_state, source_states, model_state, revision_states
 
 
-def _verify_runtime_and_snapshot(
+def _verify_snapshot(
     manifest: dict[str, Any],
     specification: dict[str, Any],
     issues: list[dict[str, Any]],
@@ -1040,41 +1036,25 @@ def _verify_runtime_and_snapshot(
     )
     from tiny_corpus_workbench.v03 import RULESET, RULESET_PARAMETER_HASH
 
-    try:
-        validate_recorded_provenance(
-            manifest["build_provenance"],
-            command_id="tcw.inspect-corpus",
-            extracting=True,
-        )
-    except ValueError as error:
-        if str(error) == RECORDED_PROVENANCE_ERROR:
-            raise RuntimeContractError(RECORDED_PROVENANCE_ERROR) from error
-        issues.append(
-            _issue(
-                "RUNTIME_MISMATCH",
-                "corpus-manifest.json",
-                "recorded build provenance is malformed",
-            )
-        )
-
     configurations = {
         "docling": dict(DOCLING_CONFIG),
         "markitdown": dict(MARKITDOWN_CONFIG),
     }
     ruleset = {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH}
+    configuration = manifest["configuration"]
     if (
-        manifest["runtime"]["configurations"] != configurations
-        or manifest["runtime"]["ruleset_id"] != _ruleset_id(ruleset)
+        configuration["extractors"] != configurations
+        or configuration["ruleset_id"] != _ruleset_id(ruleset)
     ):
         issues.append(
             _issue(
-                "RUNTIME_MISMATCH",
+                "IDENTITY_MISMATCH",
                 "corpus-manifest.json",
-                "recorded extractor configuration or diagnosis ruleset differs",
+                "recorded domain configuration differs",
             )
         )
 
-    model = manifest["runtime"]["model_inventory"]
+    model = configuration["model_inventory"]
     model_identity = {
         key: model[key]
         for key in ("state", "required", "inventory_hash", "files")
@@ -1082,10 +1062,7 @@ def _verify_runtime_and_snapshot(
     model_paths = [item["path"] for item in model["files"]]
     safe_model_paths = (
         len(model_paths) == len(set(model_paths))
-        and model["files"] == sorted(
-            model["files"],
-            key=lambda item: item["path"],
-        )
+        and model["files"] == sorted(model["files"], key=lambda item: item["path"])
         and all(_safe_relative(path) is not None for path in model_paths)
     )
     inventory_hash = (
@@ -1117,12 +1094,11 @@ def _verify_runtime_and_snapshot(
     if not model_valid:
         issues.append(
             _issue(
-                "RUNTIME_MISMATCH",
+                "IDENTITY_MISMATCH",
                 "corpus-manifest.json",
                 "recorded model inventory is internally inconsistent",
             )
         )
-
     snapshot_members = [
         {
             "member_id": member["member_id"],
@@ -1157,7 +1133,6 @@ def _verify_runtime_and_snapshot(
     identity = {
         "normalized_specification": specification,
         "members": snapshot_members,
-        "runtime": manifest["build_provenance"],
         "configurations": configurations,
         "ruleset": ruleset,
         "model_inventory": model_identity,
@@ -1184,7 +1159,6 @@ def verify_corpus(
 ) -> dict[str, Any]:
     """Verify one corpus run without repairing or regenerating its files."""
 
-    active_runtime = active_build_provenance(command_id="tcw.verify-corpus")
     root = Path(os.path.abspath(os.fspath(corpus_root)))
     if root.is_symlink():
         raise IntegrityError(
@@ -1202,10 +1176,14 @@ def verify_corpus(
         _, manifest = _read_json(
             root / "corpus-manifest.json", canonical=True
         )
-        _validator("corpus-manifest-v0.5.schema.json").validate(manifest)
+        require_record_header(manifest, "corpus")
+        _validator("corpus-manifest.schema.json").validate(manifest)
+        validate_corpus_manifest_semantics(manifest)
         expected_run_id = root.name if _expected_run_id is None else _expected_run_id
         if manifest["run_id"] != expected_run_id:
             raise ValueError
+    except InputError:
+        raise
     except Exception:
         issues.append(
             _issue(
@@ -1222,7 +1200,7 @@ def verify_corpus(
             specification_bytes, specification = _read_json(
                 root / "corpus-spec.json", canonical=True
             )
-            _validator("corpus-spec-v0.5.schema.json").validate(specification)
+            _validator("corpus-spec.schema.json").validate(specification)
             if (
                 hashlib.sha256(specification_bytes).hexdigest()
                 != manifest["input_specification"]["normalized_sha256"]
@@ -1240,7 +1218,7 @@ def verify_corpus(
             specification = None
         try:
             _, summary = _read_json(root / "summary.json", canonical=True)
-            _validator("corpus-summary-v0.5.schema.json").validate(summary)
+            _validator("corpus-summary.schema.json").validate(summary)
         except Exception:
             issues.append(
                 _issue(
@@ -1252,7 +1230,7 @@ def verify_corpus(
             summary = None
 
     if manifest is not None and specification is not None:
-        _verify_runtime_and_snapshot(
+        _verify_snapshot(
             manifest,
             specification,
             issues,
@@ -1341,7 +1319,6 @@ def verify_corpus(
         "SUMMARY_INVALID",
         "REFERENCE_MISMATCH",
         "STATUS_MISMATCH",
-        "RUNTIME_MISMATCH",
         "IDENTITY_MISMATCH",
         "NESTED_OBSERVATION_INVALID",
         "NESTED_DIAGNOSIS_INVALID",
@@ -1354,7 +1331,6 @@ def verify_corpus(
         else "INTEGRITY_MISMATCH"
     )
     result = {
-        "schema_version": "tcw.corpus-verification-result/v0.5",
         "corpus_directory": str(root.resolve()),
         "artifact_integrity": {
             "status": artifact_status,
@@ -1364,7 +1340,6 @@ def verify_corpus(
         "source_states": source_states,
         "model_state": model_state,
         "revision_states": revision_states,
-        "build_provenance": active_runtime,
     }
-    _validator("corpus-verification-result-v0.5.schema.json").validate(result)
+    _validator("corpus-verification-result.schema.json").validate(result)
     return result

@@ -229,36 +229,32 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "workbench":
         server = None
         try:
-            _active_build_provenance(command_id="tcw.workbench")
-            from tiny_corpus_workbench.workbench_projection import build_projection
-            from tiny_corpus_workbench.workbench_records import admit_records
+            from tiny_corpus_workbench.application.workbench import (
+                prepare_workbench,
+            )
             from tiny_corpus_workbench.workbench_server import (
                 create_server,
                 open_browser,
-                startup_document,
+                serving_url,
                 validate_port,
             )
 
             port = validate_port(args.port)
             _preflight_workbench_roots(args.records)
-            records = admit_records(args.records)
             try:
-                projection = build_projection(records)
+                projection = prepare_workbench(args.records)
             except IntegrityError as error:
                 if "structured response limit" not in str(error):
                     raise
                 raise InputError(
                     "workbench projection exceeds the structured response limit"
                 ) from error
-            server = create_server(records, projection, port)
+            server = create_server(projection, port)
             try:
-                startup = startup_document(projection, port)
-                print(
-                    json.dumps(startup, sort_keys=True, separators=(",", ":")),
-                    flush=True,
-                )
+                url = serving_url(port)
+                print(url, flush=True)
                 if not args.no_open:
-                    warning = open_browser(startup["url"])
+                    warning = open_browser(url)
                     if warning is not None:
                         print(warning, file=sys.stderr, flush=True)
                 server.serve_forever()
@@ -279,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "inspect-corpus":
         try:
             command = _corpus_callable(
-                "corpus_publication", "inspect_corpus"
+                "application.corpus", "inspect_corpus"
             )
             published = command(
                 args.corpus_spec,
@@ -287,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.docling_artifacts,
             )
             verify = _corpus_callable(
-                "corpus_verification", "verify_corpus"
+                "application.corpus", "verify_corpus"
             )
             verification = verify(published.directory)
             if verification["artifact_integrity"]["status"] != "VERIFIED":
@@ -316,7 +312,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "verify-corpus":
         try:
             command = _corpus_callable(
-                "corpus_verification", "verify_corpus"
+                "application.corpus", "verify_corpus"
             )
             verification = command(args.corpus_directory, args.spec)
         except WorkbenchError as error:
