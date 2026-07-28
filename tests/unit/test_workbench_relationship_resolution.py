@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Callable, Iterator
 from unittest.mock import patch
 
+import tiny_corpus_workbench.workbench_projection as projection_module
+import tiny_corpus_workbench.workbench_records as records_module
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.workbench_projection import build_projection
 from tiny_corpus_workbench.workbench_records import admit_records
@@ -101,6 +103,47 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
         edge = detail["relationships"][0]
         self.assertEqual(edge["state"], "MATCH")
         self.assertIsNotNone(edge["target_record_key"])
+
+    def test_catalog_key_rename_does_not_change_workbench_identity(self) -> None:
+        def snapshot() -> dict[str, object]:
+            admitted = admit_records(
+                [self.published.root, self.published.diagnosis]
+            )
+            built = build_projection(admitted)
+            diagnosis = next(
+                record
+                for record in admitted.records.values()
+                if record.kind == "DIAGNOSIS"
+            )
+            edge = projection_module._record_edges(
+                admitted, diagnosis
+            )[0]
+            return {
+                "logical_keys": sorted(
+                    record.logical_copy_key
+                    for record in admitted.records.values()
+                ),
+                "record_keys": sorted(admitted.records),
+                "edge_key": edge["edge_key"],
+                "edge_state": edge["state"],
+                "target_record_key": edge["target_record_key"],
+                "session_id": built.projection["session_id"],
+            }
+
+        baseline = snapshot()
+        renamed_roots = {
+            name: (kind, f"renamed-{schema}", role)
+            for name, (kind, schema, role) in records_module.ROOTS.items()
+        }
+        renamed_schemas = {
+            kind: f"renamed-{schema}"
+            for kind, schema in projection_module.SCHEMAS.items()
+        }
+        with (
+            patch.object(records_module, "ROOTS", renamed_roots),
+            patch.object(projection_module, "SCHEMAS", renamed_schemas),
+        ):
+            self.assertEqual(snapshot(), baseline)
 
     def test_refinement_targets_are_evaluated_independently(self) -> None:
         diagnosis_only = build_projection(

@@ -183,7 +183,6 @@ def _candidate(records: AdmittedRecords, target: dict[str, Any]) -> AdmittedReco
         record
         for record in records.records.values()
         if record.kind == target["kind"]
-        and record.schema_version == target["record_schema_version"]
         and record.run_id == target["run_id"]
         and record.identity.get(target["identity_type"]) == target["identity_value"]
     ]

@@ -37,15 +37,13 @@ class WorkbenchIdentityPreimageTests(unittest.TestCase):
             "logical": (
                 {
                     "kind": "OBSERVATION",
-                    "record_schema_version": "observation-manifest",
                     "identity": identity,
                     "run_id": "run-1",
                 },
-                b'{"identity":{"observation_id":"1111111111111111111111111111111111111111111111111111111111111111"},"kind":"OBSERVATION","record_schema_version":"observation-manifest","run_id":"run-1"}',
-                "3ff38b8dde3aa777574b2402a630b3f8a4d0415aee7489bb33a077b6f15b3fd7",
+                b'{"identity":{"observation_id":"1111111111111111111111111111111111111111111111111111111111111111"},"kind":"OBSERVATION","run_id":"run-1"}',
+                "155e9749c558b02945e9313ad18d1f8609e6d9bfcccb00c0a494f7351f648dfb",
                 logical_copy_key(
                     kind="OBSERVATION",
-                    record_schema_version="observation-manifest",
                     identity=identity,
                     run_id="run-1",
                 ),
@@ -53,16 +51,14 @@ class WorkbenchIdentityPreimageTests(unittest.TestCase):
             "record": (
                 {
                     "kind": "OBSERVATION",
-                    "record_schema_version": "observation-manifest",
                     "identity": identity,
                     "run_id": "run-1",
                     "manifest_sha256": "2" * 64,
                 },
-                b'{"identity":{"observation_id":"1111111111111111111111111111111111111111111111111111111111111111"},"kind":"OBSERVATION","manifest_sha256":"2222222222222222222222222222222222222222222222222222222222222222","record_schema_version":"observation-manifest","run_id":"run-1"}',
-                "a7674fda10c857129b2125da9bd357ad35daaa08c7ed7370131d2c51d6f1ba68",
+                b'{"identity":{"observation_id":"1111111111111111111111111111111111111111111111111111111111111111"},"kind":"OBSERVATION","manifest_sha256":"2222222222222222222222222222222222222222222222222222222222222222","run_id":"run-1"}',
+                "01fdb4b253a6e5d2548bd0de5ffc8e309ba5db5e5f75a2d2eee21ba01ac6f0ff",
                 record_key(
                     kind="OBSERVATION",
-                    record_schema_version="observation-manifest",
                     identity=identity,
                     run_id="run-1",
                     manifest_sha256="2" * 64,
@@ -72,10 +68,14 @@ class WorkbenchIdentityPreimageTests(unittest.TestCase):
                 {
                     "relation": "DIAGNOSIS_SUBJECT",
                     "from_record_key": "4" * 64,
-                    "expected_target": expected_target,
+                    "expected_target": {
+                        key: value
+                        for key, value in expected_target.items()
+                        if key != "record_schema_version"
+                    },
                 },
-                b'{"expected_target":{"content_sha256":"3333333333333333333333333333333333333333333333333333333333333333","identity_type":"observation_id","identity_value":"1111111111111111111111111111111111111111111111111111111111111111","kind":"OBSERVATION","manifest_sha256":"2222222222222222222222222222222222222222222222222222222222222222","record_schema_version":"observation-manifest","run_id":"run-1"},"from_record_key":"4444444444444444444444444444444444444444444444444444444444444444","relation":"DIAGNOSIS_SUBJECT"}',
-                "cb5e4e459920d4ded59fc6831b0ae7e89074362432e4618db2db379f60c35b86",
+                b'{"expected_target":{"content_sha256":"3333333333333333333333333333333333333333333333333333333333333333","identity_type":"observation_id","identity_value":"1111111111111111111111111111111111111111111111111111111111111111","kind":"OBSERVATION","manifest_sha256":"2222222222222222222222222222222222222222222222222222222222222222","run_id":"run-1"},"from_record_key":"4444444444444444444444444444444444444444444444444444444444444444","relation":"DIAGNOSIS_SUBJECT"}',
+                "15e2c0f15e6e5b251979767a129f3e98e4102ac599d307c593cf8f7af765e936",
                 edge_key(
                     relation="DIAGNOSIS_SUBJECT",
                     from_record_key="4" * 64,
@@ -119,6 +119,58 @@ class WorkbenchIdentityPreimageTests(unittest.TestCase):
                 self.assertEqual(encoded, expected_bytes)
                 self.assertEqual(actual, expected_hash)
                 self.assertEqual(expected_hash, hashlib.sha256(expected_bytes).hexdigest())
+
+    def test_schema_labels_do_not_affect_edges_but_domain_inputs_do(self) -> None:
+        target = {
+            "kind": "OBSERVATION",
+            "record_schema_version": "observation-manifest",
+            "identity_type": "observation_id",
+            "identity_value": "1" * 64,
+            "run_id": "run-1",
+            "manifest_sha256": "2" * 64,
+            "content_sha256": "3" * 64,
+        }
+        baseline = edge_key(
+            relation="DIAGNOSIS_SUBJECT",
+            from_record_key="4" * 64,
+            expected_target=target,
+        )
+        renamed = {**target, "record_schema_version": "renamed-catalog-key"}
+        self.assertEqual(
+            baseline,
+            edge_key(
+                relation="DIAGNOSIS_SUBJECT",
+                from_record_key="4" * 64,
+                expected_target=renamed,
+            ),
+        )
+        for relation, source, changed_target in (
+            ("REFINEMENT_BASE", "4" * 64, target),
+            ("DIAGNOSIS_SUBJECT", "5" * 64, target),
+            (
+                "DIAGNOSIS_SUBJECT",
+                "4" * 64,
+                {**target, "identity_value": "6" * 64},
+            ),
+            (
+                "DIAGNOSIS_SUBJECT",
+                "4" * 64,
+                {**target, "manifest_sha256": "7" * 64},
+            ),
+        ):
+            with self.subTest(
+                relation=relation,
+                source=source,
+                target=changed_target,
+            ):
+                self.assertNotEqual(
+                    baseline,
+                    edge_key(
+                        relation=relation,
+                        from_record_key=source,
+                        expected_target=changed_target,
+                    ),
+                )
 
     def test_session_identity_sorts_inputs_and_rejects_duplicates(self) -> None:
         expected = session_id(

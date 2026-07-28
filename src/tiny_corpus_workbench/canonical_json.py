@@ -27,14 +27,12 @@ def canonical_sha256(value: Any) -> str:
 def logical_copy_key(
     *,
     kind: str,
-    record_schema_version: str,
     identity: Mapping[str, Any],
     run_id: str,
 ) -> str:
     return canonical_sha256(
         {
             "kind": kind,
-            "record_schema_version": record_schema_version,
             "identity": dict(identity),
             "run_id": run_id,
         }
@@ -44,7 +42,6 @@ def logical_copy_key(
 def record_key(
     *,
     kind: str,
-    record_schema_version: str,
     identity: Mapping[str, Any],
     run_id: str,
     manifest_sha256: str,
@@ -52,7 +49,6 @@ def record_key(
     return canonical_sha256(
         {
             "kind": kind,
-            "record_schema_version": record_schema_version,
             "identity": dict(identity),
             "run_id": run_id,
             "manifest_sha256": manifest_sha256,
@@ -66,11 +62,13 @@ def edge_key(
     from_record_key: str,
     expected_target: Mapping[str, Any],
 ) -> str:
+    target = dict(expected_target)
+    target.pop("record_schema_version", None)
     return canonical_sha256(
         {
             "relation": relation,
             "from_record_key": from_record_key,
-            "expected_target": dict(expected_target),
+            "expected_target": target,
         }
     )
 

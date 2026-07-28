@@ -403,7 +403,6 @@ def admit_record(
     manifest_hash = _sha(before)
     logical = logical_copy_key(
         kind=kind,
-        record_schema_version=schema,
         identity=identity,
         run_id=manifest["run_id"],
     )
@@ -557,7 +556,6 @@ def _collapse_physical(
         )
         common_key = canonical.record_key or record_key(
             kind=canonical.kind,
-            record_schema_version=canonical.schema_version,
             identity=canonical.identity,
             run_id=canonical.run_id,
             manifest_sha256=canonical.manifest_sha256,
@@ -599,7 +597,6 @@ def admit_records(
         # key is needed for deterministic child-backing tuples.
         corpus.record_key = record_key(
             kind=corpus.kind,
-            record_schema_version=corpus.schema_version,
             identity=corpus.identity,
             run_id=corpus.run_id,
             manifest_sha256=corpus.manifest_sha256,
