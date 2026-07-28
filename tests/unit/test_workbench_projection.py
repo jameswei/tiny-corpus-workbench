@@ -130,13 +130,14 @@ class WorkbenchProjectionTests(unittest.TestCase):
             for item in projection["records"]
             if item["origin"] == "CORPUS_CONTAINED"
         ]
+        admitted = admit_records([self.published.root])
         edge_keys = [
             edge["edge_key"]
-            for record in admit_records([self.published.root]).records.values()
+            for record in admitted.records.values()
             for edge in __import__(
                 "tiny_corpus_workbench.workbench_projection",
                 fromlist=["_record_edges"],
-            )._record_edges(admit_records([self.published.root]), record)
+            )._record_edges(admitted, record)
         ]
         self.assertEqual(
             projection["session_id"],

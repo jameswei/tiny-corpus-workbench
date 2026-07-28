@@ -375,7 +375,7 @@ def _verify_intrinsic(kind: str, root: Path) -> None:
         raise IntegrityError("record does not have verified intrinsic integrity")
 
 
-def _supplied_root(root: Path) -> Path:
+def _supplied_root(root: str | os.PathLike[str]) -> Path:
     raw = os.fspath(root)
     if not isinstance(raw, str) or not raw:
         raise InputError("RECORD must be one local non-symlink directory")
@@ -386,7 +386,11 @@ def _supplied_root(root: Path) -> Path:
     return Path.cwd() / raw
 
 
-def admit_record(root: Path, *, backing: Backing | None = None) -> AdmittedRecord:
+def admit_record(
+    root: str | os.PathLike[str],
+    *,
+    backing: Backing | None = None,
+) -> AdmittedRecord:
     root = _supplied_root(root)
     kind, name = _record_manifest(root)
     capture = _capture_record(root, kind, name)
@@ -571,7 +575,9 @@ def _collapse_physical(
     return records
 
 
-def admit_records(roots: Iterable[Path]) -> AdmittedRecords:
+def admit_records(
+    roots: Iterable[str | os.PathLike[str]],
+) -> AdmittedRecords:
     """Admit explicit roots and their descriptor-bounded corpus children."""
 
     root_list = list(roots)
