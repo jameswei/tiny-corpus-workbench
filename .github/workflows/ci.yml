@@ -138,34 +138,17 @@ jobs:
           uv run --frozen docling-tools models download layout tableformer
           --output-dir .cache/docling/models
 
-      - name: Run full extraction and corpus suite
+      - name: Run model-dependent extraction and corpus tests
         env:
           TCW_DOCLING_ARTIFACTS: .cache/docling/models
           HF_HUB_OFFLINE: "1"
           TRANSFORMERS_OFFLINE: "1"
-        run: uv run --frozen --group test python -m unittest discover -s tests -v
-
-      - name: Verify current document policy
-        run: uv run --frozen python tools/verify_current_document_policy.py
-
-      - name: Validate bundled workbench UI assets and static site
-        run: |
-          uv run --frozen python tools/validate_workbench_assets.py src/tiny_corpus_workbench/workbench_assets
-          uv run --frozen python tools/validate_site.py site
-
-      - name: Check all deterministic fixture generation
-        run: |
-          uv run --frozen --group fixtures python tools/generate_fixtures.py --check
-          uv run --frozen --group fixtures python tools/generate_diagnosis_fixtures.py --check
-          uv run --frozen --group fixtures python tools/generate_refinement_fixtures.py --check
-          uv run --frozen --group fixtures python tools/verify_fixtures.py
-          uv run --frozen python tools/verify_corpus_specs.py
-
-      - name: Verify clean export and checkout portability
-        run: uv run --frozen --group test python tools/verify_checkout_portability.py
-
-      - name: Compile Python sources
-        run: uv run --frozen --group test python -m compileall -q src tests tools
+        run: >-
+          uv run --frozen --group test python -m unittest -v
+          tests.compatibility.test_extractor_compatibility
+          tests.integration.test_golden_observations
+          tests.integration.test_diagnosis_integration
+          tests.integration.test_corpus_integration
 
       - name: Check post-validation working tree
         run: |
