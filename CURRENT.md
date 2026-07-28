@@ -7,20 +7,27 @@ Future work may use whichever sound engineering practices fit the task.
 
 ## Status
 
-- Milestone pull requests
+- Correction PRs
+  [#18](https://github.com/jameswei/tiny-corpus-workbench/pull/18) through
+  [#25](https://github.com/jameswei/tiny-corpus-workbench/pull/25) are merged.
+  Commit `452fcd2d8ca39bbb5b92d20d1a7996588baf8ad5` on `main` contains the
+  completed PR 0 through PR 8 correction slices and their passing hosted
+  evidence.
+- The original milestone PRs
   [#13](https://github.com/jameswei/tiny-corpus-workbench/pull/13) and
   [#17](https://github.com/jameswei/tiny-corpus-workbench/pull/17) are merged.
-  Commit `a500464554bd31b4c7569d50df577d00c6eb71bb` on `main` is the approved
-  correction base.
-- v0.5 is unreleased and paused for a learning-first correction. The merged
-  implementation is not a release candidate.
-- Correction work follows the approved
+  They represent pre-correction history.
+- This tree contains the final PR 9 documentation closeout. v0.5 is unreleased.
+  Independent PR 9 review, squash merge, post-merge main CI, the
+  required retrospective, and separate release approval remain required.
+- The correction follows the approved
   [v0.5 learning-first correction plan](docs/plans/v0.5-learning-first-correction.md)
   and its
-  [ledger](docs/plans/v0.5-learning-first-correction-ledger.md). No correction
-  task or release is complete.
+  [ledger](docs/plans/v0.5-learning-first-correction-ledger.md). The ledger
+  records the exact reviewed heads, squash commits, and post-merge CI for
+  completed PR 0 through PR 8.
 - Milestone v0.1, Extraction Observatory, is released as `v0.1.0` on `main`.
-- The released baseline contains `tcw observe`, `tcw verify`, twelve
+- The released baseline contains source observation and verification, twelve
   deterministic CC0 fixtures, immutable observation artifacts, tests, user
   documentation, learning material, CI, and the project website.
 - The local v0.1 baseline passes 80 unit tests, the twelve-fixture registry
@@ -30,10 +37,9 @@ Future work may use whichever sound engineering practices fit the task.
   on `main`.
 - Its accepted implementation contract is
   `docs/plans/v0.2-evidence-based-diagnosis.md`.
-- The release contains `tcw diagnose`, `tcw verify-diagnosis`, eight fixed
-  evidence-backed rules, immutable diagnosis artifacts, independent
-  verification, deterministic CC0 diagnosis fixtures, tests, user
-  documentation, and learning material.
+- The release contains evidence-based diagnosis and verification, eight fixed
+  rules, immutable diagnosis artifacts, deterministic CC0 diagnosis fixtures,
+  tests, user documentation, and learning material.
 - Final hosted `Fast validation`, `Full extraction`, and website deployment
   passed on the `v0.2.0` release target.
 - Milestone v0.3, Controlled Revisions, is released as
@@ -71,10 +77,10 @@ Future work may use whichever sound engineering practices fit the task.
   on `main`.
 - Its accepted implementation contract is
   `docs/plans/v0.4-corpus-inspection-comparison.md`.
-- The release contains `tcw inspect-corpus`, `tcw verify-corpus`, four closed
-  corpus schemas, deterministic aggregation, a static offline report, two
-  explicit example corpora, tests, user documentation, learning material, and
-  the updated project website.
+- The release contains explicit corpus inspection and verification, four
+  closed corpus schemas, deterministic aggregation, a static offline report,
+  two explicit example corpora, tests, user documentation, learning material,
+  and the updated project website.
 - Local acceptance passes 203 unit tests and 214 complete tests, including the
   real offline extractor and corpus matrices. Fixture generation, registries,
   the static site, compilation, clean-checkout portability, and diff hygiene
@@ -112,12 +118,6 @@ Future work may use whichever sound engineering practices fit the task.
   normalized-equality state. Focused report coverage and the complete local
   suite pass. Refreshed independent review returned `PASS` with no remaining
   blocker.
-- The compatibility spike was rerun from exported `v0.1.0`, `v0.2.0`, and
-  `v0.3.0` source trees under their locked environments. All 12 v0.1 golden
-  observations, three representative v0.2 diagnoses, and representative v0.3
-  diagnosis, applied, rejected, and chained revision records verify under
-  v0.4. Rerunning diagnosis over the old applied revision and creating a new
-  v0.4 successor also pass with the active v0.4 package and lock identity.
 - Pull request
   [#11](https://github.com/jameswei/tiny-corpus-workbench/pull/11) delivered
   the milestone as commit `ae7ce99`, which is the target of the annotated
@@ -165,9 +165,10 @@ confirmation.
 
 ## Active milestone
 
-Milestone v0.5 is active only as the learning-first correction. The correction
-keeps the useful local visual Workbench while simplifying records, internal
-interfaces, tests, and documentation around the document lifecycle.
+Milestone v0.5 remains active only as the learning-first correction. PR 0
+through PR 8 corrected records, verification, the local Workbench, obsolete
+machinery, the CLI name, and CI ownership. This tree adds the final
+documentation closeout around the document lifecycle.
 
 The [v0.5 Local Visual Workbench plan](docs/plans/v0.5-local-visual-workbench.md)
 and its
@@ -175,15 +176,14 @@ and its
 records of the superseded implementation direction and activity. They do not
 govern current implementation.
 
-The Workbench remains read-only, loopback-only, and limited to explicitly
-supplied local records. The loopback HTTP server is an internal bridge for the
-bundled browser interface, not a public or stable API. Existing behavior
-remains in place until each correction task changes its owned slice.
+The Workbench is read-only, loopback-only, and limited to explicitly supplied
+local records. The loopback HTTP server is an internal bridge for the bundled
+browser interface, not a public or stable API.
 
 Implementation follows the current correction plan and ledger linked in the
-Status section. Release, tag, and publication work remain paused until all
-correction tasks, review, CI, the required retrospective, and separate owner
-approval are complete.
+Status section. Release, tag, and publication work remain paused until PR 9
+review and merge, final main CI, the required retrospective, and separate
+owner approval are complete.
 
 ## Latest completed milestone
 

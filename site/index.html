@@ -75,14 +75,14 @@
           <span>Patterns across mixed formats</span>
         </li>
       </ol>
-      <p class="workflow-note">The runnable local path covers source capture, extraction observation, evidence-based diagnosis, explicit decisions, reversible transformations, prepared revisions, corpus inspection, read-only verification, and a loopback-only visual workbench.</p>
+      <p class="workflow-note">The runnable local path covers source capture, extraction observation, evidence-based diagnosis, explicit decisions, reversible transformations, prepared revisions, corpus inspection, read-only verification, and the loopback-only Local Visual Workbench.</p>
     </section>
 
     <section id="capabilities" class="section" aria-labelledby="capabilities-title">
       <div class="section-heading">
         <p class="kicker">One inspectable history</p>
         <h2 id="capabilities-title">Build every capability on evidence.</h2>
-        <p>Extraction, diagnosis, controlled revisions, static corpus comparison, and the local visual workbench use one inspectable evidence trail.</p>
+        <p>Extraction, diagnosis, controlled revisions, static corpus comparison, and the Local Visual Workbench use one inspectable evidence trail.</p>
       </div>
       <div class="grid capability-grid">
         <article class="card">
@@ -106,9 +106,9 @@
           <p>Inspect a mixed-format corpus through a static offline report with evidence links, grouped findings, extractor deltas, and revision histories.</p>
         </article>
         <article class="card">
-          <p class="card-number">05 · Available</p>
+          <p class="card-number">05 · Unreleased source</p>
           <h3>Explore locally</h3>
-          <p>Inspect explicit verified records in a read-only browser view that binds only to <code>127.0.0.1</code> and keeps no session state.</p>
+          <p>Inspect explicit verified records in the bundled read-only browser interface. It binds only to <code>127.0.0.1</code>, keeps no session state, and uses an internal HTTP bridge.</p>
         </article>
       </div>
     </section>
@@ -138,26 +138,28 @@
       <div class="section-heading">
         <p class="kicker">Local by design</p>
         <h2 id="start-title">Run the implemented path locally.</h2>
-        <p>The CLI publishes observations, diagnoses, explicit decisions, prepared revisions, corpus reports, and independent verification results. One approval creates one successor revision.</p>
+        <p>The CLI publishes observations, diagnoses, explicit decisions, prepared revisions, and corpus reports. Separate read-only commands verify those records. One approval creates one successor revision.</p>
       </div>
       <div class="surface-list">
         <p><strong>CLI · Available</strong><span>Observation, diagnosis, decisions, and controlled revisions</span></p>
         <p><strong>Diagnosis report · Available</strong><span>Deterministic portable evidence</span></p>
         <p><strong>Prepared revision · Available</strong><span>Reversible, attributable transformation history</span></p>
         <p><strong>Static corpus report · Available</strong><span>Offline navigation across explicit local members</span></p>
-        <p><strong>Visual workbench · Available</strong><span>Read-only local exploration of explicit v0.5 records</span></p>
+        <p><strong>Local Visual Workbench · Unreleased source</strong><span>Read-only local exploration of explicit current records</span></p>
       </div>
+      <p><strong>One-time setup</strong></p>
       <pre class="command-block"><code>uv sync --frozen --python 3.12
-uv run docling-tools models download layout tableformer --output-dir .cache/docling/models
-uv run corpus observe fixtures/golden/policy-memo.pdf
-uv run corpus diagnose OBSERVATION_DIRECTORY
-uv run corpus draft-refinement DIAGNOSIS_DIRECTORY --finding FINDING_ID --base OBSERVATION_DIRECTORY --output decision.json
+uv run docling-tools models download layout tableformer --output-dir .cache/docling/models</code></pre>
+      <p><strong>Usage after activating <code>.venv</code></strong></p>
+      <pre class="command-block"><code>corpus observe fixtures/golden/policy-memo.pdf
+corpus diagnose OBSERVATION_DIRECTORY
+corpus draft-refinement DIAGNOSIS_DIRECTORY --finding FINDING_ID --base OBSERVATION_DIRECTORY --output decision.json
 # Edit only the decision fields, then:
-uv run corpus resolve-refinement decision.json --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
-uv run corpus verify-refinement REFINEMENT_DIRECTORY --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
-uv run corpus inspect fixtures/corpus/golden-matrix.json
-uv run corpus verify-corpus CORPUS_DIRECTORY --spec fixtures/corpus/golden-matrix.json
-uv run corpus workbench RECORD_DIRECTORY --no-open</code></pre>
+corpus resolve-refinement decision.json --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
+corpus verify-refinement REFINEMENT_DIRECTORY --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
+corpus inspect fixtures/corpus/golden-matrix.json
+corpus verify-corpus CORPUS_DIRECTORY --spec fixtures/corpus/golden-matrix.json
+corpus workbench RECORD_DIRECTORY --no-open</code></pre>
       <p>The project is distributed as source from its repository. It does not ship prebuilt binaries. After setup, activate <code>.venv</code> to run <code>corpus</code> directly.</p>
       <div class="resource-links">
         <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/learning/README.md">Explore all learning materials</a>

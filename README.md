@@ -1,10 +1,67 @@
 # tiny-corpus-workbench
 
 `tiny-corpus-workbench` is a small, hands-on project for learning how to
-prepare documents without losing sight of their source or extraction evidence.
+prepare documents without losing their source, extraction evidence, or change
+history.
 
-Visit the [project website](https://lifeplayer.space/tiny-corpus-workbench/)
-for a concise overview of the workbench.
+It follows one document lifecycle:
+
+```text
+raw source
+    -> two extraction views
+    -> canonical DoclingDocument
+    -> evidence-based diagnosis
+    -> explicit refinement decision
+    -> immutable prepared revision
+```
+
+The project makes each step inspectable. It preserves raw evidence, separates
+findings from authority, and records reversible changes. Corpus reports and the
+Local Visual Workbench help you inspect the same evidence at different scales.
+
+Visit the [project website](https://lifeplayer.space/tiny-corpus-workbench/) for
+a concise overview.
+
+## What makes it useful for learning
+
+- **One source, two extraction views.** Docling and MarkItDown process the same
+  captured source bytes. Their outputs remain separate for comparison.
+- **One canonical working document.** Lossless `DoclingDocument` JSON is the
+  canonical representation. Its Markdown rendering is a derived document view.
+- **Findings with evidence.** Ten fixed rules identify mechanical conditions
+  and cite affected document items. A finding does not approve a change.
+- **Human-controlled revisions.** One explicit decision can reject a proposal
+  or publish one immutable successor revision.
+- **Reversible transformations.** Applied refinements record exact edits,
+  before-and-after hashes, lineage, forward derivation, and reversal evidence.
+- **Inspection at two scales.** A static offline report compares an explicit
+  corpus. The bundled local Workbench can provide a richer interactive view of
+  explicit records.
+- **Independent verification.** Read-only commands check generated records
+  without repairing or overwriting them.
+
+## Current interfaces
+
+The `corpus` CLI owns workflow execution and verification:
+
+| Lifecycle task | Command |
+| --- | --- |
+| Observe one source | `corpus observe` |
+| Verify an observation | `corpus verify` |
+| Diagnose a document | `corpus diagnose` |
+| Verify a diagnosis | `corpus verify-diagnosis` |
+| Draft one decision | `corpus draft-refinement` |
+| Resolve one decision | `corpus resolve-refinement` |
+| Verify a refinement | `corpus verify-refinement` |
+| Inspect an explicit corpus | `corpus inspect` |
+| Verify a corpus | `corpus verify-corpus` |
+| Open explicit records locally | `corpus workbench` |
+
+The Local Visual Workbench is the bundled browser interface. It is read-only,
+binds only to `127.0.0.1`, and accepts explicit local record roots. Its
+loopback HTTP routes are an internal bridge for the bundled HTML, CSS, and
+JavaScript. They are not a public API. The project provides no hosted
+document-processing service.
 
 ## Released milestones
 
@@ -15,191 +72,171 @@ for a concise overview of the workbench.
 | [v0.3.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.3.0) | Controlled Revisions |
 | [v0.4.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.4.0) | Corpus Inspection and Comparison |
 
-## Why this project
+The v0.5 Local Visual Workbench is available in the current source checkout
+but remains unreleased.
 
-Documents can lose content, structure, reading order, provenance, or revision
-context before another system uses them. This workbench makes that preparation
-step visible. It lets you inspect extraction results, diagnose concrete quality
-problems, and preserve the evidence needed for later human-controlled changes.
+## One-time setup
 
-RAG is one possible downstream use. Extraction and preparation errors can
-propagate into chunking, indexing, retrieval, and generated answers.
-
-## Workflow
-
-The project follows this document lifecycle:
-
-```text
-raw business documents
-        |
-        v
-format-aware extraction
-        |
-        v
-DoclingDocument
-        |
-        v
-diagnosis + explicit refinement
-        |
-        v
-prepared document revision
-```
-
-The released workflow covers source capture, extraction observation,
-evidence-based diagnosis, explicit refinement decisions, immutable prepared
-revisions, and inspection of an explicit local corpus through a static
-comparison report. The current v0.5 release candidate also provides a
-read-only local browser workbench for explicit records.
-
-## What you can do today
-
-- **Observe extraction.** `corpus observe` runs Docling and MarkItDown against the
-  same captured source snapshot. It preserves both outputs instead of choosing
-  a winner.
-- **Verify an observation.** `corpus verify` checks the published structure,
-  artifact hashes, and recorded document relationships without changing the
-  record.
-- **Diagnose the canonical document.** `corpus diagnose` evaluates ten fixed,
-  deterministic rules against the canonical `DoclingDocument` JSON.
-- **Verify a diagnosis.** `corpus verify-diagnosis` checks diagnosis artifacts and
-  can compare them with the original observation and a fresh rule evaluation.
-- **Draft one refinement.** `corpus draft-refinement` binds one supported finding
-  to its fixed refiner and writes a pending decision file.
-- **Resolve the decision.** `corpus resolve-refinement` records a rejection or
-  publishes one approved successor revision.
-- **Verify the revision.** `corpus verify-refinement` checks artifacts, lineage,
-  forward derivation, and exact reversal.
-- **Inspect an explicit corpus.** `corpus inspect` processes a small local
-  corpus sequentially and publishes a static offline report.
-- **Verify a corpus report.** `corpus verify-corpus` checks the corpus record,
-  its snapshot identity, every nested observation and diagnosis, and exact
-  report regeneration.
-- **Inspect records in a browser.** `corpus workbench` admits explicit local
-  observation, diagnosis, refinement, or corpus records and serves one frozen,
-  read-only view on `127.0.0.1`.
-
-Diagnosis publishes a separate immutable record. It does not repair a document
-or authorize a change. `NO_FINDINGS` means that none of the ten rules
-matched; it is not proof that the document is correct.
-
-Each draft targets one finding. Edit only `decision.state`,
-`decision.decided_by`, and the optional `decision.note`. An `APPROVED` decision
-creates one prepared revision. A `REJECTED` decision records the decision and
-creates no prepared document. Diagnose each approved revision before you draft
-its successor.
-
-Verification detects changes under the project's trusted-local model. It does
-not establish authorship or authenticity.
-
-## Project boundary
-
-The workbench covers three layers:
-
-1. extraction adapters
-2. a canonical working representation
-3. diagnosis and controlled refinement
-
-It starts with a raw document and ends with a prepared document revision. It
-does not include chunking, embeddings, indexing, retrieval, reranking,
-generation, or RAG evaluation. Integration with downstream systems is also
-outside the project boundary.
-
-## Design principles
-
-- [Docling](https://github.com/docling-project/docling) provides format-aware
-  extraction.
-- `DoclingDocument` is the canonical working representation, and its lossless
-  JSON is retained.
-- Source files and published raw extraction artifacts remain unchanged.
-- Findings include stable identifiers, affected document-item references, and
-  concrete evidence.
-- Diagnosis never grants authority to change a document.
-- Refinements are designed to be deterministic, explicit, attributable, and
-  reversible.
-- Interpretive changes require human confirmation.
-
-## Run locally
-
-The workbench requires CPython 3.12 and
-[uv](https://docs.astral.sh/uv/). `uv.lock` pins the dependencies.
-The project is distributed as source from this repository. It does not ship
-prebuilt binaries.
+The project requires CPython 3.12 and
+[uv](https://docs.astral.sh/uv/). Clone this source repository, then create the
+locked environment:
 
 ```bash
 uv sync --frozen --python 3.12
-uv run docling-tools models download layout tableformer \
-  --output-dir .cache/docling/models
-uv run corpus observe fixtures/golden/policy-memo.pdf
-uv run corpus verify OBSERVATION_DIRECTORY
-uv run corpus diagnose OBSERVATION_DIRECTORY
-uv run corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
-  --subject OBSERVATION_DIRECTORY
-uv run corpus draft-refinement DIAGNOSIS_DIRECTORY \
-  --finding FINDING_ID --base OBSERVATION_DIRECTORY \
-  --output decision.json
-# Edit only decision.state, decision.decided_by, and decision.note.
-uv run corpus resolve-refinement decision.json \
-  --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
-uv run corpus verify-refinement REFINEMENT_DIRECTORY \
-  --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
-uv run corpus inspect \
-  fixtures/corpus/golden-matrix.json
-uv run corpus verify-corpus CORPUS_DIRECTORY \
-  --spec fixtures/corpus/golden-matrix.json
-uv run corpus workbench RECORD_DIRECTORY --no-open
 ```
 
-After `uv sync`, activate `.venv` to run the same commands directly as
-`corpus ...`.
+Activate the environment to use the CLI directly:
 
-Workflow commands print a compact JSON result. `corpus workbench` prints only its
-serving address. Replace `OBSERVATION_DIRECTORY` with the directory containing
-the `manifest` path printed by `corpus observe`. Replace `DIAGNOSIS_DIRECTORY`
-with the directory containing the `manifest` path printed by `corpus diagnose`.
+```bash
+source .venv/bin/activate
+corpus --help
+```
 
-The PDF example requires the local Docling models downloaded in the second
-step. Observation then runs locally and offline. OCR, plugins, remote services,
-and LLM clients are disabled. If the required PDF models are missing, the run
-records a failure instead of downloading them.
+PDF extraction also needs local Docling models. Download them once while
+network access is available:
 
-Diagnosis needs no models or network access. Published observations and
-diagnoses are not overwritten by the CLI. Refinement also runs offline. It
-changes prepared `text`, never `orig`, and preserves provenance and stable
-document references. Each applied transformation stores its before-and-after
-hashes and reversible edit data. Local hashes provide tamper evidence under
-the trusted-local model; they do not prove authorship or authenticity.
+```bash
+uv run docling-tools models download layout tableformer \
+  --output-dir .cache/docling/models
+```
 
-Corpus inspection accepts only explicit local paths from a closed JSON
-specification. It does not discover directories, follow URLs, use stdin, or
-apply refinements. The generated report contains no JavaScript or remote
-resources. It aggregates counts, extractor deltas, findings, and explicitly
-listed verified revision histories without embedding source passages.
+The examples below use Markdown and do not need those model files. If you do
+not activate `.venv`, prefix a usage command with `uv run`, such as
+`uv run corpus observe SOURCE`.
 
-The visual workbench also accepts only explicit record roots. It binds only to
-`127.0.0.1`, captures admitted artifact bytes in memory, and provides no
-execution, mutation, upload, discovery, or source-file route. Stop it with
-`Ctrl-C`.
+## Short end-to-end example
 
-See the [Controlled Revisions guide](docs/controlled-revisions.md) for the
-supported findings, artifact layout, chaining rules, verification states, and
-integrity limits. See the
-[Corpus Inspection and Comparison guide](docs/corpus-inspection-comparison.md)
-for corpus specifications, report navigation, statuses, verification, and
-privacy limits. See the
-[Local Visual Workbench guide](docs/local-visual-workbench.md) for admission,
-browser views, API limits, security checks, and local startup.
+Run these commands from the repository root after setup:
 
-## Learning
+```bash
+corpus observe fixtures/refinement/whitespace-cleanup.md
+```
 
-The [learning hub](learning/README.md) provides guided, hands-on lessons for
-each completed milestone. It includes a suggested learning path, estimated
-study times, safe experiments, and links to related references.
+The command prints a compact JSON result. Set `OBSERVATION_DIRECTORY` to the
+parent directory of its `manifest` path, then continue:
+
+```bash
+corpus verify OBSERVATION_DIRECTORY
+corpus diagnose OBSERVATION_DIRECTORY
+```
+
+Set `DIAGNOSIS_DIRECTORY` to the parent directory of the diagnosis `manifest`
+path. Choose one supported `FINDING_ID`, then draft a decision:
+
+```bash
+corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
+  --subject OBSERVATION_DIRECTORY
+corpus draft-refinement DIAGNOSIS_DIRECTORY \
+  --finding FINDING_ID \
+  --base OBSERVATION_DIRECTORY \
+  --output decision.json
+```
+
+Edit only `decision.state`, `decision.decided_by`, and the optional
+`decision.note`. An approved decision can then publish one successor:
+
+```bash
+corpus resolve-refinement decision.json \
+  --diagnosis DIAGNOSIS_DIRECTORY \
+  --base OBSERVATION_DIRECTORY
+corpus verify-refinement REFINEMENT_DIRECTORY \
+  --diagnosis DIAGNOSIS_DIRECTORY \
+  --base OBSERVATION_DIRECTORY
+```
+
+To inspect existing records without changing them:
+
+```bash
+corpus workbench OBSERVATION_DIRECTORY DIAGNOSIS_DIRECTORY --no-open
+```
+
+Open the printed local address. Stop the server with `Ctrl-C`.
+
+## Records and their roles
+
+Record-producing commands publish a new directory and do not overwrite a
+previous publication. `draft-refinement` writes the requested decision file.
+Verify commands read records and report results. `workbench` serves admitted
+records without publishing a record.
+
+| Record | Main files | Role |
+| --- | --- | --- |
+| Observation | `manifest.json`, `comparison.json`, and extractor artifacts only when that extractor produced them | Preserves source identity, extractor results, canonical content when available, and descriptive differences. |
+| Diagnosis | `diagnosis-manifest.json`, `findings.json`, `report.md` | Records deterministic findings and human-readable evidence without changing the document. |
+| Refinement | `refinement-manifest.json`, `decision.json`, `report.md`, and, when approved, transformation, history, and prepared-document files | Records the decision and either no revision or one reversible successor. |
+| Corpus | `corpus-manifest.json`, `corpus-spec.json`, `summary.json`, a static report, and contained member evidence | Aggregates source-text-free counts, findings, extractor deltas, and listed revision histories. |
+
+The lossless Docling JSON is the canonical content. Derived Markdown helps
+people inspect that content. The static corpus report renders aggregate
+source-text-free evidence as HTML. Bundled HTML provides the Workbench
+interface. Local hashes and verification detect ordinary corruption under the
+trusted-local model; they do not establish authorship, authenticity, or a
+trusted timestamp.
+
+## Corpus inspection
+
+An explicit corpus specification lists every local member. The CLI does not
+discover directories, follow URLs, read stdin, or apply refinements:
+
+```bash
+corpus inspect fixtures/corpus/golden-matrix.json
+corpus verify-corpus CORPUS_DIRECTORY \
+  --spec fixtures/corpus/golden-matrix.json
+```
+
+The generated `report/index.html` works offline and contains no JavaScript or
+remote resources. It shows status, extractor deltas, findings, and listed
+revision histories without embedding arbitrary source passages.
+
+## Authority and integrity limits
+
+Diagnosis publishes a separate immutable record. It does not repair a document
+or authorize a change. `NO_FINDINGS` means only that none of the ten fixed
+rules matched.
+
+An `APPROVED` decision creates one prepared revision. A `REJECTED` decision
+records the decision and creates no prepared document. Diagnose each approved
+revision before drafting its successor.
+
+Original sources and raw extraction artifacts remain unchanged. Observation
+and refinement run locally. OCR, plugins, remote extraction services, and LLM
+clients are disabled. Missing PDF models produce recorded failure evidence;
+the workflow does not download them during observation.
+
+## Project boundary and learning path
+
+The project starts with a raw document and ends with a prepared document
+revision. Chunking, embeddings, indexing, retrieval, reranking, generation,
+RAG evaluation, and downstream integrations are outside this boundary.
 
 Start with the project-authored CC0 fixtures before using private documents.
-The learning hub links to detailed guides when a lesson needs them.
+The [learning hub](learning/README.md) provides lessons for the complete
+lifecycle:
 
-## License
+1. [observe extraction](learning/v0.1-extraction-observatory.md)
+2. [diagnose evidence](learning/v0.2-evidence-based-diagnosis.md)
+3. [control revisions](learning/v0.3-controlled-revisions.md)
+4. [compare an explicit corpus](learning/v0.4-corpus-inspection-comparison.md)
+5. [explore records in the Local Visual Workbench](learning/v0.5-local-visual-workbench.md)
 
-This repository is licensed under the [MIT License](LICENSE).
-The separate [CC0 declaration](fixtures/LICENSE-CC0-1.0.txt) applies to
+Use the deeper guides for exact behavior:
+
+- [Extraction Observatory](docs/extraction-observatory.md)
+- [Evidence-Based Diagnosis](docs/evidence-based-diagnosis.md)
+- [Controlled Revisions](docs/controlled-revisions.md)
+- [Corpus Inspection and Comparison](docs/corpus-inspection-comparison.md)
+- [Local Visual Workbench](docs/local-visual-workbench.md)
+
+The historical [project proposal](docs/proposal.md) records the original
+brainstorming direction. The current
+[v0.5 learning-first correction](docs/plans/v0.5-learning-first-correction.md)
+supersedes the original v0.5 implementation direction.
+
+## Distribution and license
+
+The project is distributed as source from this repository. It does not ship
+prebuilt binaries, a Docker image, or registry packages.
+
+The repository is licensed under the [MIT License](LICENSE). The separate
+[CC0 declaration](fixtures/LICENSE-CC0-1.0.txt) applies to
 `fixtures/authored/`, `fixtures/golden/`, and `fixtures/diagnosis/`.
