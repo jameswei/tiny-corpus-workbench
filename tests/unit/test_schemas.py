@@ -16,6 +16,16 @@ from tiny_corpus_workbench.schema_catalog import validator
 SCHEMAS = Path("src/tiny_corpus_workbench/schemas")
 
 
+def _walk_items(value):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield key, child
+            yield from _walk_items(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk_items(child)
+
+
 def fake_docling(source: Path, destination: Path, model_root: Path):
     destination.mkdir(parents=True)
     (destination / "document.json").write_text(
@@ -49,11 +59,19 @@ def observation_documents() -> tuple[dict, dict]:
 
 
 class SchemaTests(unittest.TestCase):
-    def test_all_schemas_are_valid_draft_2020_12(self) -> None:
+    def test_all_schemas_are_valid_and_self_contained(self) -> None:
         for path in SCHEMAS.glob("*.schema.json"):
             with self.subTest(path=path):
-                Draft202012Validator.check_schema(
-                    json.loads(path.read_text("utf-8"))
+                schema = json.loads(path.read_text("utf-8"))
+                Draft202012Validator.check_schema(schema)
+                Draft202012Validator(schema)
+                self.assertFalse(
+                    any(
+                        isinstance(value, str)
+                        and key == "$ref"
+                        and not value.startswith("#")
+                        for key, value in _walk_items(schema)
+                    )
                 )
 
     def test_observation_schemas_use_small_symbolic_catalog_keys(self) -> None:

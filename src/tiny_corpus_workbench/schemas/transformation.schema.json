@@ -25,7 +25,7 @@
     "finding_id": {"$ref": "#/$defs/hash"},
     "decision_id": {"$ref": "#/$defs/hash"},
     "decided_by": {"type": "string", "minLength": 1},
-    "refiner": {"$ref": "refinement-draft.schema.json#/$defs/refiner"},
+    "refiner": {"$ref": "#/$defs/refiner"},
     "affected_refs": {
       "type": "array",
       "minItems": 1,
@@ -35,12 +35,12 @@
     "forward_edits": {
       "type": "array",
       "minItems": 1,
-      "items": {"$ref": "refinement-draft.schema.json#/$defs/edit"}
+      "items": {"$ref": "#/$defs/edit"}
     },
     "inverse_edits": {
       "type": "array",
       "minItems": 1,
-      "items": {"$ref": "refinement-draft.schema.json#/$defs/edit"}
+      "items": {"$ref": "#/$defs/edit"}
     },
     "prepared_document_sha256": {"$ref": "#/$defs/hash"}
   },
@@ -55,6 +55,154 @@
         "subject_id": {"$ref": "#/$defs/hash"},
         "canonical_document_sha256": {"$ref": "#/$defs/hash"}
       }
+    },
+    "refiner": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["refiner_id", "name", "version"],
+          "properties": {
+            "refiner_id": {"const": "TCW-R001"},
+            "name": {"const": "WHITESPACE_NORMALIZATION"},
+            "version": {"const": "1"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["refiner_id", "name", "version"],
+          "properties": {
+            "refiner_id": {"const": "TCW-R002"},
+            "name": {"const": "REPEATED_BOILERPLATE_REMOVAL"},
+            "version": {"const": "1"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["refiner_id", "name", "version"],
+          "properties": {
+            "refiner_id": {"const": "TCW-R003"},
+            "name": {"const": "DETERMINISTIC_DEHYPHENATION"},
+            "version": {"const": "1"}
+          }
+        }
+      ]
+    },
+    "edit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "before", "after"],
+      "properties": {
+        "target": {"$ref": "#/$defs/target"},
+        "before": {},
+        "after": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "target": {"properties": {"field": {"const": "text"}}}
+            }
+          },
+          "then": {
+            "properties": {
+              "before": {"type": "string"},
+              "after": {"type": "string"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "target": {
+                "properties": {"field": {"const": "content_layer"}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "before": {"$ref": "#/$defs/membership"},
+              "after": {"$ref": "#/$defs/membership"}
+            }
+          }
+        }
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "field"],
+      "properties": {
+        "ref": {"type": "string", "pattern": "^#/"},
+        "field": {"enum": ["text", "content_layer"]},
+        "row": {"type": "integer", "minimum": 0},
+        "column": {"type": "integer", "minimum": 0}
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "ref": {"pattern": "^#/(texts|field_items)/[0-9]+$"},
+            "field": {"const": "text"}
+          },
+          "not": {
+            "anyOf": [{"required": ["row"]}, {"required": ["column"]}]
+          }
+        },
+        {
+          "required": ["row", "column"],
+          "properties": {
+            "ref": {"pattern": "^#/tables/[0-9]+$"},
+            "field": {"const": "text"}
+          }
+        },
+        {
+          "properties": {
+            "ref": {"pattern": "^#/texts/[0-9]+$"},
+            "field": {"const": "content_layer"}
+          },
+          "not": {
+            "anyOf": [{"required": ["row"]}, {"required": ["column"]}]
+          }
+        }
+      ]
+    },
+    "membership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_layer", "parent"],
+      "properties": {
+        "content_layer": {"enum": ["body", "furniture"]},
+        "body_index": {"type": "integer", "minimum": 0},
+        "furniture_index": {"type": "integer", "minimum": 0},
+        "parent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$ref"],
+          "properties": {"$ref": {"enum": ["#/body", "#/furniture"]}}
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["body_index"],
+          "properties": {
+            "content_layer": {"const": "body"},
+            "parent": {"properties": {"$ref": {"const": "#/body"}}}
+          },
+          "not": {"required": ["furniture_index"]}
+        },
+        {
+          "required": ["furniture_index"],
+          "properties": {
+            "content_layer": {"const": "furniture"},
+            "parent": {
+              "properties": {"$ref": {"const": "#/furniture"}}
+            }
+          },
+          "not": {"required": ["body_index"]}
+        }
+      ]
     }
   }
 }

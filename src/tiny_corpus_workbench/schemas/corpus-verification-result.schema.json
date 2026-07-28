@@ -17,7 +17,7 @@
       "type": "string"
     },
     "artifact_integrity": {
-      "$ref": "refinement-verification-result.schema.json#/$defs/integrity"
+      "$ref": "#/$defs/integrity"
     },
     "specification_state": {
       "type": "object"
@@ -30,6 +30,32 @@
     },
     "revision_states": {
       "type": "array"
+    }
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "path", "message"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+        "path": {"type": ["string", "null"]},
+        "message": {"type": "string", "minLength": 1}
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "issues"],
+      "properties": {
+        "status": {
+          "enum": ["VERIFIED", "INTEGRITY_MISMATCH", "BROKEN"]
+        },
+        "issues": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/issue"}
+        }
+      }
     }
   }
 }

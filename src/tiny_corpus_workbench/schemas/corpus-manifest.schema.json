@@ -27,7 +27,7 @@
       "const": 1
     },
     "corpus_id": {
-      "$ref": "corpus-spec.schema.json#/$defs/id"
+      "$ref": "#/$defs/id"
     },
     "snapshot_id": {
       "$ref": "#/$defs/hash"
@@ -82,6 +82,98 @@
     "hash": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 100
+    },
+    "configurations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["docling", "markitdown"],
+      "properties": {
+        "docling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accelerator",
+            "ocr",
+            "table_structure",
+            "remote_services",
+            "external_plugins",
+            "artifacts_path"
+          ],
+          "properties": {
+            "accelerator": {"const": "cpu"},
+            "ocr": {"const": false},
+            "table_structure": {"const": true},
+            "remote_services": {"const": false},
+            "external_plugins": {"const": false},
+            "artifacts_path": {"const": "explicit-local-path"}
+          }
+        },
+        "markitdown": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "convert_method",
+            "plugins",
+            "llm_client",
+            "text_hints"
+          ],
+          "properties": {
+            "convert_method": {"const": "convert_local"},
+            "plugins": {"const": false},
+            "llm_client": {"const": false},
+            "text_hints": {"const": "extension-media-type-utf8"}
+          }
+        }
+      }
+    },
+    "modelFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "size": {"type": "integer", "minimum": 0},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "refiner": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["refiner_id", "name", "version"],
+          "properties": {
+            "refiner_id": {"const": "TCW-R001"},
+            "name": {"const": "WHITESPACE_NORMALIZATION"},
+            "version": {"const": "1"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["refiner_id", "name", "version"],
+          "properties": {
+            "refiner_id": {"const": "TCW-R002"},
+            "name": {"const": "REPEATED_BOILERPLATE_REMOVAL"},
+            "version": {"const": "1"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["refiner_id", "name", "version"],
+          "properties": {
+            "refiner_id": {"const": "TCW-R003"},
+            "name": {"const": "DETERMINISTIC_DEHYPHENATION"},
+            "version": {"const": "1"}
+          }
+        }
+      ]
     },
     "relativeDescriptor": {
       "type": "object",
@@ -207,7 +299,7 @@
           "$ref": "#/$defs/hash"
         },
         "extractors": {
-          "$ref": "observation-manifest.schema.json#/$defs/configurations"
+          "$ref": "#/$defs/configurations"
         },
         "model_inventory": {
           "type": "object",
@@ -248,7 +340,7 @@
             "files": {
               "type": "array",
               "items": {
-                "$ref": "observation-manifest.schema.json#/$defs/modelFile"
+                "$ref": "#/$defs/modelFile"
               }
             }
           }
@@ -414,10 +506,10 @@
       ],
       "properties": {
         "member_id": {
-          "$ref": "corpus-spec.schema.json#/$defs/id"
+          "$ref": "#/$defs/id"
         },
         "family": {
-          "$ref": "corpus-spec.schema.json#/$defs/id"
+          "$ref": "#/$defs/id"
         },
         "format": {
           "enum": [
@@ -543,7 +635,7 @@
       ],
       "properties": {
         "member_id": {
-          "$ref": "corpus-spec.schema.json#/$defs/id"
+          "$ref": "#/$defs/id"
         },
         "revision_id": {
           "$ref": "#/$defs/hash"
@@ -573,7 +665,7 @@
           "pattern": "^TCW-D0(0[1-9]|10)$"
         },
         "refiner": {
-          "$ref": "refinement-draft.schema.json#/$defs/refiner"
+          "$ref": "#/$defs/refiner"
         },
         "affected_reference_count": {
           "type": "integer",

@@ -8,7 +8,6 @@ from types import MappingProxyType
 from typing import Any, Final, Mapping
 
 from jsonschema import Draft202012Validator, FormatChecker
-from referencing import Registry, Resource
 
 
 SCHEMA_ROOT: Final = Path(__file__).with_name("schemas")
@@ -45,15 +44,9 @@ def load_schema(schema_version: str) -> dict[str, Any]:
 
 
 def validator(schema_version: str) -> Draft202012Validator:
-    resources = []
-    for path in (SCHEMA_ROOT / name for name in SCHEMA_FILES.values()):
-        candidate = json.loads(path.read_text("utf-8"))
-        resources.append((candidate["$id"], Resource.from_contents(candidate)))
-    registry = Registry().with_resources(resources)
     return Draft202012Validator(
         load_schema(schema_version),
         format_checker=FORMAT_CHECKER,
-        registry=registry,
     )
 
 

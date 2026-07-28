@@ -14,10 +14,10 @@
       "type": "string"
     },
     "artifact_integrity": {
-      "$ref": "refinement-verification-result.schema.json#/$defs/integrity"
+      "$ref": "#/$defs/integrity"
     },
     "subject_state": {
-      "$ref": "refinement-verification-result.schema.json#/$defs/external"
+      "$ref": "#/$defs/external"
     },
     "derivation_state": {
       "type": "object",
@@ -33,6 +33,42 @@
             "MISMATCH",
             "ERROR"
           ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "path", "message"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+        "path": {"type": ["string", "null"]},
+        "message": {"type": "string", "minLength": 1}
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "issues"],
+      "properties": {
+        "status": {
+          "enum": ["VERIFIED", "INTEGRITY_MISMATCH", "BROKEN"]
+        },
+        "issues": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/issue"}
+        }
+      }
+    },
+    "external": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "enum": ["NOT_CHECKED", "MATCH", "CHANGED", "MISSING", "ERROR"]
         }
       }
     }
