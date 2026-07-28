@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import unittest
 from copy import deepcopy
 from pathlib import Path
@@ -15,14 +16,21 @@ from docling_core.types.doc import (
 )
 from jsonschema import Draft202012Validator
 
+from tiny_corpus_workbench.artifacts import canonical_json
 from tiny_corpus_workbench.diagnosis_rules import (
     CURRENT_FINDING_METADATA,
+    CURRENT_RULESET,
+    CURRENT_RULESET_PARAMETER_HASH,
     RULESET as BASE_RULESET,
     analyze_document,
     validate_finding_contract,
 )
 from tiny_corpus_workbench.domain import IntegrityError
-from tiny_corpus_workbench.schema_catalog import load_schema
+from tiny_corpus_workbench.schema_catalog import (
+    load_schema,
+    validate_document,
+    validator as schema_validator,
+)
 
 
 DIAGNOSIS_ID = "a" * 64
@@ -543,6 +551,76 @@ class DiagnosisRuleTests(unittest.TestCase):
             duplicate[0]["document_refs"], ["#/texts/0", "#/texts/1"]
         )
         self.assertEqual(duplicate[0]["evidence"]["count"], 2)
+
+    def test_reversed_multi_references_are_semantically_rejected(self) -> None:
+        repeated = "A" * 80
+        findings = analyze_document(
+            document([text(0, repeated), text(1, repeated)]),
+            media_type="text/markdown",
+            diagnosis_id="0" * 64,
+        )
+        finding = next(
+            item for item in findings if item["rule_id"] == "TCW-D004"
+        )
+        finding["document_refs"].reverse()
+        subject = {
+            "kind": "OBSERVATION",
+            "subject_id": "1" * 64,
+            "canonical_document_path": "docling/document.json",
+            "canonical_document_size": 1,
+            "canonical_document_sha256": "2" * 64,
+            "origin_observation_id": "3" * 64,
+        }
+        ruleset = {
+            **CURRENT_RULESET,
+            "parameter_sha256": CURRENT_RULESET_PARAMETER_HASH,
+        }
+        domain_finding = {
+            key: finding[key]
+            for key in (
+                "rule_id",
+                "rule_version",
+                "document_refs",
+                "evidence",
+            )
+        }
+        diagnosis_id = hashlib.sha256(
+            canonical_json(
+                {
+                    "subject": subject,
+                    "ruleset": ruleset,
+                    "findings": [domain_finding],
+                }
+            ).rstrip(b"\n")
+        ).hexdigest()
+        finding["finding_id"] = hashlib.sha256(
+            canonical_json(
+                {
+                    "diagnosis_id": diagnosis_id,
+                    **domain_finding,
+                }
+            ).rstrip(b"\n")
+        ).hexdigest()
+        finding_set = {
+            "diagnosis_id": diagnosis_id,
+            "subject": subject,
+            "ruleset": ruleset,
+            "summary": {
+                "total": 1,
+                "by_severity": {"ERROR": 0, "WARNING": 1, "INFO": 0},
+                "by_rule": {
+                    rule["rule_id"]: int(rule["rule_id"] == "TCW-D004")
+                    for rule in CURRENT_RULESET["rules"]
+                },
+            },
+            "findings": [finding],
+        }
+
+        schema_validator("finding-set").validate(finding_set)
+        with self.assertRaises(IntegrityError):
+            validate_finding_contract(finding)
+        with self.assertRaises(IntegrityError):
+            validate_document("finding-set", finding_set)
 
     def test_heading_first_and_later_jumps_follow_reading_order(self) -> None:
         payload = document(

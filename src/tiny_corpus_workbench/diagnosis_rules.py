@@ -188,6 +188,8 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
     evidence = finding.get("evidence")
     if not isinstance(references, list) or not isinstance(evidence, dict):
         raise IntegrityError("finding violates its rule-specific evidence contract")
+    if references != sorted(set(references)):
+        raise IntegrityError("finding violates its rule-specific evidence contract")
     keys = set(evidence)
 
     def is_hash(value: Any) -> bool:
