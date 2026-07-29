@@ -899,7 +899,7 @@ class CorpusAdmissionTests(unittest.TestCase):
             prepared.mkdir()
             (prepared / "document.json").write_text("{}", "utf-8")
             manifest = {
-                "status": "APPLIED",
+                "decision": "APPROVED",
                 "revision_id": "a" * 64,
                 "run_id": "run",
                 "diagnosis": {
@@ -1172,7 +1172,7 @@ class CorpusAdmissionTests(unittest.TestCase):
                     load_corpus_spec(spec)
             removed_during_verification.write_text("{}", "utf-8")
 
-            manifest["status"] = "REJECTED"
+            manifest["decision"] = "REJECTED"
             manifest["revision_id"] = None
             (revision_paths["revision"] / "refinement-manifest.json").write_text(
                 json.dumps(manifest), "utf-8"
@@ -1184,7 +1184,7 @@ class CorpusAdmissionTests(unittest.TestCase):
                 with self.assertRaises(InputError):
                     load_corpus_spec(spec)
 
-            manifest["status"] = "APPLIED"
+            manifest["decision"] = "APPROVED"
             manifest["revision_id"] = "a" * 64
             manifest["source"]["sha256"] = "f" * 64
             (revision_paths["revision"] / "refinement-manifest.json").write_text(

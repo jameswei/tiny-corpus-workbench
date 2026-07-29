@@ -76,8 +76,8 @@ state. Select a record to inspect its current evidence:
 - observations show source metadata, extraction results, comparison metrics,
   and artifact integrity;
 - diagnoses show rule summaries, findings, evidence, and affected references;
-- refinements show the decision, transformation, revision chain, and
-  verification states;
+- refinements derive the decision from the refinement manifest and show the
+  proposal, transformation, revision chain, and verification states;
 - corpora show status counts, findings, family and format matrices, extractor
   comparisons, and contained records.
 
@@ -121,8 +121,11 @@ boundary. Stop the server when you finish.
 The workbench is read-only. It cannot run extraction, diagnosis, refinement,
 or corpus workflows. Use the existing CLI commands for those operations.
 
-Diagnosis still does not authorize mutation. An approved refinement remains
-the only supported path to a prepared successor revision.
+Diagnosis still does not authorize mutation. The Workbench cannot decide or
+apply a proposal. It derives `APPROVED` or `REJECTED` only from `refinement-manifest.json.decision`;
+it does not treat proposal state,
+transformation state, or the derived report as authority. An approved, fully
+verified refinement remains the only supported path to a successor revision.
 
 Local hashes detect changes during admission under the trusted-local model.
 They do not prove authorship or authenticity. The interface does not show

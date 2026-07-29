@@ -360,11 +360,12 @@ function renderRefinement(detail) {
 
   const decision = section("Decision", "The workbench reports the recorded human decision. It cannot change it.");
   const decisionHeading = node("p");
-  decisionHeading.append("Decision ", status(value.decision.state));
+  decisionHeading.append("Decision ", status(value.decision));
   decision.append(decisionHeading);
   decision.append(factList([
-    ["Decided by", value.decision.decided_by],
-    ["Note", value.decision.note === null ? "None" : value.decision.note],
+    ["Draft ID", value.proposal.draft_id, true],
+    ["Finding ID", value.proposal.finding_id, true],
+    ["Refiner", value.proposal.refiner.refiner_id],
   ]));
   fragment.append(decision);
 

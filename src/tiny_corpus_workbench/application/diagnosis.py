@@ -70,7 +70,8 @@ def published_diagnosis_line(published: Path) -> dict[str, Any]:
         diagnosis_id = manifest["diagnosis_id"]
         finding_count = manifest["summary"]["total"]
         run_id = manifest["run_id"]
-        status = manifest["status"]
+        diagnosis_status_field = "status"
+        status = manifest[diagnosis_status_field]
         if (
             not isinstance(diagnosis_id, str)
             or len(diagnosis_id) != 64

@@ -63,25 +63,19 @@ def _approve(
     finding = next(
         item for item in findings["findings"] if item["rule_id"] == rule_id
     )
-    decision_path = root / f"{finding['finding_id']}-decision.json"
+    proposal_path = root / f"{finding['finding_id']}-proposal.json"
     draft_refinement(
         diagnosis_root,
         finding["finding_id"],
         base_root,
-        decision_path,
+        proposal_path,
     )
-    decision = json.loads(decision_path.read_text("utf-8"))
-    decision["decision"] = {
-        "state": "APPROVED",
-        "decided_by": "integration-owner",
-        "note": "Approved integration evidence.",
-    }
-    decision_path.write_bytes(canonical_json(decision))
     return resolve_refinement(
-        decision_path,
+        proposal_path,
         diagnosis_root,
         base_root,
         root / "revisions",
+        "APPROVED",
     )
 
 
@@ -265,7 +259,7 @@ class CorpusIntegrationTests(unittest.TestCase):
             )
             for label in (
                 "refinement",
-                "decision",
+                "proposal",
                 "transformation",
                 "history",
                 "prepared document",
@@ -279,8 +273,8 @@ class CorpusIntegrationTests(unittest.TestCase):
                 verification.revision_states[0].refinement_state.status,
                 "MATCH",
             )
-            (revision / "decision.json").write_bytes(
-                (revision / "decision.json").read_bytes() + b" "
+            (revision / "proposal.json").write_bytes(
+                (revision / "proposal.json").read_bytes() + b" "
             )
             drifted = verify_corpus(published.directory, spec_path)
             self.assertEqual(

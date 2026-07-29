@@ -39,13 +39,14 @@ def draft_refinement(
 
 
 def resolve_refinement(
-    decision_file: Path,
+    proposal_file: Path,
     diagnosis_root: Path,
     base_root: Path,
     output_root: Path,
+    decision: str,
 ) -> Path:
     return _domain_callable("resolve_refinement")(
-        decision_file, diagnosis_root, base_root, output_root
+        proposal_file, diagnosis_root, base_root, output_root, decision
     )
 
 
@@ -75,13 +76,13 @@ def published_refinement_line(published: Path) -> dict[str, Any]:
         result = {
             "manifest": str(manifest_path.resolve()),
             "run_id": manifest["run_id"],
-            "status": manifest["status"],
+            "decision": manifest["decision"],
             "revision_id": manifest["revision_id"],
         }
         if (
             not isinstance(result["run_id"], str)
             or result["run_id"] != published.name
-            or result["status"] not in {"APPLIED", "REJECTED"}
+            or result["decision"] not in {"APPROVED", "REJECTED"}
             or (
                 result["revision_id"] is not None
                 and (

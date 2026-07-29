@@ -129,7 +129,7 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
         for item in finding_set["findings"]
         if item["rule_id"] == "TCW-D009"
     )
-    decision = runtime / "decision.json"
+    proposal = runtime / "proposal.json"
     _json_line(
         run(
             *corpus_command,
@@ -140,31 +140,22 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
             "--base",
             str(observation),
             "--output",
-            str(decision),
+            str(proposal),
             cwd=export,
             env=env,
         )
-    )
-    draft = json.loads(decision.read_text("utf-8"))
-    draft["decision"] = {
-        "state": "APPROVED",
-        "decided_by": "clean-export-check",
-        "note": "exercise documented workflow",
-    }
-    decision.write_text(
-        json.dumps(draft, sort_keys=True, separators=(",", ":")) + "\n",
-        "utf-8",
     )
     refinement = _record_root(
         _json_line(
             run(
                 *corpus_command,
                 "resolve-refinement",
-                str(decision),
+                str(proposal),
                 "--diagnosis",
                 str(diagnosis),
                 "--base",
                 str(observation),
+                "--approve",
                 "--output-root",
                 str(runtime / "refinements"),
                 cwd=export,

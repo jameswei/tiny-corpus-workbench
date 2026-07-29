@@ -23,7 +23,7 @@ from docling_core.types.doc import (
     TableData,
 )
 
-from tiny_corpus_workbench import cli
+from tiny_corpus_workbench import cli, v03 as v03_module
 from tiny_corpus_workbench.artifacts import REQUIRED_MODEL_FILES, canonical_json
 from tiny_corpus_workbench.domain import (
     InputError,
@@ -35,8 +35,10 @@ from tiny_corpus_workbench.v03 import (
     _diagnosis_report,
     _normalize_whitespace,
     _prepared_bytes,
+    _render_refinement,
     _target,
     make_finding_set,
+    snapshot_tree,
     verify_diagnosis,
     verify_refinement,
 )
@@ -130,19 +132,12 @@ class ControlledRevisionTests(unittest.TestCase):
         finding = next(
             item for item in findings["findings"] if item["rule_id"] == rule_id
         )
-        draft = root / f"{rule_id}-decision.json"
+        draft = root / f"{rule_id}-proposal.json"
         cli._diagnosis_callable("v03", "draft_refinement")(
             diagnosis, finding["finding_id"], observation, draft
         )
-        value = json.loads(draft.read_text("utf-8"))
-        value["decision"] = {
-            "state": "APPROVED",
-            "decided_by": "test-owner",
-            "note": None,
-        }
-        draft.write_bytes(canonical_json(value))
         revision = cli._diagnosis_callable("v03", "resolve_refinement")(
-            draft, diagnosis, observation, root / output_name
+            draft, diagnosis, observation, root / output_name, "APPROVED"
         )
         return observation, diagnosis, revision
 
@@ -153,7 +148,7 @@ class ControlledRevisionTests(unittest.TestCase):
         manifest = json.loads(
             (copied / "refinement-manifest.json").read_text("utf-8")
         )
-        decision = json.loads((copied / "decision.json").read_text("utf-8"))
+        proposal = json.loads((copied / "proposal.json").read_text("utf-8"))
         transformation = json.loads(
             (copied / "transformation.json").read_text("utf-8")
         )
@@ -163,16 +158,16 @@ class ControlledRevisionTests(unittest.TestCase):
             broken[0]["after"] += "BROKEN"
         else:
             broken[0]["after"]["body_index"] += 100
-        decision["proposal"]["inverse_edits"] = broken
+        proposal["inverse_edits"] = broken
         proposal_identity = {
             key: value
-            for key, value in decision["proposal"].items()
+            for key, value in proposal.items()
             if key != "draft_id"
         }
         draft_id = hashlib.sha256(
             canonical_json(proposal_identity).rstrip(b"\n")
         ).hexdigest()
-        decision["proposal"]["draft_id"] = draft_id
+        proposal["draft_id"] = draft_id
         manifest["draft_id"] = draft_id
         prepared_sha256 = hashlib.sha256(
             (copied / "prepared/document.json").read_bytes()
@@ -188,7 +183,7 @@ class ControlledRevisionTests(unittest.TestCase):
             ).rstrip(b"\n")
         ).hexdigest()
         transformation["inverse_edits"] = broken
-        transformation["decision_id"] = draft_id
+        transformation["draft_id"] = draft_id
         transformation["revision_id"] = revision_id
         transformation["transformation_id"] = hashlib.sha256(
             canonical_json(
@@ -203,7 +198,7 @@ class ControlledRevisionTests(unittest.TestCase):
         history["revision_id"] = revision_id
         history["transformations"][-1] = transformation
         for name, value in (
-            ("decision.json", decision),
+            ("proposal.json", proposal),
             ("transformation.json", transformation),
             ("history.json", history),
         ):
@@ -232,19 +227,12 @@ class ControlledRevisionTests(unittest.TestCase):
         finding = next(
             item for item in findings["findings"] if item["rule_id"] == rule_id
         )
-        draft = root / f"{rule_id}-decision.json"
+        draft = root / f"{rule_id}-proposal.json"
         cli._diagnosis_callable("v03", "draft_refinement")(
             diagnosis, finding["finding_id"], base, draft
         )
-        value = json.loads(draft.read_text("utf-8"))
-        value["decision"] = {
-            "state": "APPROVED",
-            "decided_by": "test-owner",
-            "note": None,
-        }
-        draft.write_bytes(canonical_json(value))
         return cli._diagnosis_callable("v03", "resolve_refinement")(
-            draft, diagnosis, base, root / "revisions"
+            draft, diagnosis, base, root / "revisions", "APPROVED"
         )
 
     def refresh_descriptors(
@@ -266,12 +254,11 @@ class ControlledRevisionTests(unittest.TestCase):
         manifest = json.loads(
             (record / "refinement-manifest.json").read_text("utf-8")
         )
-        decision = json.loads((record / "decision.json").read_text("utf-8"))
+        proposal = json.loads((record / "proposal.json").read_text("utf-8"))
         transformation = json.loads(
             (record / "transformation.json").read_text("utf-8")
         )
         history = json.loads((record / "history.json").read_text("utf-8"))
-        proposal = decision["proposal"]
         mutate(proposal)
         proposal_identity = {
             key: value for key, value in proposal.items() if key != "draft_id"
@@ -300,7 +287,7 @@ class ControlledRevisionTests(unittest.TestCase):
             {
                 "revision_id": revision_id,
                 "finding_id": proposal["finding"]["finding_id"],
-                "decision_id": draft_id,
+                "draft_id": draft_id,
                 "refiner": proposal["refiner"],
                 "affected_refs": proposal["affected_refs"],
                 "forward_edits": proposal["forward_edits"],
@@ -321,19 +308,21 @@ class ControlledRevisionTests(unittest.TestCase):
         history["revision_id"] = revision_id
         history["transformations"][-1] = transformation
         for name, value in (
-            ("decision.json", decision),
+            ("proposal.json", proposal),
             ("transformation.json", transformation),
             ("history.json", history),
         ):
             (record / name).write_bytes(canonical_json(value))
+        (record / "report.md").write_bytes(_render_refinement(manifest, proposal))
         self.refresh_descriptors(
             record,
             manifest,
-            "decision.json",
+            "proposal.json",
             "transformation.json",
             "history.json",
             "prepared/document.json",
             "prepared/document.md",
+            "report.md",
         )
 
     def subject(self) -> dict:
@@ -708,10 +697,10 @@ class ControlledRevisionTests(unittest.TestCase):
                 root / "base", "TCW-D009"
             )
             forged = self.copy_record(revision, root / "forged")
-            decision = json.loads(
-                (forged / "decision.json").read_text("utf-8")
+            proposal = json.loads(
+                (forged / "proposal.json").read_text("utf-8")
             )
-            forward = deepcopy(decision["proposal"]["forward_edits"])
+            forward = deepcopy(proposal["forward_edits"])
             forward[0]["after"] += " Forged deterministic-looking output."
             inverse = [
                 {
@@ -813,15 +802,6 @@ class ControlledRevisionTests(unittest.TestCase):
             cli._diagnosis_callable("v03", "draft_refinement")(
                 diagnosis, finding_id, observation, rejected_draft
             )
-            rejected_value = json.loads(
-                rejected_draft.read_text("utf-8")
-            )
-            rejected_value["decision"] = {
-                "state": "REJECTED",
-                "decided_by": "test-owner",
-                "note": None,
-            }
-            rejected_draft.write_bytes(canonical_json(rejected_value))
             rejected = cli._diagnosis_callable(
                 "v03", "resolve_refinement"
             )(
@@ -829,29 +809,33 @@ class ControlledRevisionTests(unittest.TestCase):
                 diagnosis,
                 observation,
                 root / "rejected-records",
+                "REJECTED",
             )
             forged_rejected = self.copy_record(
                 rejected, root / "forged-rejected"
             )
-            decision_path = forged_rejected / "decision.json"
+            proposal_path = forged_rejected / "proposal.json"
             manifest_path = forged_rejected / "refinement-manifest.json"
-            decision = json.loads(decision_path.read_text("utf-8"))
+            proposal = json.loads(proposal_path.read_text("utf-8"))
             manifest = json.loads(manifest_path.read_text("utf-8"))
-            decision["proposal"]["forward_edits"] = forward
-            decision["proposal"]["inverse_edits"] = inverse
-            decision["proposal"]["draft_id"] = hashlib.sha256(
+            proposal["forward_edits"] = forward
+            proposal["inverse_edits"] = inverse
+            proposal["draft_id"] = hashlib.sha256(
                 canonical_json(
                     {
                         key: value
-                        for key, value in decision["proposal"].items()
+                        for key, value in proposal.items()
                         if key != "draft_id"
                     }
                 ).rstrip(b"\n")
             ).hexdigest()
-            manifest["draft_id"] = decision["proposal"]["draft_id"]
-            decision_path.write_bytes(canonical_json(decision))
+            manifest["draft_id"] = proposal["draft_id"]
+            proposal_path.write_bytes(canonical_json(proposal))
+            (forged_rejected / "report.md").write_bytes(
+                _render_refinement(manifest, proposal)
+            )
             self.refresh_descriptors(
-                forged_rejected, manifest, "decision.json"
+                forged_rejected, manifest, "proposal.json", "report.md"
             )
             self.assertEqual(
                 verify_refinement(
@@ -920,7 +904,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     elif operation == "duplicate-inventory":
                         manifest["artifacts"].append(manifest["artifacts"][0])
                     elif operation == "history-tail":
-                        history["transformations"][-1]["decided_by"] = "other"
+                        history["transformations"][-1]["draft_id"] = "f" * 64
                         (copied / "history.json").write_bytes(canonical_json(history))
                         changed.append("history.json")
                     elif operation == "history-noncanonical":
@@ -1008,8 +992,8 @@ class ControlledRevisionTests(unittest.TestCase):
                     manifest = json.loads(
                         (copied / "refinement-manifest.json").read_text("utf-8")
                     )
-                    decision = json.loads(
-                        (copied / "decision.json").read_text("utf-8")
+                    proposal = json.loads(
+                        (copied / "proposal.json").read_text("utf-8")
                     )
                     transformation = json.loads(
                         (copied / "transformation.json").read_text("utf-8")
@@ -1018,16 +1002,16 @@ class ControlledRevisionTests(unittest.TestCase):
                         (copied / "history.json").read_text("utf-8")
                     )
 
-                    decision["proposal"]["refiner"] = replacement
+                    proposal["refiner"] = replacement
                     proposal_identity = {
                         key: value
-                        for key, value in decision["proposal"].items()
+                        for key, value in proposal.items()
                         if key != "draft_id"
                     }
                     draft_id = hashlib.sha256(
                         canonical_json(proposal_identity).rstrip(b"\n")
                     ).hexdigest()
-                    decision["proposal"]["draft_id"] = draft_id
+                    proposal["draft_id"] = draft_id
                     manifest["draft_id"] = draft_id
                     prepared_sha256 = hashlib.sha256(
                         (copied / "prepared/document.json").read_bytes()
@@ -1045,7 +1029,7 @@ class ControlledRevisionTests(unittest.TestCase):
                         ).rstrip(b"\n")
                     ).hexdigest()
                     transformation["refiner"] = replacement
-                    transformation["decision_id"] = draft_id
+                    transformation["draft_id"] = draft_id
                     transformation["revision_id"] = revision_id
                     transformation["transformation_id"] = hashlib.sha256(
                         canonical_json(
@@ -1060,7 +1044,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     history["revision_id"] = revision_id
                     history["transformations"][-1] = transformation
                     for name, value in (
-                        ("decision.json", decision),
+                        ("proposal.json", proposal),
                         ("transformation.json", transformation),
                         ("history.json", history),
                     ):
@@ -1068,7 +1052,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     self.refresh_descriptors(
                         copied,
                         manifest,
-                        "decision.json",
+                        "proposal.json",
                         "transformation.json",
                         "history.json",
                     )
@@ -1195,15 +1179,8 @@ class ControlledRevisionTests(unittest.TestCase):
             cli._diagnosis_callable("v03", "draft_refinement")(
                 diagnosis, finding["finding_id"], observation, draft
             )
-            value = json.loads(draft.read_text("utf-8"))
-            value["decision"] = {
-                "state": "REJECTED",
-                "decided_by": "test-owner",
-                "note": None,
-            }
-            draft.write_bytes(canonical_json(value))
             rejected = cli._diagnosis_callable("v03", "resolve_refinement")(
-                draft, diagnosis, observation, root / "rejected"
+                draft, diagnosis, observation, root / "rejected", "REJECTED"
             )
             for operation in ("revision-id", "extra-inventory"):
                 with self.subTest(operation=operation):
@@ -1238,13 +1215,6 @@ class ControlledRevisionTests(unittest.TestCase):
             cli._diagnosis_callable("v03", "draft_refinement")(
                 diagnosis, finding["finding_id"], observation, draft
             )
-            value = json.loads(draft.read_text("utf-8"))
-            value["decision"] = {
-                "state": "APPROVED",
-                "decided_by": "test-owner",
-                "note": None,
-            }
-            draft.write_bytes(canonical_json(value))
             observation_manifest = json.loads(
                 (observation / "manifest.json").read_text("utf-8")
             )
@@ -1267,7 +1237,7 @@ class ControlledRevisionTests(unittest.TestCase):
                         )
                     with self.assertRaises(InputError):
                         cli._diagnosis_callable("v03", "resolve_refinement")(
-                            draft, diagnosis, observation, output
+                            draft, diagnosis, observation, output, "APPROVED"
                         )
                     self.assertFalse(
                         any(outside.rglob("refinement-manifest.json"))
@@ -1334,7 +1304,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 (manifest["record_type"], manifest["format_version"]),
                 ("refinement", 1),
             )
-            for name in ("decision.json", "transformation.json", "history.json"):
+            for name in ("proposal.json", "transformation.json", "history.json"):
                 value = json.loads((revision / name).read_text("utf-8"))
                 self.assertNotIn("record_type", value)
                 self.assertNotIn("format_version", value)
@@ -1716,13 +1686,6 @@ class ControlledRevisionTests(unittest.TestCase):
             cli._diagnosis_callable("v03", "draft_refinement")(
                 diagnosis, finding["finding_id"], observation, draft
             )
-            decision = json.loads(draft.read_text("utf-8"))
-            decision["decision"] = {
-                "state": "APPROVED",
-                "decided_by": "test-owner",
-                "note": None,
-            }
-            draft.write_bytes(canonical_json(decision))
             fixed_datetime = mock.Mock()
             fixed_datetime.now.return_value = datetime(
                 2026, 7, 24, 12, 0, tzinfo=UTC
@@ -1738,7 +1701,7 @@ class ControlledRevisionTests(unittest.TestCase):
             ):
                 winner = cli._diagnosis_callable(
                     "v03", "resolve_refinement"
-                )(draft, diagnosis, observation, output)
+                )(draft, diagnosis, observation, output, "APPROVED")
                 before = {
                     path.relative_to(winner).as_posix(): path.read_bytes()
                     for path in winner.rglob("*")
@@ -1753,6 +1716,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     str(observation),
                     "--output-root",
                     str(output),
+                    "--approve",
                 )
             self.assertEqual(code, 5)
             self.assertEqual(stdout, "")
@@ -1776,6 +1740,7 @@ class ControlledRevisionTests(unittest.TestCase):
                         diagnosis,
                         observation,
                         concurrent_output,
+                        "APPROVED",
                     )
                     return 0, published
                 except IntegrityError:
@@ -1824,27 +1789,20 @@ class ControlledRevisionTests(unittest.TestCase):
             whitespace = next(
                 item for item in findings["findings"] if item["rule_id"] == "TCW-D009"
             )
-            draft = root / "whitespace-decision.json"
+            draft = root / "whitespace-proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
                 diagnosis, whitespace["finding_id"], observation, draft
             )
-            value = json.loads(draft.read_text("utf-8"))
-            value["decision"] = {
-                "state": "APPROVED",
-                "decided_by": "test-owner",
-                "note": "Mechanical cleanup.",
-            }
-            draft.write_bytes(canonical_json(value))
             revision = cli._diagnosis_callable("v03", "resolve_refinement")(
-                draft, diagnosis, observation, root / "revisions"
+                draft, diagnosis, observation, root / "revisions", "APPROVED"
             )
-            decision_record = json.loads(
-                (revision / "decision.json").read_text("utf-8")
+            proposal_record = json.loads(
+                (revision / "proposal.json").read_text("utf-8")
             )
             refinement_manifest = json.loads(
                 (revision / "refinement-manifest.json").read_text("utf-8")
             )
-            self.assertNotIn("schema_version", decision_record)
+            self.assertNotIn("schema_version", proposal_record)
             self.assertEqual(refinement_manifest["record_type"], "refinement")
             self.assertEqual(refinement_manifest["format_version"], 1)
             self.assertNotIn("schema_version", refinement_manifest)
@@ -1885,24 +1843,17 @@ class ControlledRevisionTests(unittest.TestCase):
             dehyphenation = next(
                 item for item in findings2["findings"] if item["rule_id"] == "TCW-D010"
             )
-            rejected_draft = root / "rejected-decision.json"
+            rejected_draft = root / "rejected-proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
                 diagnosis2, dehyphenation["finding_id"], revision, rejected_draft
             )
-            rejected = json.loads(rejected_draft.read_text("utf-8"))
-            rejected["decision"] = {
-                "state": "REJECTED",
-                "decided_by": "test-owner",
-                "note": "Keep this line ending.",
-            }
-            rejected_draft.write_bytes(canonical_json(rejected))
             record = cli._diagnosis_callable("v03", "resolve_refinement")(
-                rejected_draft, diagnosis2, revision, root / "rejected"
+                rejected_draft, diagnosis2, revision, root / "rejected", "REJECTED"
             )
             manifest = json.loads(
                 (record / "refinement-manifest.json").read_text("utf-8")
             )
-            self.assertEqual(manifest["status"], "REJECTED")
+            self.assertEqual(manifest["decision"], "REJECTED")
             self.assertIsNone(manifest["revision_id"])
             self.assertFalse((record / "prepared").exists())
             self.assertEqual(
@@ -1924,19 +1875,12 @@ class ControlledRevisionTests(unittest.TestCase):
                 "NOT_APPLICABLE",
             )
 
-            draft2 = root / "dehyphenation-decision.json"
+            draft2 = root / "dehyphenation-proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
                 diagnosis2, dehyphenation["finding_id"], revision, draft2
             )
-            value2 = json.loads(draft2.read_text("utf-8"))
-            value2["decision"] = {
-                "state": "APPROVED",
-                "decided_by": "test-owner",
-                "note": None,
-            }
-            draft2.write_bytes(canonical_json(value2))
             revision2 = cli._diagnosis_callable("v03", "resolve_refinement")(
-                draft2, diagnosis2, revision, root / "revisions"
+                draft2, diagnosis2, revision, root / "revisions", "APPROVED"
             )
             history = json.loads((revision2 / "history.json").read_text("utf-8"))
             self.assertEqual(len(history["transformations"]), 2)
@@ -1986,7 +1930,9 @@ class ControlledRevisionTests(unittest.TestCase):
             changed_history = json.loads(
                 (changed_parent_history / "history.json").read_text("utf-8")
             )
-            changed_history["transformations"][0]["decided_by"] = "changed"
+            changed_history["transformations"][0]["affected_refs"].append(
+                "#/texts/999"
+            )
             (changed_parent_history / "history.json").write_bytes(
                 canonical_json(changed_history)
             )
@@ -2029,6 +1975,746 @@ class ControlledRevisionTests(unittest.TestCase):
                 "supplied diagnosis integrity is not verified",
             ):
                 verify_refinement(revision2, changed_diagnosis, revision)
+
+    def test_proposal_stdout_and_required_resolution_flags_are_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_sha256 = (
+                "7d2fe694613a437af02d379f8b8ea627bc2f93425046182465bc4651f6913785"
+            )
+            base_sha256 = (
+                "6ae5cbdcd09b2a34c616a850957c8e5a4806a92574940475eec7af62aa6c2e2d"
+            )
+            findings_sha256 = (
+                "673b0186477f9532c59bad66e326e7df355708f7d08ad850aefe91ef12f360de"
+            )
+            proposal_sha256 = (
+                "486aa027a33293db3c170358ed5a4f3bd0cde4f5d7e3a867c7fe2019204324ce"
+            )
+            origin_id = (
+                "a3a83013f87635a1137c4409e69495da63f2ad0a725011292455bc99deecee62"
+            )
+            diagnosis_id = (
+                "c6f934520fe521ca0d8e2582e2ad870d95baddf38bd9d18bf211654cdf3c3c4c"
+            )
+            finding_id = (
+                "621ed7d0ad23e8c9156d9a92491ad57b6cedc26ec4531727efdccbe464ec1ae7"
+            )
+            draft_id = (
+                "7df12bcebe425ea83dcc3d51948a64e906fcd9e89310fd1a630d2b78ffabe6a1"
+            )
+            approved_revision_id = (
+                "a0c60a36a783607f6c3992cb56e01ce4db2e428e9526124d323999b1335cc2d7"
+            )
+            self.assertEqual(
+                hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
+                source_sha256,
+            )
+            observation = self.observation(root / "observations")
+            self.assertEqual(
+                hashlib.sha256(
+                    (observation / "docling/document.json").read_bytes()
+                ).hexdigest(),
+                base_sha256,
+            )
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            self.assertEqual(
+                hashlib.sha256((diagnosis / "findings.json").read_bytes()).hexdigest(),
+                findings_sha256,
+            )
+            proposal = root / "proposal.json"
+            code, stdout, stderr = self.invoke(
+                "draft-refinement",
+                str(diagnosis),
+                "--finding",
+                finding_id,
+                "--base",
+                str(observation),
+                "--output",
+                str(proposal),
+            )
+            self.assertEqual((code, stderr), (0, ""))
+            self.assertEqual(
+                hashlib.sha256(proposal.read_bytes()).hexdigest(),
+                proposal_sha256,
+            )
+            produced_proposal = json.loads(proposal.read_text("utf-8"))
+            self.assertEqual(produced_proposal["diagnosis_id"], diagnosis_id)
+            self.assertEqual(produced_proposal["base"]["subject_id"], origin_id)
+            self.assertEqual(
+                produced_proposal["base"]["canonical_document_sha256"],
+                base_sha256,
+            )
+            self.assertEqual(produced_proposal["finding"]["finding_id"], finding_id)
+            self.assertEqual(produced_proposal["draft_id"], draft_id)
+            self.assertEqual(
+                stdout.encode(),
+                (
+                    f'{{"draft_id":"{draft_id}","proposal":"'
+                    f'{proposal.resolve()}"}}\n'
+                ).encode(),
+            )
+            for flags in ((), ("--approve", "--reject")):
+                with self.subTest(flags=flags):
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    with (
+                        redirect_stdout(stdout),
+                        redirect_stderr(stderr),
+                        self.assertRaises(SystemExit) as raised,
+                    ):
+                        cli.main(
+                            [
+                                "resolve-refinement",
+                                str(proposal),
+                                "--diagnosis",
+                                str(diagnosis),
+                                "--base",
+                                str(observation),
+                                "--output-root",
+                                str(root / "invalid"),
+                                *flags,
+                            ]
+                        )
+                    self.assertEqual(raised.exception.code, 2)
+                    self.assertEqual(stdout.getvalue(), "")
+                    self.assertFalse((root / "invalid").exists())
+            for omitted in ("diagnosis", "base"):
+                with self.subTest(omitted=omitted):
+                    arguments = ["resolve-refinement", str(proposal), "--approve"]
+                    if omitted != "diagnosis":
+                        arguments.extend(["--diagnosis", str(diagnosis)])
+                    if omitted != "base":
+                        arguments.extend(["--base", str(observation)])
+                    with self.assertRaises(SystemExit) as raised:
+                        with redirect_stderr(io.StringIO()):
+                            cli.main(arguments)
+                    self.assertEqual(raised.exception.code, 2)
+
+            for decision, flag, second, uuid_hex, run_id, created_at in (
+                (
+                    "APPROVED",
+                    "--approve",
+                    1,
+                    "1" * 32,
+                    "20260729T101101.000000Z-111111111111",
+                    "2026-07-29T10:11:01Z",
+                ),
+                (
+                    "REJECTED",
+                    "--reject",
+                    2,
+                    "2" * 32,
+                    "20260729T101102.000000Z-222222222222",
+                    "2026-07-29T10:11:02Z",
+                ),
+            ):
+                current = proposal
+                if decision == "REJECTED":
+                    current = root / "rejected-proposal.json"
+                    current.write_bytes(proposal.read_bytes())
+                fixed_now = datetime(2026, 7, 29, 10, 11, second, tzinfo=UTC)
+                fixed_datetime = mock.Mock()
+                fixed_datetime.now.return_value = fixed_now
+                fixed_uuid = mock.Mock(hex=uuid_hex)
+                output_root = root / decision.lower()
+                expected_record = (
+                    output_root
+                    / "policy-memo-md"
+                    / origin_id
+                    / run_id
+                ).resolve()
+                with mock.patch(
+                    "tiny_corpus_workbench.v03.datetime", fixed_datetime
+                ), mock.patch(
+                    "tiny_corpus_workbench.v03.uuid.uuid4",
+                    return_value=fixed_uuid,
+                ):
+                    code, stdout, stderr = self.invoke(
+                        "resolve-refinement",
+                        str(current),
+                        "--diagnosis",
+                        str(diagnosis),
+                        "--base",
+                        str(observation),
+                        flag,
+                        "--output-root",
+                        str(output_root),
+                    )
+                self.assertEqual((code, stderr), (0, ""))
+                expected_manifest = expected_record / "refinement-manifest.json"
+                if decision == "APPROVED":
+                    expected_stdout = (
+                        f'{{"decision":"APPROVED","manifest":"{expected_manifest}",'
+                        f'"revision_id":"{approved_revision_id}","run_id":"{run_id}"}}\n'
+                    ).encode()
+                    expected_report = (
+                        "# Controlled Refinement\n\n"
+                        "- Decision: `APPROVED`\n"
+                        "- Draft ID: "
+                        "`7df12bcebe425ea83dcc3d51948a64e906fcd9e89310fd1a630d2b78ffabe6a1`\n"
+                        "- Finding: "
+                        "`621ed7d0ad23e8c9156d9a92491ad57b6cedc26ec4531727efdccbe464ec1ae7`\n"
+                        "- Refiner: `TCW-R001`\n"
+                        "- Revision ID: "
+                        "`a0c60a36a783607f6c3992cb56e01ce4db2e428e9526124d323999b1335cc2d7`\n\n"
+                        "The source, observation, diagnosis, base, and earlier "
+                        "revisions remain unchanged.\n"
+                    ).encode()
+                else:
+                    expected_stdout = (
+                        f'{{"decision":"REJECTED","manifest":"{expected_manifest}",'
+                        f'"revision_id":null,"run_id":"{run_id}"}}\n'
+                    ).encode()
+                    expected_report = (
+                        "# Controlled Refinement\n\n"
+                        "- Decision: `REJECTED`\n"
+                        "- Draft ID: "
+                        "`7df12bcebe425ea83dcc3d51948a64e906fcd9e89310fd1a630d2b78ffabe6a1`\n"
+                        "- Finding: "
+                        "`621ed7d0ad23e8c9156d9a92491ad57b6cedc26ec4531727efdccbe464ec1ae7`\n"
+                        "- Refiner: `TCW-R001`\n\n"
+                        "The source, observation, diagnosis, base, and earlier "
+                        "revisions remain unchanged.\n"
+                    ).encode()
+                self.assertEqual(stdout.encode(), expected_stdout)
+                self.assertEqual(
+                    (expected_record / "report.md").read_bytes(),
+                    expected_report,
+                )
+                produced_manifest = json.loads(expected_manifest.read_text("utf-8"))
+                self.assertEqual(produced_manifest["run_id"], run_id)
+                self.assertEqual(produced_manifest["created_at"], created_at)
+                self.assertEqual(
+                    produced_manifest["revision_id"],
+                    approved_revision_id if decision == "APPROVED" else None,
+                )
+                changed_report = expected_report + b"tampered\n"
+                (expected_record / "report.md").write_bytes(changed_report)
+                descriptor = next(
+                    item
+                    for item in produced_manifest["artifacts"]
+                    if item["path"] == "report.md"
+                )
+                descriptor["size"] = len(changed_report)
+                descriptor["sha256"] = hashlib.sha256(changed_report).hexdigest()
+                expected_manifest.write_bytes(canonical_json(produced_manifest))
+                checked = verify_refinement(expected_record)
+                self.assertEqual(
+                    checked.artifact_integrity.status,
+                    "INTEGRITY_MISMATCH",
+                )
+                self.assertIn(
+                    "REPORT_INVALID",
+                    {issue.code for issue in checked.artifact_integrity.issues},
+                )
+                self.assertNotIn(
+                    "HASH_MISMATCH",
+                    {issue.code for issue in checked.artifact_integrity.issues},
+                )
+
+    def test_noncanonical_proposal_bytes_publish_nothing_and_preserve_inputs(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            canonical = root / "canonical.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, canonical
+            )
+            value = json.loads(canonical.read_text("utf-8"))
+            semantic_edit = deepcopy(value)
+            semantic_edit["forward_edits"][0]["after"] += " changed"
+            extra_field = deepcopy(value)
+            extra_field["unexpected"] = True
+            missing_field = deepcopy(value)
+            del missing_field["inverse_edits"]
+            variants = {
+                "semantic-edit": canonical_json(semantic_edit),
+                "extra-field": canonical_json(extra_field),
+                "missing-field": canonical_json(missing_field),
+                "reordered": (
+                    json.dumps(
+                        dict(reversed(list(value.items()))),
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                    + "\n"
+                ).encode(),
+                "indented": (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode(),
+                "bom": b"\xef\xbb\xbf" + canonical.read_bytes(),
+                "missing-newline": canonical.read_bytes().rstrip(b"\n"),
+                "extra-newline": canonical.read_bytes() + b"\n",
+                "utf16": json.dumps(value, ensure_ascii=False).encode("utf-16"),
+            }
+            diagnosis_before = snapshot_tree(diagnosis)
+            observation_before = snapshot_tree(observation)
+            for label, raw in variants.items():
+                with self.subTest(label=label):
+                    proposal = root / f"{label}.json"
+                    proposal.write_bytes(raw)
+                    proposal_before = proposal.read_bytes()
+                    with self.assertRaises((InputError, IntegrityError)):
+                        cli._diagnosis_callable("v03", "resolve_refinement")(
+                            proposal,
+                            diagnosis,
+                            observation,
+                            root / f"{label}-output",
+                            "APPROVED",
+                        )
+                    self.assertEqual(proposal.read_bytes(), proposal_before)
+                    self.assertEqual(snapshot_tree(diagnosis), diagnosis_before)
+                    self.assertEqual(snapshot_tree(observation), observation_before)
+                    self.assertFalse(
+                        any((root / f"{label}-output").rglob("refinement-manifest.json"))
+                        if (root / f"{label}-output").exists()
+                        else False
+                    )
+
+    def test_stale_diagnosis_or_base_recomputation_publishes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            proposal = root / "proposal.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, proposal
+            )
+            proposal_before = proposal.read_bytes()
+            diagnosis_before = snapshot_tree(diagnosis)
+            observation_before = snapshot_tree(observation)
+            make_proposal = v03_module._proposal
+
+            for label, mutate in (
+                (
+                    "diagnosis",
+                    lambda expected: expected.__setitem__("diagnosis_id", "0" * 64),
+                ),
+                (
+                    "base",
+                    lambda expected: expected["base"].__setitem__(
+                        "canonical_document_sha256", "0" * 64
+                    ),
+                ),
+            ):
+                with self.subTest(label=label):
+                    def stale_recomputation(
+                        diagnosis_root: Path,
+                        selected_finding_id: str,
+                        base_root: Path,
+                    ):
+                        expected, base = make_proposal(
+                            diagnosis_root, selected_finding_id, base_root
+                        )
+                        mutate(expected)
+                        return expected, base
+
+                    output = root / f"{label}-output"
+                    with mock.patch(
+                        "tiny_corpus_workbench.v03._proposal",
+                        side_effect=stale_recomputation,
+                    ):
+                        with self.assertRaisesRegex(
+                            IntegrityError,
+                            "proposal was modified, non-canonical, or stale",
+                        ):
+                            v03_module.resolve_refinement(
+                                proposal,
+                                diagnosis,
+                                observation,
+                                output,
+                                "APPROVED",
+                            )
+                    self.assertEqual(proposal.read_bytes(), proposal_before)
+                    self.assertEqual(snapshot_tree(diagnosis), diagnosis_before)
+                    self.assertEqual(snapshot_tree(observation), observation_before)
+                    self.assertFalse(
+                        any(output.rglob("refinement-manifest.json"))
+                        if output.exists()
+                        else False
+                    )
+
+    def test_proposal_removal_during_resolution_publishes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            proposal = root / "proposal.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, proposal
+            )
+            diagnosis_before = snapshot_tree(diagnosis)
+            observation_before = snapshot_tree(observation)
+            capture = v03_module._capture_proposal
+            calls = 0
+
+            def remove_before_final(path: Path):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    path.unlink()
+                return capture(path)
+
+            output = root / "output"
+            with mock.patch(
+                "tiny_corpus_workbench.v03._capture_proposal",
+                side_effect=remove_before_final,
+            ):
+                with self.assertRaises((InputError, IntegrityError)):
+                    v03_module.resolve_refinement(
+                        proposal,
+                        diagnosis,
+                        observation,
+                        output,
+                        "APPROVED",
+                    )
+            self.assertEqual(calls, 2)
+            self.assertFalse(proposal.exists())
+            self.assertEqual(snapshot_tree(diagnosis), diagnosis_before)
+            self.assertEqual(snapshot_tree(observation), observation_before)
+            self.assertFalse(
+                any(output.rglob("refinement-manifest.json"))
+                if output.exists()
+                else False
+            )
+
+    def test_proposal_mutation_during_resolution_publishes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            proposal = root / "proposal.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, proposal
+            )
+            changed = json.loads(proposal.read_text("utf-8"))
+            changed["forward_edits"][0]["after"] += " changed concurrently"
+            changed_bytes = canonical_json(changed)
+            diagnosis_before = snapshot_tree(diagnosis)
+            observation_before = snapshot_tree(observation)
+            capture = v03_module._capture_proposal
+            calls = 0
+
+            def mutate_before_final(path: Path):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    path.write_bytes(changed_bytes)
+                return capture(path)
+
+            output = root / "output"
+            with mock.patch(
+                "tiny_corpus_workbench.v03._capture_proposal",
+                side_effect=mutate_before_final,
+            ):
+                with self.assertRaisesRegex(
+                    IntegrityError, "input changed during resolution"
+                ):
+                    v03_module.resolve_refinement(
+                        proposal,
+                        diagnosis,
+                        observation,
+                        output,
+                        "APPROVED",
+                    )
+            self.assertEqual(calls, 2)
+            self.assertEqual(proposal.read_bytes(), changed_bytes)
+            self.assertEqual(snapshot_tree(diagnosis), diagnosis_before)
+            self.assertEqual(snapshot_tree(observation), observation_before)
+            self.assertFalse(
+                any(output.rglob("refinement-manifest.json"))
+                if output.exists()
+                else False
+            )
+
+    def test_proposal_replacement_is_detected_before_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            proposal = root / "proposal.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, proposal
+            )
+            raw = proposal.read_bytes()
+            capture = v03_module._capture_proposal
+            calls = 0
+
+            def replace_before_final(path: Path):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    replacement = root / "replacement.json"
+                    replacement.write_bytes(raw)
+                    replacement.replace(proposal)
+                return capture(path)
+
+            output = root / "output"
+            with mock.patch(
+                "tiny_corpus_workbench.v03._capture_proposal",
+                side_effect=replace_before_final,
+            ):
+                with self.assertRaisesRegex(
+                    IntegrityError, "input changed during resolution"
+                ):
+                    v03_module.resolve_refinement(
+                        proposal,
+                        diagnosis,
+                        observation,
+                        output,
+                        "APPROVED",
+                    )
+            self.assertEqual(proposal.read_bytes(), raw)
+            self.assertFalse(
+                any(output.rglob("refinement-manifest.json"))
+                if output.exists()
+                else False
+            )
+
+    def test_post_final_check_mutation_cannot_change_staged_proposal(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            proposal = root / "proposal.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, proposal
+            )
+            captured = proposal.read_bytes()
+            publish = v03_module._publish_directory
+
+            def mutate_after_check(staging: Path, destination: Path) -> Path:
+                proposal.write_bytes(b"changed after final check\n")
+                return publish(staging, destination)
+
+            with mock.patch(
+                "tiny_corpus_workbench.v03._publish_directory",
+                side_effect=mutate_after_check,
+            ):
+                record = v03_module.resolve_refinement(
+                    proposal,
+                    diagnosis,
+                    observation,
+                    root / "output",
+                    "APPROVED",
+                )
+            self.assertEqual((record / "proposal.json").read_bytes(), captured)
+
+    def test_staged_refinement_mutation_publishes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            proposal = root / "proposal.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, proposal
+            )
+            proposal_before = proposal.read_bytes()
+            diagnosis_before = snapshot_tree(diagnosis)
+            observation_before = snapshot_tree(observation)
+            verify_staged = v03_module._verify_staged_refinement
+            calls = 0
+
+            def mutate_then_verify(
+                staging: Path,
+                manifest: dict,
+                proposal_value: dict,
+                proposal_bytes: bytes,
+                transformation: dict | None,
+                history: dict | None,
+            ) -> None:
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    (staging / "proposal.json").write_bytes(b"changed staging\n")
+                verify_staged(
+                    staging,
+                    manifest,
+                    proposal_value,
+                    proposal_bytes,
+                    transformation,
+                    history,
+                )
+
+            output = root / "output"
+            with mock.patch(
+                "tiny_corpus_workbench.v03._verify_staged_refinement",
+                side_effect=mutate_then_verify,
+            ):
+                with self.assertRaisesRegex(
+                    IntegrityError, "staged refinement inventory changed"
+                ):
+                    v03_module.resolve_refinement(
+                        proposal,
+                        diagnosis,
+                        observation,
+                        output,
+                        "APPROVED",
+                    )
+            self.assertEqual(calls, 2)
+            self.assertEqual(proposal.read_bytes(), proposal_before)
+            self.assertEqual(snapshot_tree(diagnosis), diagnosis_before)
+            self.assertEqual(snapshot_tree(observation), observation_before)
+            self.assertFalse(
+                any(output.rglob("refinement-manifest.json"))
+                if output.exists()
+                else False
+            )
+
+    def test_hash_consistent_staged_semantic_mutation_publishes_nothing(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observation = self.observation(root / "observations")
+            diagnosis = cli._diagnosis_callable("v03", "diagnose")(
+                observation, root / "diagnoses"
+            )
+            findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
+            finding_id = next(
+                item["finding_id"]
+                for item in findings["findings"]
+                if item["rule_id"] == "TCW-D009"
+            )
+            proposal = root / "proposal.json"
+            cli._diagnosis_callable("v03", "draft_refinement")(
+                diagnosis, finding_id, observation, proposal
+            )
+            proposal_before = proposal.read_bytes()
+            diagnosis_before = snapshot_tree(diagnosis)
+            observation_before = snapshot_tree(observation)
+            verify_staged = v03_module._verify_staged_refinement
+            calls = 0
+
+            def mutate_descriptors_then_verify(
+                staging: Path,
+                manifest: dict,
+                proposal_value: dict,
+                proposal_bytes: bytes,
+                transformation: dict | None,
+                history: dict | None,
+            ) -> None:
+                nonlocal calls
+                calls += 1
+                checked_transformation = transformation
+                checked_history = history
+                if calls == 2:
+                    assert transformation is not None
+                    assert history is not None
+                    changed_transformation = deepcopy(transformation)
+                    changed_transformation["affected_refs"].append("#/texts/999")
+                    changed_history = deepcopy(history)
+                    changed_history["transformations"][-1] = changed_transformation
+                    checked_transformation = changed_transformation
+                    checked_history = changed_history
+                    for relative, value in (
+                        ("transformation.json", changed_transformation),
+                        ("history.json", changed_history),
+                    ):
+                        raw = canonical_json(value)
+                        (staging / relative).write_bytes(raw)
+                        descriptor = next(
+                            item
+                            for item in manifest["artifacts"]
+                            if item["path"] == relative
+                        )
+                        descriptor["size"] = len(raw)
+                        descriptor["sha256"] = hashlib.sha256(raw).hexdigest()
+                    (staging / "refinement-manifest.json").write_bytes(
+                        canonical_json(manifest)
+                    )
+                verify_staged(
+                    staging,
+                    manifest,
+                    proposal_value,
+                    proposal_bytes,
+                    checked_transformation,
+                    checked_history,
+                )
+
+            output = root / "output"
+            with mock.patch(
+                "tiny_corpus_workbench.v03._verify_staged_refinement",
+                side_effect=mutate_descriptors_then_verify,
+            ):
+                with self.assertRaisesRegex(
+                    IntegrityError, "transformation references differ"
+                ):
+                    v03_module.resolve_refinement(
+                        proposal,
+                        diagnosis,
+                        observation,
+                        output,
+                        "APPROVED",
+                    )
+            self.assertEqual(calls, 2)
+            self.assertEqual(proposal.read_bytes(), proposal_before)
+            self.assertEqual(snapshot_tree(diagnosis), diagnosis_before)
+            self.assertEqual(snapshot_tree(observation), observation_before)
+            self.assertFalse(
+                any(output.rglob("refinement-manifest.json"))
+                if output.exists()
+                else False
+            )
 
 
 if __name__ == "__main__":

@@ -173,7 +173,7 @@ class PublishedRefinements:
         self.rejected = self._resolve(finding_id, "REJECTED", "rejected")
 
     def _resolve(self, finding_id: str, state: str, label: str) -> Path:
-        decision_path = Path(self.temporary.name) / f"{label}-decision.json"
+        proposal_path = Path(self.temporary.name) / f"{label}-proposal.json"
         run_corpus(
             "draft-refinement",
             str(self.diagnosis),
@@ -182,22 +182,16 @@ class PublishedRefinements:
             "--base",
             str(self.observation),
             "--output",
-            str(decision_path),
+            str(proposal_path),
         )
-        decision = json.loads(decision_path.read_text("utf-8"))
-        decision["decision"] = {
-            "state": state,
-            "decided_by": "test-owner",
-            "note": None,
-        }
-        decision_path.write_bytes(canonical_json(decision))
         result = run_corpus(
             "resolve-refinement",
-            str(decision_path),
+            str(proposal_path),
             "--diagnosis",
             str(self.diagnosis),
             "--base",
             str(self.observation),
+            "--approve" if state == "APPROVED" else "--reject",
             "--output-root",
             str(Path(self.temporary.name) / label),
         )
@@ -276,7 +270,7 @@ class PublishedChain:
     def _resolve(
         self, diagnosis: Path, base: Path, finding_id: str, label: str
     ) -> Path:
-        decision_path = Path(self.temporary.name) / f"{label}.json"
+        proposal_path = Path(self.temporary.name) / f"{label}.json"
         run_corpus(
             "draft-refinement",
             str(diagnosis),
@@ -285,22 +279,16 @@ class PublishedChain:
             "--base",
             str(base),
             "--output",
-            str(decision_path),
+            str(proposal_path),
         )
-        decision = json.loads(decision_path.read_text("utf-8"))
-        decision["decision"] = {
-            "state": "APPROVED",
-            "decided_by": "chain-owner",
-            "note": None,
-        }
-        decision_path.write_bytes(canonical_json(decision))
         result = run_corpus(
             "resolve-refinement",
-            str(decision_path),
+            str(proposal_path),
             "--diagnosis",
             str(diagnosis),
             "--base",
             str(base),
+            "--approve",
             "--output-root",
             str(Path(self.temporary.name) / f"{label}-output"),
         )

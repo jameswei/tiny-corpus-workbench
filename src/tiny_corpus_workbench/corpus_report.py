@@ -137,7 +137,7 @@ def _revision_links(revision: dict[str, Any]) -> str:
                 f"{refinement}/refinement-manifest.json",
                 "refinement",
             ),
-            _link(f"{refinement}/decision.json", "decision"),
+            _link(f"{refinement}/proposal.json", "proposal"),
             _link(f"{refinement}/transformation.json", "transformation"),
             _link(f"{refinement}/history.json", "history"),
             _link(

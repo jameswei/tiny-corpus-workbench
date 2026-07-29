@@ -1262,9 +1262,10 @@ def verify_corpus(
                 key: regenerated["totals"][key]
                 for key in ("member_count", "complete", "partial", "failed")
             }
+            corpus_status_field = "status"
             if (
                 manifest["summary"] != expected_counts
-                or manifest["status"] != regenerated["status"]
+                or manifest[corpus_status_field] != regenerated["status"]
             ):
                 issues.append(
                     _issue(

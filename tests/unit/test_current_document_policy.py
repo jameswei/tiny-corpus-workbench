@@ -137,6 +137,87 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
             self.assertNotIn("Traceback", result.stderr)
             self.assertLessEqual(len(result.stderr.splitlines()), 1)
 
+    def test_requires_current_refinement_authority_and_matrix_markers(self) -> None:
+        markers = (
+            (
+                Path("docs/controlled-revisions.md"),
+                "Inspect `proposal.json`. Do not edit it.",
+                "proposal inspection",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "only machine-authoritative persisted decision field",
+                "decision authority",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "--approve",
+                "approval flag",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "--reject",
+                "rejection flag",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "path: proposal.json",
+                "proposal path",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "An approved publication contains",
+                "approved inventory",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "A rejected publication contains",
+                "rejected inventory",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "non-authoritative human rendering",
+                "derived report",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "role: refinement-proposal",
+                "proposal role",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "media_type: application/json",
+                "proposal media type",
+            ),
+            (
+                Path("docs/controlled-revisions.md"),
+                "Only a record with manifest decision `APPROVED`",
+                "corpus eligibility",
+            ),
+            (
+                Path("docs/corpus-inspection-comparison.md"),
+                "does not copy the approval decision",
+                "corpus decision isolation",
+            ),
+            (
+                Path("docs/local-visual-workbench.md"),
+                "only from `refinement-manifest.json.decision`",
+                "workbench decision derivation",
+            ),
+        )
+        for relative, marker, topic in markers:
+            with self.subTest(marker=marker):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    self.copied_policy_tree(root)
+                    target = root / relative
+                    text = target.read_text("utf-8")
+                    self.assertIn(marker, text)
+                    target.write_text(text.replace(marker, "removed marker"), "utf-8")
+                    result = self.invoke(root)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn(topic, result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

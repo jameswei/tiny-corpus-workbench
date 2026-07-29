@@ -1,15 +1,12 @@
 # Controlled Revisions
 
-Milestone v0.3 turns one supported diagnosis finding into one explicit
-decision. An approval creates one immutable successor revision. A rejection
-creates an immutable decision record and no prepared document.
-
-A finding never authorizes a change by itself. The person who resolves the
-decision supplies an actor label in `decided_by`.
+Controlled refinement turns one supported diagnosis finding into one proposal.
+A finding never authorizes a change by itself. A person supplies the decision
+with an explicit command flag.
 
 ## Commands
 
-Diagnose an observation or an applied revision:
+Create and verify a diagnosis:
 
 ```bash
 uv run corpus diagnose DOCUMENT_DIRECTORY
@@ -17,58 +14,71 @@ uv run corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
   --subject DOCUMENT_DIRECTORY
 ```
 
-Draft one supported finding:
+Draft one canonical proposal:
 
 ```bash
 uv run corpus draft-refinement DIAGNOSIS_DIRECTORY \
   --finding FINDING_ID \
   --base DOCUMENT_DIRECTORY \
-  --output decision.json
+  --output proposal.json
 ```
 
-The draft is a closed JSON document. Its proposal is immutable. Edit only:
+Inspect `proposal.json`. Do not edit it. The file is strict UTF-8 canonical
+JSON with one final newline. Its exact descriptor is:
 
-- `decision.state`: change `PENDING` to `APPROVED` or `REJECTED`
-- `decision.decided_by`: set a nonempty actor label
-- `decision.note`: keep `null` or add a short note
+```text
+path: proposal.json
+role: refinement-proposal
+media_type: application/json
+```
 
-Resolve and verify the decision:
+Approve or reject with exactly one flag:
 
 ```bash
-uv run corpus resolve-refinement decision.json \
+uv run corpus resolve-refinement proposal.json \
   --diagnosis DIAGNOSIS_DIRECTORY \
-  --base DOCUMENT_DIRECTORY
+  --base DOCUMENT_DIRECTORY \
+  --approve
 
+uv run corpus resolve-refinement proposal.json \
+  --diagnosis DIAGNOSIS_DIRECTORY \
+  --base DOCUMENT_DIRECTORY \
+  --reject
+```
+
+Zero decision flags or both decision flags are invalid. `--diagnosis` and
+`--base` are required. Use `--output-root` to select another publication root.
+
+Verify the publication:
+
+```bash
 uv run corpus verify-refinement REFINEMENT_DIRECTORY \
   --diagnosis DIAGNOSIS_DIRECTORY \
   --base DOCUMENT_DIRECTORY
 ```
 
-Use `--output-root` with `resolve-refinement` to select another publication
-root. The default is `build/controlled-revisions`.
+## One structured decision authority
 
-## Supported findings and refiners
+`refinement-manifest.json.decision` is the only machine-authoritative persisted decision field.
+Its value is `APPROVED` or `REJECTED`. The manifest
+has no refinement `status`.
 
-| Finding | Refiner | Change |
-| --- | --- | --- |
-| `TCW-D009 NORMALIZABLE_WHITESPACE` | `TCW-R001 WHITESPACE_NORMALIZATION` | Normalizes line endings and horizontal whitespace. |
-| `TCW-D007 REPEATED_PAGE_MARGIN_TEXT` | `TCW-R002 REPEATED_BOILERPLATE_REMOVAL` | Moves repeated margin items from body to furniture. |
-| `TCW-D010 POSSIBLE_LINE_END_HYPHENATION` | `TCW-R003 DETERMINISTIC_DEHYPHENATION` | Removes an approved line-end hyphen and its one line break. |
+Proposal state `REQUESTED` and transformation state `APPLIED` are lifecycle
+facts. They do not authorize a revision. Transformation and history use
+`draft_id`; they do not contain an actor, note, or another decision field.
 
-The refiners change `text`, not `orig`. They preserve provenance and stable
-item references. Boilerplate removal changes the content layer and body or
-furniture membership. It does not delete the item.
+`report.md` is a deterministic, non-authoritative human rendering. It can show
+the manifest decision, draft, finding, refiner, and revision identities. The
+verifier regenerates its exact bytes and rejects a changed report. No command
+consults the report as authority.
 
-## Decision and publication states
+## Exact publication matrix
 
-A draft starts with proposal state `REQUESTED` and decision state `PENDING`.
-Resolution rejects `PENDING`.
-
-An approved result has manifest status `APPLIED` and contains:
+An approved publication contains:
 
 ```text
 refinement-manifest.json
-decision.json
+proposal.json
 report.md
 transformation.json
 history.json
@@ -76,80 +86,69 @@ prepared/document.json
 prepared/document.md
 ```
 
-A rejected result has status `REJECTED`. It contains only the manifest,
-decision, and report. Its `revision_id` is null.
+Its manifest decision is `APPROVED`, `revision_id` is non-null, and the
+transformation state is `APPLIED`. An observation base has `parent: null`. A
+refinement base has a parent that matches the base revision, run, manifest
+hash, and prepared-document hash.
 
-Only `refinement-manifest.json` has the record-format header:
-`record_type` is `refinement`, and `format_version` is `1`. The decision,
-transformation, history, and verification result do not repeat format,
-release, package, Python, dependency, or lockfile identity.
+A rejected publication contains only:
 
-The publisher snapshots and rechecks the decision, diagnosis, and base. It
-uses an exclusive atomic directory rename. It does not overwrite a result or
-publish inside an input directory.
-
-## Revision lineage
-
-One approval creates one successor. The transformation records the parent,
-finding, decision, actor, refiner version, affected references, exact edits,
-and whole-document hashes.
-
-An applied child copies the verified parent history and appends one
-transformation. Re-diagnose the child before you draft another change:
-
-```bash
-uv run corpus diagnose FIRST_REFINEMENT_DIRECTORY
+```text
+refinement-manifest.json
+proposal.json
+report.md
 ```
 
-Use that new diagnosis and the first refinement directory as the base for the
-next draft and resolution.
+Its manifest decision is `REJECTED`, `revision_id` and `parent` are null, and
+derivation and reversibility are `NOT_APPLICABLE`. It has no transformation,
+history, or prepared directory.
 
-## Verification and reversibility
+## Proposal freshness and publication safety
 
-`verify-refinement` always checks the closed schemas, exact inventory, regular
-file kinds, sizes, hashes, identities, status, and history shape. It also
-checks canonical transformation and history JSON, the transformation history
-tail, revision identities, and every parent link.
+Resolution accepts one local non-symlink regular proposal file. It captures the
+raw bytes and stable file identity, validates the proposal, and recomputes the
+complete proposal from the diagnosis and base. The captured bytes must equal
+the recomputed canonical bytes exactly.
 
-Refinement identities use only the decision, finding, base document, edits,
-refiner, and prepared document. A package update or a different Python
-environment does not change those identities. The verifier never rewrites a
-diagnosis, decision, transformation, history, or prepared document.
+Changed key order, whitespace, encoding, byte order mark, final newline,
+fields, diagnosis evidence, or base evidence causes failure. Before atomic
+publication, resolution rechecks the diagnosis, base, proposal identity, and
+proposal bytes. Failure removes staging, publishes nothing, and does not
+change the proposal or either input record. Publication stages the verified
+captured proposal bytes without reserialization.
 
-Without optional inputs, diagnosis and base states are `NOT_CHECKED`. A
-rejected record uses `NOT_APPLICABLE` for derivation and reversibility.
+## Supported refiners
 
-With matching `--diagnosis` and `--base`, verification recomputes the forward
-edit and requires byte equality with `prepared/document.json`. It also replays
-the inverse edits against the prepared payload and requires byte equality with
-the supplied base `document.json`. The transformation does not store a copy of
-the base document as reversal proof. The supplied diagnosis must pass its own
-integrity checks, and a child history must contain the unchanged parent
-history before its new transformation.
+| Finding | Refiner | Change |
+| --- | --- | --- |
+| `TCW-D009` | `TCW-R001 WHITESPACE_NORMALIZATION` | Normalizes line endings and horizontal whitespace. |
+| `TCW-D007` | `TCW-R002 REPEATED_BOILERPLATE_REMOVAL` | Moves repeated margin items from body to furniture. |
+| `TCW-D010` | `TCW-R003 DETERMINISTIC_DEHYPHENATION` | Removes one supported line-end hyphen and line break. |
 
-Copy a publication before a tamper experiment. For example, edit `report.md`
-in the copy and verify it. The verifier reports an integrity failure and exits
-`5`. Never edit the original publication for an experiment.
+The refiners preserve `orig`, provenance, and stable references. Re-diagnose
+an approved revision before drafting its successor.
 
-## Exit codes
+## Verification and corpus eligibility
 
-| Exit | Meaning |
-| --- | --- |
-| `0` | The operation completed, including a recorded rejection. |
-| `1` | An unexpected internal failure occurred. |
-| `2` | Input, usage, decision, or supported-finding validation failed. |
-| `4` | The canonical Docling document is unavailable. |
-| `5` | Input integrity changed, verification failed, or publication conflicted. |
-| `6` | The installed schema or Docling API runtime is incompatible. |
+Verification checks the exact inventory, regular file kinds, hashes, canonical
+JSON, identities, proposal freshness evidence, manifest decision, parent and
+history chains, forward derivation, inverse replay, prepared Markdown, and the
+derived report.
 
-## Integrity limits
+Only a record with manifest decision `APPROVED`, a non-null revision ID, the
+exact approved inventory, coherent evidence, and all required verification
+states can be a corpus revision. Rejected records are never revision inputs.
+Persisted corpus JSON may reference refinement evidence but does not copy the
+decision.
 
-The project uses a trusted-local model. Hashes, closed schemas, snapshots, and
-exclusive publication detect ordinary corruption and uncoordinated changes.
-They are not signatures. They do not establish authorship, authenticity, or a
-trusted timestamp. A coordinated rewrite of a complete local record is outside
-this boundary.
+## Exit codes and limits
 
-Batch refinement, semantic rewriting, heading repair, table reconstruction,
-duplicate-block deletion, LLM cleanup, services, and downstream RAG work are
-outside the current controlled-revision workflow.
+Success, including rejection, is `0`. Usage and input errors are `2`;
+integrity failures are `5`; runtime contract failures are `6`; unexpected
+internal failures are `1`. Canonical-document unavailability remains `4`
+where that lifecycle operation applies.
+
+The trusted-local hashes and checks detect ordinary corruption. They are not
+signatures and do not establish authorship, authenticity, or a trusted
+timestamp. Batch refinement, semantic rewriting, services, and downstream RAG
+work remain outside this workflow.
