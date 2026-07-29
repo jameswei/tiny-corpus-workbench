@@ -21,6 +21,10 @@ from tiny_corpus_workbench.workbench_records import (
     AdmittedRecord,
     AdmittedRecords,
 )
+from tiny_corpus_workbench.verification_results import (
+    DiagnosisVerificationResult,
+    RefinementVerificationResult,
+)
 
 
 SCHEMAS = {
@@ -134,7 +138,7 @@ def _frozen_verifier_roots(
 
 def _verify_diagnosis_frozen(
     diagnosis: AdmittedRecord, subject: AdmittedRecord
-) -> dict[str, Any]:
+) -> DiagnosisVerificationResult:
     with _frozen_verifier_roots((diagnosis, subject)) as roots:
         return verify_diagnosis(roots[0], roots[1])
 
@@ -143,7 +147,7 @@ def _verify_refinement_frozen(
     refinement: AdmittedRecord,
     diagnosis: AdmittedRecord | None,
     base: AdmittedRecord | None,
-) -> dict[str, Any]:
+) -> RefinementVerificationResult:
     inputs = [
         record for record in (refinement, diagnosis, base) if record is not None
     ]
@@ -246,9 +250,9 @@ def _record_edges(records: AdmittedRecords, record: AdmittedRecord) -> list[dict
         if target_record is not None:
             checked = _verify_diagnosis_frozen(record, target_record)
             if (
-                checked["artifact_integrity"]["status"] != "VERIFIED"
-                or checked["subject_state"]["status"] != "MATCH"
-                or checked["derivation_state"]["status"] != "MATCH"
+                checked.artifact_integrity.status != "VERIFIED"
+                or checked.subject_state.status != "MATCH"
+                or checked.derivation_state.status != "MATCH"
             ):
                 raise IntegrityError("diagnosis relationship evaluation failed")
     elif record.kind == "REFINEMENT":
@@ -313,8 +317,8 @@ def _record_edges(records: AdmittedRecords, record: AdmittedRecord) -> list[dict
                 record, diagnosis_record, None
             )
             if (
-                diagnosis_checked["artifact_integrity"]["status"] != "VERIFIED"
-                or diagnosis_checked["diagnosis_state"]["status"] != "MATCH"
+                diagnosis_checked.artifact_integrity.status != "VERIFIED"
+                or diagnosis_checked.diagnosis_state.status != "MATCH"
             ):
                 raise IntegrityError(
                     "refinement diagnosis relationship evaluation failed"
@@ -324,8 +328,8 @@ def _record_edges(records: AdmittedRecords, record: AdmittedRecord) -> list[dict
                 record, None, base_record
             )
             if (
-                base_checked["artifact_integrity"]["status"] != "VERIFIED"
-                or base_checked["base_state"]["status"] != "MATCH"
+                base_checked.artifact_integrity.status != "VERIFIED"
+                or base_checked.base_state.status != "MATCH"
             ):
                 raise IntegrityError(
                     "refinement base relationship evaluation failed"
@@ -336,11 +340,11 @@ def _record_edges(records: AdmittedRecords, record: AdmittedRecord) -> list[dict
             )
             expected = "MATCH" if manifest["status"] == "APPLIED" else "NOT_APPLICABLE"
             if (
-                checked["artifact_integrity"]["status"] != "VERIFIED"
-                or checked["diagnosis_state"]["status"] != "MATCH"
-                or checked["base_state"]["status"] != "MATCH"
-                or checked["derivation_state"]["status"] != expected
-                or checked["reversibility_state"]["status"] != expected
+                checked.artifact_integrity.status != "VERIFIED"
+                or checked.diagnosis_state.status != "MATCH"
+                or checked.base_state.status != "MATCH"
+                or checked.derivation_state.status != expected
+                or checked.reversibility_state.status != expected
             ):
                 raise IntegrityError("refinement relationship evaluation failed")
     elif record.kind == "CORPUS":
@@ -378,9 +382,9 @@ def _record_edges(records: AdmittedRecords, record: AdmittedRecord) -> list[dict
                         target_record, records.records[observation_key]
                     )
                     if (
-                        checked["artifact_integrity"]["status"] != "VERIFIED"
-                        or checked["subject_state"]["status"] != "MATCH"
-                        or checked["derivation_state"]["status"] != "MATCH"
+                        checked.artifact_integrity.status != "VERIFIED"
+                        or checked.subject_state.status != "MATCH"
+                        or checked.derivation_state.status != "MATCH"
                     ):
                         raise IntegrityError(
                             "contained diagnosis relationship evaluation failed"

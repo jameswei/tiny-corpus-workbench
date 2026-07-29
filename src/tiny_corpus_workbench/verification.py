@@ -10,8 +10,6 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
-from jsonschema.exceptions import ValidationError
-
 from tiny_corpus_workbench.application.records import require_record_header
 from tiny_corpus_workbench.artifacts import (
     REQUIRED_MODEL_FILES,
@@ -27,6 +25,12 @@ from tiny_corpus_workbench.domain import (
     sanitize_message,
 )
 from tiny_corpus_workbench.source import sha256_file
+from tiny_corpus_workbench.verification_results import (
+    ArtifactIntegrity,
+    ObservationVerificationResult,
+    VerificationIssue,
+    VerificationState,
+)
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
@@ -97,19 +101,8 @@ def _validation_errors(
         ) from error
 
 
-def _validate_result(schema: dict[str, Any], document: object) -> None:
-    try:
-        _validator(schema).validate(document)
-    except ValidationError:
-        raise
-    except Exception as error:
-        raise RuntimeContractError(
-            "bundled verification/schema runtime is unavailable or incompatible"
-        ) from error
-
-
-def _issue(code: str, path: str | None, message: str) -> dict[str, Any]:
-    return {"code": code, "path": path, "message": sanitize_message(message)}
+def _issue(code: str, path: str | None, message: str) -> VerificationIssue:
+    return VerificationIssue(code, path, sanitize_message(message))
 
 
 def _safe_relative(value: Any) -> str | None:
@@ -121,55 +114,55 @@ def _safe_relative(value: Any) -> str | None:
     return path.as_posix()
 
 
-def _advisory_source(source: Path | None, recorded: object) -> dict[str, str]:
+def _advisory_source(source: Path | None, recorded: object) -> VerificationState:
     if source is None:
-        return {"status": "NOT_CHECKED"}
+        return VerificationState("NOT_CHECKED")
     try:
         if source.is_symlink():
-            return {"status": "ERROR"}
+            return VerificationState("ERROR")
         metadata = source.stat()
         if not stat.S_ISREG(metadata.st_mode):
-            return {"status": "ERROR"}
+            return VerificationState("ERROR")
         if (
             not isinstance(recorded, dict)
             or type(recorded.get("size")) is not int
             or not isinstance(recorded.get("sha256"), str)
         ):
-            return {"status": "ERROR"}
+            return VerificationState("ERROR")
         current = (metadata.st_size, sha256_file(source))
         expected = (recorded["size"], recorded["sha256"])
-        return {"status": "MATCH" if current == expected else "CHANGED"}
+        return VerificationState("MATCH" if current == expected else "CHANGED")
     except FileNotFoundError:
-        return {"status": "MISSING"}
+        return VerificationState("MISSING")
     except (OSError, KeyError, TypeError):
-        return {"status": "ERROR"}
+        return VerificationState("ERROR")
 
 
 def _advisory_models(
     model_root: Path | None, recorded: object
-) -> dict[str, str]:
+) -> VerificationState:
     if model_root is None:
-        return {"status": "NOT_CHECKED"}
+        return VerificationState("NOT_CHECKED")
     if isinstance(recorded, dict) and recorded.get("required") is False:
-        return {"status": "NOT_APPLICABLE"}
+        return VerificationState("NOT_APPLICABLE")
     if not model_root.exists() and not model_root.is_symlink():
-        return {"status": "MISSING"}
+        return VerificationState("MISSING")
     if (
         not isinstance(recorded, dict)
         or recorded.get("required") is not True
         or not isinstance(recorded.get("inventory_hash"), str)
         or not isinstance(recorded.get("files"), list)
     ):
-        return {"status": "ERROR"}
+        return VerificationState("ERROR")
     try:
         current = inventory_models(model_root, required=True)
     except RuntimeContractError:
-        return {"status": "ERROR"}
+        return VerificationState("ERROR")
     same_inventory = (
         current["inventory_hash"] == recorded.get("inventory_hash")
         and current["files"] == recorded.get("files")
     )
-    return {"status": "MATCH" if same_inventory else "CHANGED"}
+    return VerificationState("MATCH" if same_inventory else "CHANGED")
 
 
 def _expected_statuses(manifest: dict[str, Any]) -> tuple[str, str]:
@@ -196,10 +189,10 @@ EXPECTED_ARTIFACTS = {
 }
 
 
-def _manifest_contract_issues(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+def _manifest_contract_issues(manifest: dict[str, Any]) -> list[VerificationIssue]:
     """Check cross-field contracts that JSON Schema cannot express safely."""
 
-    issues: list[dict[str, Any]] = []
+    issues: list[VerificationIssue] = []
     results = {result["name"]: result for result in manifest["extractors"]}
     for name, result in results.items():
         expected_artifacts = (
@@ -346,7 +339,7 @@ def _docling_document_schema_issues(
     root: Path,
     manifest: dict[str, Any],
     actual_files: set[str],
-) -> list[dict[str, Any]]:
+) -> list[VerificationIssue]:
     result = manifest["extractors"][0]
     if result["status"] == "FAILED":
         return []
@@ -431,11 +424,10 @@ def verify_observation(
     root: Path,
     source: Path | None = None,
     model_root: Path | None = None,
-) -> dict[str, Any]:
+) -> ObservationVerificationResult:
     manifest_schema = _schema("observation-manifest.schema.json")
     comparison_schema = _schema("comparison.schema.json")
-    result_schema = _schema("observation-verification-result.schema.json")
-    issues: list[dict[str, Any]] = []
+    issues: list[VerificationIssue] = []
     manifest: object = _LOAD_FAILED
     valid_manifest: dict[str, Any] | None = None
     manifest_path = root / "manifest.json"
@@ -528,7 +520,7 @@ def verify_observation(
             issues.append(_issue("FILE_KIND_INVALID", None, "observation tree cannot be read safely"))
 
         for relative in sorted(set(expected) - actual_files):
-            if not any(issue["path"] == relative and issue["code"] == "FILE_KIND_INVALID" for issue in issues):
+            if not any(issue.path == relative and issue.code == "FILE_KIND_INVALID" for issue in issues):
                 issues.append(_issue("FILE_MISSING", relative, "expected file is missing"))
         for relative in sorted(actual_files - set(expected)):
             issues.append(_issue("FILE_UNEXPECTED", relative, "file is not referenced by the manifest"))
@@ -666,21 +658,19 @@ def verify_observation(
 
     artifact_status = "VERIFIED"
     if issues:
-        artifact_status = "BROKEN" if any(issue["code"] in BROKEN_CODES for issue in issues) else "INTEGRITY_MISMATCH"
-    report = {
-        "observation_directory": str(root.resolve()),
-        "artifact_integrity": {"status": artifact_status, "issues": issues},
-        "source_state": _advisory_source(
+        artifact_status = "BROKEN" if any(issue.code in BROKEN_CODES for issue in issues) else "INTEGRITY_MISMATCH"
+    return ObservationVerificationResult(
+        observation_directory=str(root.resolve()),
+        artifact_integrity=ArtifactIntegrity(artifact_status, tuple(issues)),
+        source_state=_advisory_source(
             source,
             manifest.get("source") if isinstance(manifest, dict) else None,
         ),
-        "model_state": _advisory_models(
+        model_state=_advisory_models(
             model_root,
             manifest.get("models") if isinstance(manifest, dict) else None,
         ),
-    }
-    _validate_result(result_schema, report)
-    return report
+    )
 
 
 def verify_command(
@@ -710,5 +700,5 @@ def verify_command(
     except Exception as error:
         print(f"internal verifier failure: {sanitize_message(error)}", file=sys.stderr)
         return 1
-    print(json.dumps(report, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-    return 0 if report["artifact_integrity"]["status"] == "VERIFIED" else 5
+    print(json.dumps(report.to_json_object(), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+    return 0 if report.artifact_integrity.status == "VERIFIED" else 5

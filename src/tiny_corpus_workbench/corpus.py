@@ -277,7 +277,7 @@ def _admit_revision(
         "reversibility_state": "MATCH",
     }
     if any(
-        verification.get(name, {}).get("status") != expected
+        getattr(verification, name).status != expected
         for name, expected in required_states.items()
     ):
         _recheck_revision_inventory(roots, before)

@@ -8,6 +8,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
 from copy import deepcopy
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -29,6 +30,11 @@ from tiny_corpus_workbench.corpus_report import render_report
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.source import sha256_file
 from tiny_corpus_workbench.verification import FORMAT_CHECKER
+from tiny_corpus_workbench.verification_results import (
+    ArtifactIntegrity,
+    CorpusVerificationResult,
+    VerificationState,
+)
 
 
 SECRET = "PRIVATE SOURCE SENTENCE MUST NOT APPEAR"
@@ -147,19 +153,37 @@ class CorpusWorkflowTests(unittest.TestCase):
                 (manifest["record_type"], manifest["format_version"]),
                 ("corpus", 1),
             )
-            for value in (manifest, summary, first):
+            for value in (manifest, summary, first.to_json_object()):
                 self.assertNotIn("schema_version", value)
                 self.assertNotIn("runtime", value)
             self.assertEqual(
-                first["artifact_integrity"]["status"], "VERIFIED"
+                first.artifact_integrity.status, "VERIFIED"
             )
             self.assertEqual(
-                second["artifact_integrity"]["status"], "VERIFIED"
+                second.artifact_integrity.status, "VERIFIED"
             )
             self.assertEqual(
-                second["specification_state"]["status"], "MATCH"
+                second.specification_state.status, "MATCH"
             )
-            self.assertEqual(second["source_states"][0]["state"]["status"], "MATCH")
+            self.assertEqual(second.source_states[0].state.status, "MATCH")
+            with self.assertRaises(FrozenInstanceError):
+                second.specification_state.status = "ERROR"
+            with self.assertRaises(FrozenInstanceError):
+                second.source_states[0].state = VerificationState("ERROR")
+            projected = second.to_json_object()
+            projected["specification_state"]["status"] = "ERROR"
+            projected["source_states"][0]["state"]["status"] = "ERROR"
+            projected["source_states"].append({"member_id": "extra"})
+            fresh = second.to_json_object()
+            self.assertEqual(fresh["specification_state"], {"status": "MATCH"})
+            self.assertEqual(
+                fresh["source_states"],
+                [{"member_id": "unit-member", "state": {"status": "MATCH"}}],
+            )
+            self.assertIsNot(projected, fresh)
+            self.assertIsNot(
+                projected["source_states"], fresh["source_states"]
+            )
             report = (published.directory / "report/index.html").read_text(
                 "utf-8"
             )
@@ -178,9 +202,35 @@ class CorpusWorkflowTests(unittest.TestCase):
                         "--spec",
                         str(spec),
                     ]
-                )
+            )
             self.assertEqual(code, 0)
             self.assertEqual(stderr.getvalue(), "")
+            expected = {
+                "corpus_directory": str(published.directory.resolve()),
+                "artifact_integrity": {
+                    "status": "VERIFIED",
+                    "issues": [],
+                },
+                "specification_state": {"status": "MATCH"},
+                "source_states": [
+                    {
+                        "member_id": "unit-member",
+                        "state": {"status": "MATCH"},
+                    }
+                ],
+                "model_state": {"status": "MATCH"},
+                "revision_states": [],
+            }
+            self.assertEqual(
+                stdout.getvalue(),
+                json.dumps(
+                    expected,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+            )
             line = json.loads(stdout.getvalue())
             self.assertEqual(
                 line["artifact_integrity"]["status"], "VERIFIED"
@@ -238,9 +288,7 @@ class CorpusWorkflowTests(unittest.TestCase):
                 self.assertEqual(published.status, status)
                 self.assertEqual(published.exit_code, exit_code)
                 self.assertEqual(
-                    verify_corpus(published.directory)["artifact_integrity"][
-                        "status"
-                    ],
+                    verify_corpus(published.directory).artifact_integrity.status,
                     "VERIFIED",
                 )
 
@@ -275,7 +323,7 @@ class CorpusWorkflowTests(unittest.TestCase):
                     path = copied / relative
                     path.write_bytes(path.read_bytes() + b"BROKEN")
                     self.assertNotEqual(
-                        verify_corpus(copied)["artifact_integrity"]["status"],
+                        verify_corpus(copied).artifact_integrity.status,
                         "VERIFIED",
                     )
 
@@ -316,8 +364,24 @@ class CorpusWorkflowTests(unittest.TestCase):
                     manifest_path.write_bytes(canonical_json(manifest))
                     verification = verify_corpus(copied)
                     self.assertNotEqual(
-                        verification["artifact_integrity"]["status"],
+                        verification.artifact_integrity.status,
                         "VERIFIED",
+                    )
+                    self.assertIsInstance(
+                        verification.artifact_integrity.issues, tuple
+                    )
+                    issue = verification.artifact_integrity.issues[0]
+                    with self.assertRaises(FrozenInstanceError):
+                        issue.code = "CHANGED"
+                    projected = verification.to_json_object()
+                    projected["artifact_integrity"]["issues"][0][
+                        "code"
+                    ] = "CHANGED"
+                    self.assertEqual(
+                        verification.to_json_object()["artifact_integrity"][
+                            "issues"
+                        ][0]["code"],
+                        issue.code,
                     )
 
     def test_nested_content_hash_tampering_is_independently_detected(self) -> None:
@@ -354,13 +418,13 @@ class CorpusWorkflowTests(unittest.TestCase):
                     )
                     verification = verify_corpus(copied)
                     self.assertEqual(
-                        verification["artifact_integrity"]["status"],
+                        verification.artifact_integrity.status,
                         "BROKEN",
                     )
                     mismatch_paths = {
-                        issue["path"]
-                        for issue in verification["artifact_integrity"]["issues"]
-                        if issue["code"] == "REFERENCE_MISMATCH"
+                        issue.path
+                        for issue in verification.artifact_integrity.issues
+                        if issue.code == "REFERENCE_MISMATCH"
                     }
                     if "canonical" in names:
                         self.assertIn(
@@ -419,13 +483,13 @@ class CorpusWorkflowTests(unittest.TestCase):
                 manifest_path.write_bytes(canonical_json(manifest))
                 verification = verify_corpus(copied)
                 self.assertEqual(
-                    verification["artifact_integrity"]["status"], "BROKEN"
+                    verification.artifact_integrity.status, "BROKEN"
                 )
                 self.assertIn(
                     "member error code differs from stage evidence",
                     {
-                        issue["message"]
-                        for issue in verification["artifact_integrity"]["issues"]
+                        issue.message
+                        for issue in verification.artifact_integrity.issues
                     },
                 )
 
@@ -537,12 +601,14 @@ class CorpusWorkflowTests(unittest.TestCase):
             root = Path(directory).resolve()
             spec = _write_spec(root)
             output = root.parent / f"{root.name}-output"
-            failed = {
-                "artifact_integrity": {
-                    "status": "BROKEN",
-                    "issues": [],
-                }
-            }
+            failed = CorpusVerificationResult(
+                corpus_directory=str(root),
+                artifact_integrity=ArtifactIntegrity("BROKEN", ()),
+                specification_state=VerificationState("NOT_CHECKED"),
+                source_states=(),
+                model_state=VerificationState("NOT_CHECKED"),
+                revision_states=(),
+            )
             with mock.patch(
                 "tiny_corpus_workbench.extractors.docling.convert",
                 side_effect=_docling,
@@ -590,14 +656,14 @@ class CorpusWorkflowTests(unittest.TestCase):
                     manifest_path.write_bytes(canonical_json(manifest))
                     verification = verify_corpus(copied)
                     self.assertEqual(
-                        verification["artifact_integrity"]["status"],
+                        verification.artifact_integrity.status,
                         "INTEGRITY_MISMATCH",
                     )
                     self.assertTrue(
                         any(
-                            issue["code"] == "UNSAFE_REFERENCE"
-                            and "encoded control character" in issue["message"]
-                            for issue in verification["artifact_integrity"]["issues"]
+                            issue.code == "UNSAFE_REFERENCE"
+                            and "encoded control character" in issue.message
+                            for issue in verification.artifact_integrity.issues
                         )
                     )
 
@@ -611,12 +677,12 @@ class CorpusWorkflowTests(unittest.TestCase):
             manifest_path.write_bytes(canonical_json(manifest))
             verification = verify_corpus(published.directory)
             self.assertEqual(
-                verification["artifact_integrity"]["status"], "BROKEN"
+                verification.artifact_integrity.status, "BROKEN"
             )
             self.assertTrue(
                 any(
-                    issue["code"] == "MANIFEST_INVALID"
-                    for issue in verification["artifact_integrity"]["issues"]
+                    issue.code == "MANIFEST_INVALID"
+                    for issue in verification.artifact_integrity.issues
                 )
             )
 
@@ -649,39 +715,39 @@ class CorpusWorkflowTests(unittest.TestCase):
             (root / "source.md").write_text("# Changed\n", "utf-8")
             report = verify_corpus(published.directory, spec)
             self.assertEqual(
-                report["artifact_integrity"]["status"], "VERIFIED"
+                report.artifact_integrity.status, "VERIFIED"
             )
             self.assertEqual(
-                report["source_states"][0]["state"]["status"], "CHANGED"
+                report.source_states[0].state.status, "CHANGED"
             )
             spec.write_text("{}\n", "utf-8")
             report = verify_corpus(published.directory, spec)
             self.assertEqual(
-                report["artifact_integrity"]["status"], "VERIFIED"
+                report.artifact_integrity.status, "VERIFIED"
             )
             self.assertEqual(
-                report["specification_state"]["status"], "CHANGED"
+                report.specification_state.status, "CHANGED"
             )
             source = root / "source.md"
             source.unlink()
             report = verify_corpus(published.directory, spec)
             self.assertEqual(
-                report["source_states"][0]["state"]["status"], "MISSING"
+                report.source_states[0].state.status, "MISSING"
             )
             source.mkdir()
             report = verify_corpus(published.directory, spec)
             self.assertEqual(
-                report["source_states"][0]["state"]["status"], "ERROR"
+                report.source_states[0].state.status, "ERROR"
             )
             spec.unlink()
             report = verify_corpus(published.directory, spec)
             self.assertEqual(
-                report["specification_state"]["status"], "MISSING"
+                report.specification_state.status, "MISSING"
             )
             spec.mkdir()
             report = verify_corpus(published.directory, spec)
             self.assertEqual(
-                report["specification_state"]["status"], "ERROR"
+                report.specification_state.status, "ERROR"
             )
 
     def test_publication_conflict_is_exclusive_and_cleans_staging(self) -> None:

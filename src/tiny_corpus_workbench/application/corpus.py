@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from tiny_corpus_workbench.domain import RuntimeContractError
+from tiny_corpus_workbench.verification_results import CorpusVerificationResult
 
 
 def _implementation_callable(module_name: str, name: str) -> Any:
@@ -41,7 +42,7 @@ def inspect_corpus(
 def verify_corpus(
     corpus_root: Path,
     spec_path: Path | None = None,
-) -> dict[str, Any]:
+) -> CorpusVerificationResult:
     """Verify one published corpus without changing it."""
 
     return _implementation_callable("corpus_verification", "verify_corpus")(

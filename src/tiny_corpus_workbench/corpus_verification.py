@@ -34,6 +34,14 @@ from tiny_corpus_workbench.domain import (
 )
 from tiny_corpus_workbench.source import sha256_file
 from tiny_corpus_workbench.verification import FORMAT_CHECKER
+from tiny_corpus_workbench.verification_results import (
+    ArtifactIntegrity,
+    CorpusRevisionState,
+    CorpusSourceState,
+    CorpusVerificationResult,
+    VerificationIssue,
+    VerificationState,
+)
 
 
 def _validator(name: str) -> Draft202012Validator:
@@ -60,8 +68,8 @@ def _validator(name: str) -> Draft202012Validator:
         ) from error
 
 
-def _issue(code: str, path: str | None, message: str) -> dict[str, Any]:
-    return {"code": code, "path": path, "message": message}
+def _issue(code: str, path: str | None, message: str) -> VerificationIssue:
+    return VerificationIssue(code, path, message)
 
 
 def _read_json(
@@ -95,7 +103,7 @@ def _descriptor_root(
     corpus_root: Path,
     descriptor: dict[str, Any] | None,
     expected_name: str,
-    issues: list[dict[str, Any]],
+    issues: list[VerificationIssue],
     label: str,
 ) -> Path | None:
     if not isinstance(descriptor, dict):
@@ -177,7 +185,7 @@ def _manifest_artifact_hash(
 def _top_artifacts(
     root: Path,
     manifest: dict[str, Any],
-    issues: list[dict[str, Any]],
+    issues: list[VerificationIssue],
 ) -> None:
     expected = {
         "corpus-spec.json": (
@@ -241,7 +249,7 @@ def _top_artifacts(
 def _check_tree(
     root: Path,
     nested_roots: list[Path],
-    issues: list[dict[str, Any]],
+    issues: list[VerificationIssue],
 ) -> None:
     expected_top_files = {
         "corpus-manifest.json",
@@ -326,7 +334,7 @@ def _check_report_links(
     root: Path,
     manifest: dict[str, Any],
     report_bytes: bytes,
-    issues: list[dict[str, Any]],
+    issues: list[VerificationIssue],
 ) -> None:
     try:
         text = report_bytes.decode("utf-8")
@@ -454,7 +462,7 @@ def _regenerate_summary(
     root: Path,
     manifest: dict[str, Any],
     specification: dict[str, Any],
-    issues: list[dict[str, Any]],
+    issues: list[VerificationIssue],
 ) -> tuple[dict[str, Any] | None, list[Path]]:
     from tiny_corpus_workbench.v03 import verify_diagnosis
     from tiny_corpus_workbench.verification import verify_observation
@@ -524,7 +532,7 @@ def _regenerate_summary(
             try:
                 observation_result = verify_observation(observation_root)
                 observation_verified = (
-                    observation_result["artifact_integrity"]["status"]
+                    observation_result.artifact_integrity.status
                     == "VERIFIED"
                 )
             except Exception:
@@ -632,9 +640,9 @@ def _regenerate_summary(
                     diagnosis_root, observation_root
                 )
                 diagnosis_complete = (
-                    diagnosis_result["artifact_integrity"]["status"] == "VERIFIED"
-                    and diagnosis_result["subject_state"]["status"] == "MATCH"
-                    and diagnosis_result["derivation_state"]["status"] == "MATCH"
+                    diagnosis_result.artifact_integrity.status == "VERIFIED"
+                    and diagnosis_result.subject_state.status == "MATCH"
+                    and diagnosis_result.derivation_state.status == "MATCH"
                 )
             except Exception:
                 diagnosis_complete = False
@@ -937,71 +945,65 @@ def _advisories(
     manifest: dict[str, Any] | None,
     spec_path: Path | None,
 ) -> tuple[
-    dict[str, str],
-    list[dict[str, Any]],
-    dict[str, str],
-    list[dict[str, Any]],
+    VerificationState,
+    tuple[CorpusSourceState, ...],
+    VerificationState,
+    tuple[CorpusRevisionState, ...],
 ]:
     if spec_path is None or manifest is None:
         return (
-            {"status": "NOT_CHECKED"},
-            [],
-            {"status": "NOT_CHECKED"},
-            [],
+            VerificationState("NOT_CHECKED"),
+            (),
+            VerificationState("NOT_CHECKED"),
+            (),
         )
-    specification_state = {"status": "ERROR"}
+    specification_status = "ERROR"
     try:
         if spec_path.is_symlink():
-            specification_state = {"status": "ERROR"}
+            specification_status = "ERROR"
         elif not spec_path.exists():
-            specification_state = {"status": "MISSING"}
+            specification_status = "MISSING"
         elif not spec_path.is_file():
-            specification_state = {"status": "ERROR"}
+            specification_status = "ERROR"
         else:
-            specification_state = {
-                "status": (
-                    "MATCH"
-                    if spec_path.stat().st_size
-                    == manifest["input_specification"]["size"]
-                    and sha256_file(spec_path)
-                    == manifest["input_specification"]["sha256"]
-                    else "CHANGED"
-                )
-            }
+            specification_status = (
+                "MATCH"
+                if spec_path.stat().st_size
+                == manifest["input_specification"]["size"]
+                and sha256_file(spec_path)
+                == manifest["input_specification"]["sha256"]
+                else "CHANGED"
+            )
     except OSError:
-        specification_state = {"status": "ERROR"}
+        specification_status = "ERROR"
 
-    source_states = [
-        {
-            "member_id": member["member_id"],
-            "state": {
-                "status": _state_for_file(
+    source_states = tuple(
+        CorpusSourceState(
+            member_id=member["member_id"],
+            state=VerificationState(
+                _state_for_file(
                     Path(member["source"]["path"]), member["source"]
                 )
-            },
-        }
+            ),
+        )
         for member in manifest["members"]
-    ]
+    )
     model = manifest["configuration"]["model_inventory"]
     if not model["required"]:
-        model_state = {"status": "MATCH"}
+        model_status = "MATCH"
     else:
         try:
             current = inventory_models(Path(model["path"]), required=True)
-            model_state = {
-                "status": (
-                    "MATCH"
-                    if current["inventory_hash"] == model["inventory_hash"]
-                    else "CHANGED"
-                )
-            }
+            model_status = (
+                "MATCH"
+                if current["inventory_hash"] == model["inventory_hash"]
+                else "CHANGED"
+            )
         except RuntimeContractError:
-            model_state = {
-                "status": (
-                    "MISSING" if not Path(model["path"]).exists() else "ERROR"
-                )
-            }
-    revision_states = []
+            model_status = (
+                "MISSING" if not Path(model["path"]).exists() else "ERROR"
+            )
+    revision_states: list[CorpusRevisionState] = []
     report_directory = root / "report"
     for revision in manifest["revisions"]:
         states = {
@@ -1014,21 +1016,26 @@ def _advisories(
             for name in ("refinement", "diagnosis", "base")
         }
         revision_states.append(
-            {
-                "member_id": revision["member_id"],
-                "revision_id": revision["revision_id"],
-                "refinement_state": {"status": states["refinement"]},
-                "diagnosis_state": {"status": states["diagnosis"]},
-                "base_state": {"status": states["base"]},
-            }
+            CorpusRevisionState(
+                member_id=revision["member_id"],
+                revision_id=revision["revision_id"],
+                refinement_state=VerificationState(states["refinement"]),
+                diagnosis_state=VerificationState(states["diagnosis"]),
+                base_state=VerificationState(states["base"]),
+            )
         )
-    return specification_state, source_states, model_state, revision_states
+    return (
+        VerificationState(specification_status),
+        source_states,
+        VerificationState(model_status),
+        tuple(revision_states),
+    )
 
 
 def _verify_snapshot(
     manifest: dict[str, Any],
     specification: dict[str, Any],
-    issues: list[dict[str, Any]],
+    issues: list[VerificationIssue],
 ) -> None:
     from tiny_corpus_workbench.application.observation import (
         DOCLING_CONFIG,
@@ -1156,7 +1163,7 @@ def verify_corpus(
     spec_path: Path | None = None,
     *,
     _expected_run_id: str | None = None,
-) -> dict[str, Any]:
+) -> CorpusVerificationResult:
     """Verify one corpus run without repairing or regenerating its files."""
 
     root = Path(os.path.abspath(os.fspath(corpus_root)))
@@ -1168,7 +1175,7 @@ def verify_corpus(
         raise InputError(
             "CORPUS_DIRECTORY must be one local non-symlink directory"
         )
-    issues: list[dict[str, Any]] = []
+    issues: list[VerificationIssue] = []
     manifest: dict[str, Any] | None = None
     specification: dict[str, Any] | None = None
     summary: dict[str, Any] | None = None
@@ -1327,19 +1334,17 @@ def verify_corpus(
         "VERIFIED"
         if not issues
         else "BROKEN"
-        if any(issue["code"] in broken_codes for issue in issues)
+        if any(issue.code in broken_codes for issue in issues)
         else "INTEGRITY_MISMATCH"
     )
-    result = {
-        "corpus_directory": str(root.resolve()),
-        "artifact_integrity": {
-            "status": artifact_status,
-            "issues": issues,
-        },
-        "specification_state": specification_state,
-        "source_states": source_states,
-        "model_state": model_state,
-        "revision_states": revision_states,
-    }
-    _validator("corpus-verification-result.schema.json").validate(result)
-    return result
+    return CorpusVerificationResult(
+        corpus_directory=str(root.resolve()),
+        artifact_integrity=ArtifactIntegrity(
+            artifact_status,
+            tuple(issues),
+        ),
+        specification_state=specification_state,
+        source_states=source_states,
+        model_state=model_state,
+        revision_states=revision_states,
+    )

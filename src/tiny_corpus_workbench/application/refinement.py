@@ -8,6 +8,7 @@ from typing import Any
 
 from tiny_corpus_workbench.application.records import require_record_header
 from tiny_corpus_workbench.domain import IntegrityError, RuntimeContractError
+from tiny_corpus_workbench.verification_results import RefinementVerificationResult
 
 
 def _domain_callable(name: str) -> Any:
@@ -52,7 +53,7 @@ def verify_refinement(
     root: Path,
     diagnosis_root: Path | None = None,
     base_root: Path | None = None,
-) -> dict[str, Any]:
+) -> RefinementVerificationResult:
     return _domain_callable("verify_refinement")(root, diagnosis_root, base_root)
 
 

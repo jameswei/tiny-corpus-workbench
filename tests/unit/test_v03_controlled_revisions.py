@@ -652,9 +652,9 @@ class ControlledRevisionTests(unittest.TestCase):
                         source=source,
                     )
                     result = verify_refinement(revision, diagnosis, observation)
-                    self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
-                    self.assertEqual(result["derivation_state"]["status"], "MATCH")
-                    self.assertEqual(result["reversibility_state"]["status"], "MATCH")
+                    self.assertEqual(result.artifact_integrity.status, "VERIFIED")
+                    self.assertEqual(result.derivation_state.status, "MATCH")
+                    self.assertEqual(result.reversibility_state.status, "MATCH")
                     transformation = json.loads(
                         (revision / "transformation.json").read_text("utf-8")
                     )
@@ -666,13 +666,13 @@ class ControlledRevisionTests(unittest.TestCase):
                         broken, diagnosis, observation
                     )
                     self.assertEqual(
-                        broken_result["artifact_integrity"]["status"], "BROKEN"
+                        broken_result.artifact_integrity.status, "BROKEN"
                     )
                     self.assertEqual(
-                        broken_result["derivation_state"]["status"], "MATCH"
+                        broken_result.derivation_state.status, "MATCH"
                     )
                     self.assertEqual(
-                        broken_result["reversibility_state"]["status"],
+                        broken_result.reversibility_state.status,
                         "MISMATCH",
                     )
                     code, stdout, stderr = self.invoke(
@@ -736,24 +736,24 @@ class ControlledRevisionTests(unittest.TestCase):
             self.rewrite_proposal_identity_chain(forged, replace_edits)
             intrinsic = verify_refinement(forged)
             self.assertEqual(
-                intrinsic["artifact_integrity"]["status"], "VERIFIED"
+                intrinsic.artifact_integrity.status, "VERIFIED"
             )
             self.assertEqual(
-                intrinsic["derivation_state"]["status"], "NOT_CHECKED"
+                intrinsic.derivation_state.status, "NOT_CHECKED"
             )
             checked = verify_refinement(forged, diagnosis, observation)
             self.assertEqual(
-                checked["artifact_integrity"]["status"], "VERIFIED"
+                checked.artifact_integrity.status, "VERIFIED"
             )
             self.assertEqual(
-                checked["diagnosis_state"]["status"], "MATCH"
+                checked.diagnosis_state.status, "MATCH"
             )
-            self.assertEqual(checked["base_state"]["status"], "MATCH")
+            self.assertEqual(checked.base_state.status, "MATCH")
             self.assertEqual(
-                checked["derivation_state"]["status"], "MISMATCH"
+                checked.derivation_state.status, "MISMATCH"
             )
             self.assertEqual(
-                checked["reversibility_state"]["status"], "MISMATCH"
+                checked.reversibility_state.status, "MISMATCH"
             )
 
             code, stdout, stderr = self.invoke(
@@ -775,6 +775,27 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             self.assertEqual(code, 5)
             self.assertEqual(stderr, "")
+            expected = {
+                "refinement_directory": str(forged.resolve()),
+                "artifact_integrity": {
+                    "status": "VERIFIED",
+                    "issues": [],
+                },
+                "diagnosis_state": {"status": "MATCH"},
+                "base_state": {"status": "MATCH"},
+                "derivation_state": {"status": "MISMATCH"},
+                "reversibility_state": {"status": "MISMATCH"},
+            }
+            self.assertEqual(
+                stdout,
+                json.dumps(
+                    expected,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+            )
             self.assertEqual(
                 json.loads(stdout)["derivation_state"]["status"],
                 "MISMATCH",
@@ -833,19 +854,19 @@ class ControlledRevisionTests(unittest.TestCase):
                 forged_rejected, manifest, "decision.json"
             )
             self.assertEqual(
-                verify_refinement(forged_rejected)[
-                    "artifact_integrity"
-                ]["status"],
+                verify_refinement(
+                    forged_rejected
+                ).artifact_integrity.status,
                 "VERIFIED",
             )
             checked_rejected = verify_refinement(
                 forged_rejected, diagnosis, observation
             )
             self.assertEqual(
-                checked_rejected["artifact_integrity"]["status"], "BROKEN"
+                checked_rejected.artifact_integrity.status, "BROKEN"
             )
             self.assertEqual(
-                checked_rejected["derivation_state"]["status"],
+                checked_rejected.derivation_state.status,
                 "NOT_APPLICABLE",
             )
             code, stdout, stderr = self.invoke(
@@ -930,7 +951,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     self.refresh_descriptors(copied, manifest, *changed)
                     result = verify_refinement(copied, diagnosis, observation)
                     self.assertEqual(
-                        result["artifact_integrity"]["status"], "BROKEN"
+                        result.artifact_integrity.status, "BROKEN"
                     )
 
     def test_hash_consistent_base_and_refiner_relationship_tampering_exits_five(
@@ -943,7 +964,7 @@ class ControlledRevisionTests(unittest.TestCase):
             def assert_broken(record: Path) -> None:
                 result = verify_refinement(record)
                 self.assertEqual(
-                    result["artifact_integrity"]["status"], "BROKEN"
+                    result.artifact_integrity.status, "BROKEN"
                 )
                 code, stdout, stderr = self.invoke(
                     "verify-refinement", str(record)
@@ -1071,7 +1092,7 @@ class ControlledRevisionTests(unittest.TestCase):
             def assert_broken(record: Path) -> None:
                 result = verify_refinement(record)
                 self.assertEqual(
-                    result["artifact_integrity"]["status"], "BROKEN"
+                    result.artifact_integrity.status, "BROKEN"
                 )
                 code, stdout, stderr = self.invoke(
                     "verify-refinement", str(record)
@@ -1198,7 +1219,7 @@ class ControlledRevisionTests(unittest.TestCase):
                         canonical_json(manifest)
                     )
                     self.assertEqual(
-                        verify_refinement(copied)["artifact_integrity"]["status"],
+                        verify_refinement(copied).artifact_integrity.status,
                         "BROKEN",
                     )
 
@@ -1281,10 +1302,10 @@ class ControlledRevisionTests(unittest.TestCase):
                         copied, diagnosis, observation
                     )
                     self.assertEqual(
-                        result["artifact_integrity"]["status"], "VERIFIED"
+                        result.artifact_integrity.status, "VERIFIED"
                     )
                     self.assertEqual(
-                        result["base_state"]["status"], "CHANGED"
+                        result.base_state.status, "CHANGED"
                     )
                     code, stdout, stderr = self.invoke(
                         "verify-refinement",
@@ -1319,7 +1340,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 self.assertNotIn("format_version", value)
                 self.assertNotIn("schema_version", value)
             result = verify_refinement(revision, diagnosis, observation)
-            self.assertNotIn("schema_version", result)
+            self.assertNotIn("schema_version", result.to_json_object())
 
     def test_replay_requires_exact_diagnosis_and_base(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1331,17 +1352,17 @@ class ControlledRevisionTests(unittest.TestCase):
                 revision, root / "missing-diagnosis", observation
             )
             self.assertEqual(
-                missing_diagnosis["diagnosis_state"]["status"], "MISSING"
+                missing_diagnosis.diagnosis_state.status, "MISSING"
             )
             self.assertEqual(
-                missing_diagnosis["base_state"]["status"], "MATCH"
+                missing_diagnosis.base_state.status, "MATCH"
             )
             self.assertEqual(
-                missing_diagnosis["derivation_state"]["status"],
+                missing_diagnosis.derivation_state.status,
                 "NOT_CHECKED",
             )
             self.assertEqual(
-                missing_diagnosis["reversibility_state"]["status"],
+                missing_diagnosis.reversibility_state.status,
                 "NOT_CHECKED",
             )
             code, stdout, stderr = self.invoke(
@@ -1354,6 +1375,27 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             self.assertEqual(code, 5)
             self.assertEqual(stderr, "")
+            expected = {
+                "refinement_directory": str(revision.resolve()),
+                "artifact_integrity": {
+                    "status": "VERIFIED",
+                    "issues": [],
+                },
+                "diagnosis_state": {"status": "MISSING"},
+                "base_state": {"status": "MATCH"},
+                "derivation_state": {"status": "NOT_CHECKED"},
+                "reversibility_state": {"status": "NOT_CHECKED"},
+            }
+            self.assertEqual(
+                stdout,
+                json.dumps(
+                    expected,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+            )
             self.assertEqual(
                 json.loads(stdout)["diagnosis_state"]["status"], "MISSING"
             )
@@ -1362,14 +1404,14 @@ class ControlledRevisionTests(unittest.TestCase):
                 revision, diagnosis, root / "missing-base"
             )
             self.assertEqual(
-                missing_base["diagnosis_state"]["status"], "MATCH"
+                missing_base.diagnosis_state.status, "MATCH"
             )
-            self.assertEqual(missing_base["base_state"]["status"], "MISSING")
+            self.assertEqual(missing_base.base_state.status, "MISSING")
             self.assertEqual(
-                missing_base["derivation_state"]["status"], "NOT_CHECKED"
+                missing_base.derivation_state.status, "NOT_CHECKED"
             )
             self.assertEqual(
-                missing_base["reversibility_state"]["status"], "NOT_CHECKED"
+                missing_base.reversibility_state.status, "NOT_CHECKED"
             )
             code, stdout, stderr = self.invoke(
                 "verify-refinement",
@@ -1430,14 +1472,14 @@ class ControlledRevisionTests(unittest.TestCase):
                 revision, changed, observation
             )
             self.assertEqual(
-                changed_result["diagnosis_state"]["status"], "CHANGED"
+                changed_result.diagnosis_state.status, "CHANGED"
             )
-            self.assertEqual(changed_result["base_state"]["status"], "MATCH")
+            self.assertEqual(changed_result.base_state.status, "MATCH")
             self.assertEqual(
-                changed_result["derivation_state"]["status"], "NOT_CHECKED"
+                changed_result.derivation_state.status, "NOT_CHECKED"
             )
             self.assertEqual(
-                changed_result["reversibility_state"]["status"],
+                changed_result.reversibility_state.status,
                 "NOT_CHECKED",
             )
             code, stdout, stderr = self.invoke(
@@ -1470,8 +1512,8 @@ class ControlledRevisionTests(unittest.TestCase):
                 "TCW-D010",
             )
             baseline = verify_refinement(second, second_diagnosis, first)
-            self.assertEqual(baseline["artifact_integrity"]["status"], "VERIFIED")
-            self.assertEqual(baseline["base_state"]["status"], "MATCH")
+            self.assertEqual(baseline.artifact_integrity.status, "VERIFIED")
+            self.assertEqual(baseline.base_state.status, "MATCH")
 
             mutations = {
                 "revision_id": "f" * 64,
@@ -1490,13 +1532,13 @@ class ControlledRevisionTests(unittest.TestCase):
                         copied, second_diagnosis, first
                     )
                     self.assertEqual(
-                        result["artifact_integrity"]["status"], "BROKEN"
+                        result.artifact_integrity.status, "BROKEN"
                     )
                     self.assertNotEqual(
-                        result["base_state"]["status"], "MATCH"
+                        result.base_state.status, "MATCH"
                     )
                     self.assertEqual(
-                        result["derivation_state"]["status"], "NOT_CHECKED"
+                        result.derivation_state.status, "NOT_CHECKED"
                     )
 
             copied = self.copy_record(second, root / "parent-all")
@@ -1505,8 +1547,8 @@ class ControlledRevisionTests(unittest.TestCase):
             manifest["parent"].update(mutations)
             manifest_path.write_bytes(canonical_json(manifest))
             result = verify_refinement(copied, second_diagnosis, first)
-            self.assertEqual(result["artifact_integrity"]["status"], "BROKEN")
-            self.assertNotEqual(result["base_state"]["status"], "MATCH")
+            self.assertEqual(result.artifact_integrity.status, "BROKEN")
+            self.assertNotEqual(result.base_state.status, "MATCH")
 
     def test_supplied_relationship_format_failures_use_exact_cli_streams(
         self,
@@ -1775,7 +1817,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 observation, root / "diagnoses"
             )
             self.assertEqual(
-                verify_diagnosis(diagnosis, observation)["derivation_state"]["status"],
+                verify_diagnosis(diagnosis, observation).derivation_state.status,
                 "MATCH",
             )
             findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
@@ -1809,9 +1851,9 @@ class ControlledRevisionTests(unittest.TestCase):
             self.assertNotIn("runtime", refinement_manifest)
             self.assertNotIn("milestone", refinement_manifest)
             result = verify_refinement(revision, diagnosis, observation)
-            self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
-            self.assertEqual(result["derivation_state"]["status"], "MATCH")
-            self.assertEqual(result["reversibility_state"]["status"], "MATCH")
+            self.assertEqual(result.artifact_integrity.status, "VERIFIED")
+            self.assertEqual(result.derivation_state.status, "MATCH")
+            self.assertEqual(result.reversibility_state.status, "MATCH")
             code, _, stderr = self.invoke(
                 "verify-refinement",
                 str(revision),
@@ -1864,7 +1906,7 @@ class ControlledRevisionTests(unittest.TestCase):
             self.assertIsNone(manifest["revision_id"])
             self.assertFalse((record / "prepared").exists())
             self.assertEqual(
-                verify_refinement(record)["reversibility_state"]["status"],
+                verify_refinement(record).reversibility_state.status,
                 "NOT_APPLICABLE",
             )
             code, stdout, stderr = self.invoke(
@@ -1929,7 +1971,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 broken_chain, broken_manifest, "history.json"
             )
             self.assertEqual(
-                verify_refinement(broken_chain)["artifact_integrity"]["status"],
+                verify_refinement(broken_chain).artifact_integrity.status,
                 "BROKEN",
             )
 
@@ -1955,9 +1997,9 @@ class ControlledRevisionTests(unittest.TestCase):
                 changed_parent_history, diagnosis2, revision
             )
             self.assertEqual(
-                changed_result["artifact_integrity"]["status"], "VERIFIED"
+                changed_result.artifact_integrity.status, "VERIFIED"
             )
-            self.assertEqual(changed_result["base_state"]["status"], "CHANGED")
+            self.assertEqual(changed_result.base_state.status, "CHANGED")
 
             changed_diagnosis = root / "changed-diagnosis" / diagnosis2.name
             changed_diagnosis.parent.mkdir()

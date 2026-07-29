@@ -9,6 +9,7 @@ from typing import Any
 
 from tiny_corpus_workbench.application.records import require_record_header
 from tiny_corpus_workbench.domain import IntegrityError, RuntimeContractError
+from tiny_corpus_workbench.verification_results import DiagnosisVerificationResult
 
 
 def _domain_callable(name: str) -> Any:
@@ -35,7 +36,7 @@ def diagnose(root: Path, output_root: Path) -> Path:
 
 def verify_diagnosis(
     root: Path, subject_root: Path | None = None
-) -> dict[str, Any]:
+) -> DiagnosisVerificationResult:
     """Verify one diagnosis through the domain implementation."""
 
     return _domain_callable("verify_diagnosis")(root, subject_root)
@@ -60,7 +61,7 @@ def published_diagnosis_line(published: Path) -> dict[str, Any]:
         manifest = json.loads(manifest_path.read_text("utf-8"))
         require_record_header(manifest, "diagnosis")
         verification = verify_diagnosis(published)
-        if verification["artifact_integrity"]["status"] != "VERIFIED":
+        if verification.artifact_integrity.status != "VERIFIED":
             raise IntegrityError(
                 "published diagnosis manifest is unavailable or invalid"
             )
