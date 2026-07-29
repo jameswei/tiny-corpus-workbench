@@ -79,7 +79,7 @@ REFINERS = {
     },
 }
 REFINEMENT_ARTIFACTS = {
-    "decision.json": ("refinement-decision", "application/json"),
+    "proposal.json": ("refinement-proposal", "application/json"),
     "report.md": ("refinement-report", "text/markdown"),
     "transformation.json": ("transformation", "application/json"),
     "history.json": ("transformation-history", "application/json"),
@@ -187,9 +187,9 @@ def _write_exclusive(path: Path, data: bytes) -> None:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(data)
     except FileExistsError as error:
-        raise IntegrityError("decision file already exists") from error
+        raise IntegrityError("proposal file already exists") from error
     except OSError as error:
-        raise IntegrityError("decision file cannot be published") from error
+        raise IntegrityError("proposal file cannot be published") from error
 
 
 def _load_json_regular(path: Path, label: str) -> tuple[bytes, dict[str, Any]]:
@@ -206,11 +206,8 @@ def _load_json_regular(path: Path, label: str) -> tuple[bytes, dict[str, Any]]:
         raise InputError(f"{label} is unavailable or invalid") from error
 
 
-def _file_identity(path: Path) -> tuple[Any, ...]:
-    try:
-        metadata = path.lstat()
-        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-            raise OSError
+def _capture_proposal(path: Path) -> tuple[bytes, dict[str, Any], tuple[Any, ...]]:
+    def metadata_identity(metadata: os.stat_result) -> tuple[Any, ...]:
         return (
             metadata.st_dev,
             metadata.st_ino,
@@ -218,10 +215,48 @@ def _file_identity(path: Path) -> tuple[Any, ...]:
             metadata.st_size,
             metadata.st_mtime_ns,
             metadata.st_ctime_ns,
-            sha256_file(path),
         )
-    except OSError as error:
-        raise IntegrityError("decision file changed or became unavailable") from error
+
+    descriptor: int | None = None
+    try:
+        initial = path.lstat()
+        if stat.S_ISLNK(initial.st_mode) or not stat.S_ISREG(initial.st_mode):
+            raise OSError
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise OSError
+        chunks = []
+        while chunk := os.read(descriptor, 1024 * 1024):
+            chunks.append(chunk)
+        raw = b"".join(chunks)
+        after = os.fstat(descriptor)
+        final_path = path.lstat()
+        if (
+            stat.S_ISLNK(final_path.st_mode)
+            or not stat.S_ISREG(final_path.st_mode)
+            or metadata_identity(initial) != metadata_identity(before)
+            or metadata_identity(before) != metadata_identity(after)
+            or metadata_identity(after) != metadata_identity(final_path)
+        ):
+            raise IntegrityError("proposal file changed during capture")
+        identity = (*metadata_identity(before), hashlib.sha256(raw).hexdigest())
+        text = raw.decode("utf-8", errors="strict")
+        if text.startswith("\ufeff"):
+            raise ValueError
+        value = json.loads(text)
+        if not isinstance(value, dict):
+            raise ValueError
+        return raw, value, identity
+    except IntegrityError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+        raise InputError(
+            "PROPOSAL_FILE must be one strict UTF-8 non-symlink regular JSON file"
+        ) from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 
 def _observation_subject(root: Path) -> dict[str, Any]:
@@ -289,7 +324,7 @@ def _refinement_subject(root: Path) -> dict[str, Any]:
     report = verify_refinement(root)
     if report.artifact_integrity.status != "VERIFIED":
         raise InputError("refinement integrity is not verified")
-    if manifest["status"] != "APPLIED":
+    if manifest["decision"] != "APPROVED":
         raise InputError("a rejected refinement cannot be a diagnosis subject")
     document_bytes, payload = _load_json_regular(
         root / "prepared/document.json", "prepared document"
@@ -901,16 +936,12 @@ def draft_refinement(
     base_before = snapshot_tree(base_root)
     proposal, _ = _proposal(diagnosis_root, finding_id, base_root)
     proposal["draft_id"] = _draft_identity(proposal)
-    draft = {
-        "proposal": proposal,
-        "decision": {"state": "PENDING", "decided_by": None, "note": None},
-    }
-    _validate("refinement-draft", draft)
+    _validate("refinement-draft", proposal)
     _ensure_outside([diagnosis_root, base_root], output)
     if snapshot_tree(diagnosis_root) != diagnosis_before or snapshot_tree(base_root) != base_before:
         raise IntegrityError("refinement input changed during drafting")
-    _write_exclusive(output, canonical_json(draft))
-    return {"draft_id": proposal["draft_id"], "decision": str(output.resolve()), "state": "PENDING"}
+    _write_exclusive(output, canonical_json(proposal))
+    return {"draft_id": proposal["draft_id"], "proposal": str(output.resolve())}
 
 
 def _validate_membership_contract(value: Any) -> None:
@@ -1156,46 +1187,40 @@ def _json_bytes_like(
     raise IntegrityError("base document JSON serialization is unsupported")
 
 
-def _render_refinement(manifest: dict[str, Any], decision: dict[str, Any]) -> bytes:
+def _render_refinement(manifest: dict[str, Any], proposal: dict[str, Any]) -> bytes:
     lines = [
         "# Controlled Refinement",
         "",
-        f"- Status: `{manifest['status']}`",
-        f"- Draft ID: `{decision['proposal']['draft_id']}`",
-        f"- Finding: `{decision['proposal']['finding']['finding_id']}`",
-        f"- Refiner: `{decision['proposal']['refiner']['refiner_id']}`",
-        f"- Decided by: `{decision['decision']['decided_by']}`",
+        f"- Decision: `{manifest['decision']}`",
+        f"- Draft ID: `{proposal['draft_id']}`",
+        f"- Finding: `{proposal['finding']['finding_id']}`",
+        f"- Refiner: `{proposal['refiner']['refiner_id']}`",
     ]
     if manifest["revision_id"]:
         lines.append(f"- Revision ID: `{manifest['revision_id']}`")
-    if decision["decision"]["note"]:
-        lines.append(f"- Note: {decision['decision']['note']}")
     lines.extend(["", "The source, observation, diagnosis, base, and earlier revisions remain unchanged.", ""])
     return "\n".join(lines).encode()
 
 
 def resolve_refinement(
-    decision_file: Path,
+    proposal_file: Path,
     diagnosis_root: Path,
     base_root: Path,
     output_root: Path,
+    decision: str,
 ) -> Path:
-    decision_before = _file_identity(decision_file)
+    proposal_bytes, proposal, proposal_before = _capture_proposal(proposal_file)
     diagnosis_before = snapshot_tree(diagnosis_root)
     base_before = snapshot_tree(base_root)
-    _, draft = _load_json_regular(decision_file, "decision file")
-    _validate("refinement-draft", draft)
-    state = draft["decision"]["state"]
-    if state not in {"APPROVED", "REJECTED"}:
+    _validate("refinement-draft", proposal)
+    if decision not in {"APPROVED", "REJECTED"}:
         raise InputError("decision must be APPROVED or REJECTED")
-    if not draft["decision"]["decided_by"]:
-        raise InputError("decided_by is required for a resolved decision")
     expected, base = _proposal(
-        diagnosis_root, draft["proposal"]["finding"]["finding_id"], base_root
+        diagnosis_root, proposal["finding"]["finding_id"], base_root
     )
     expected["draft_id"] = _draft_identity(expected)
-    if draft["proposal"] != expected:
-        raise IntegrityError("draft proposal was modified or is stale")
+    if proposal != expected or proposal_bytes != canonical_json(expected):
+        raise IntegrityError("proposal was modified, non-canonical, or stale")
     now = datetime.now(UTC)
     run_id = f"{now.strftime('%Y%m%dT%H%M%S.%fZ')}-{uuid.uuid4().hex[:12]}"
     origin = _safe_component(base["origin_observation_id"], "observation ID")
@@ -1212,12 +1237,12 @@ def resolve_refinement(
         findings_bytes, _ = _load_json_regular(
             diagnosis_root / "findings.json", "finding set"
         )
-        finalized = copy.deepcopy(draft)
-        (staging / "decision.json").write_bytes(canonical_json(finalized))
+        (staging / "proposal.json").write_bytes(proposal_bytes)
         artifacts = []
         revision_id = None
         transformation = None
-        if state == "APPROVED":
+        history = None
+        if decision == "APPROVED":
             prepared_payload = _apply_edits(
                 base["payload"], expected["forward_edits"]
             )
@@ -1254,8 +1279,7 @@ def resolve_refinement(
                 },
                 "revision_id": revision_id,
                 "finding_id": expected["finding"]["finding_id"],
-                "decision_id": expected["draft_id"],
-                "decided_by": draft["decision"]["decided_by"],
+                "draft_id": expected["draft_id"],
                 "refiner": expected["refiner"],
                 "affected_refs": expected["affected_refs"],
                 "forward_edits": expected["forward_edits"],
@@ -1281,7 +1305,7 @@ def resolve_refinement(
             **record_header("refinement"),
             "run_id": run_id,
             "created_at": now.isoformat().replace("+00:00", "Z"),
-            "status": "APPLIED" if state == "APPROVED" else "REJECTED",
+            "decision": decision,
             "revision_id": revision_id,
             "origin_observation_id": base["origin_observation_id"],
             "origin_observation_run_id": base["origin_observation_run_id"],
@@ -1313,11 +1337,11 @@ def resolve_refinement(
                     "refinement_manifest_sha256": _hash(base["manifest_bytes"]),
                     "prepared_document_sha256": _hash(base["document_bytes"]),
                 }
-                if state == "APPROVED" and base_kind == "REFINEMENT"
+                if decision == "APPROVED" and base_kind == "REFINEMENT"
                 else None
             ),
         }
-        (staging / "report.md").write_bytes(_render_refinement(manifest, finalized))
+        (staging / "report.md").write_bytes(_render_refinement(manifest, proposal))
         for relative, (role, media_type) in REFINEMENT_ARTIFACTS.items():
             path = staging / relative
             if path.is_file():
@@ -1325,8 +1349,31 @@ def resolve_refinement(
         manifest["artifacts"] = artifacts
         (staging / "refinement-manifest.json").write_bytes(canonical_json(manifest))
         _validate("refinement-manifest", manifest)
-        if snapshot_tree(diagnosis_root) != diagnosis_before or snapshot_tree(base_root) != base_before or _file_identity(decision_file) != decision_before:
+        _verify_staged_refinement(
+            staging,
+            manifest,
+            proposal,
+            proposal_bytes,
+            transformation,
+            history,
+        )
+        final_bytes, final_proposal, final_identity = _capture_proposal(proposal_file)
+        if (
+            snapshot_tree(diagnosis_root) != diagnosis_before
+            or snapshot_tree(base_root) != base_before
+            or final_identity != proposal_before
+            or final_bytes != proposal_bytes
+            or final_proposal != proposal
+        ):
             raise IntegrityError("refinement input changed during resolution")
+        _verify_staged_refinement(
+            staging,
+            manifest,
+            proposal,
+            proposal_bytes,
+            transformation,
+            history,
+        )
         return _publish_directory(staging, destination)
     finally:
         if staging.exists():
@@ -1354,16 +1401,55 @@ def _inventory(root: Path) -> tuple[set[str], set[str], list[dict[str, Any]]]:
     return files, directories, issues
 
 
-def _validate_refinement_semantics(
+def _verify_staged_refinement(
     root: Path,
     manifest: dict[str, Any],
-    decision: dict[str, Any],
+    proposal: dict[str, Any],
+    proposal_bytes: bytes,
     transformation: dict[str, Any] | None,
     history: dict[str, Any] | None,
 ) -> None:
-    status = manifest["status"]
-    proposal = decision["proposal"]
-    decision_value = decision["decision"]
+    files, directories, issues = _inventory(root)
+    expected_files = {
+        "refinement-manifest.json",
+        *(item["path"] for item in manifest["artifacts"]),
+    }
+    expected_directories = (
+        {"prepared"} if manifest["decision"] == "APPROVED" else set()
+    )
+    if (
+        issues
+        or files != expected_files
+        or directories != expected_directories
+        or (root / "refinement-manifest.json").read_bytes()
+        != canonical_json(manifest)
+        or (root / "proposal.json").read_bytes() != proposal_bytes
+    ):
+        raise IntegrityError("staged refinement inventory changed")
+    for descriptor in manifest["artifacts"]:
+        path = root / descriptor["path"]
+        if (
+            path.stat().st_size != descriptor["size"]
+            or sha256_file(path) != descriptor["sha256"]
+        ):
+            raise IntegrityError("staged refinement artifact changed")
+    _validate_refinement_semantics(
+        root, manifest, proposal, transformation, history
+    )
+    if (root / "report.md").read_bytes() != _render_refinement(
+        manifest, proposal
+    ):
+        raise IntegrityError("staged refinement report changed")
+
+
+def _validate_refinement_semantics(
+    root: Path,
+    manifest: dict[str, Any],
+    proposal: dict[str, Any],
+    transformation: dict[str, Any] | None,
+    history: dict[str, Any] | None,
+) -> None:
+    decision = manifest["decision"]
     if proposal["draft_id"] != _draft_identity(proposal):
         raise IntegrityError("draft identity is inconsistent")
     if proposal["inverse_edits"] != _inverse_edits(proposal["forward_edits"]):
@@ -1404,16 +1490,16 @@ def _validate_refinement_semantics(
         or manifest["origin_observation_id"]
         != proposal["base"]["origin_observation_id"]
     ):
-        raise IntegrityError("decision and manifest references differ")
+        raise IntegrityError("proposal and manifest references differ")
 
     artifact_paths = [item["path"] for item in manifest["artifacts"]]
     expected_paths = (
         set(REFINEMENT_ARTIFACTS)
-        if status == "APPLIED"
-        else {"decision.json", "report.md"}
+        if decision == "APPROVED"
+        else {"proposal.json", "report.md"}
     )
     if len(artifact_paths) != len(set(artifact_paths)) or set(artifact_paths) != expected_paths:
-        raise IntegrityError("artifact inventory differs from refinement status")
+        raise IntegrityError("artifact inventory differs from refinement decision")
     for descriptor in manifest["artifacts"]:
         if (
             descriptor["role"],
@@ -1421,21 +1507,18 @@ def _validate_refinement_semantics(
         ) != REFINEMENT_ARTIFACTS[descriptor["path"]]:
             raise IntegrityError("artifact descriptor role differs")
 
-    if status == "REJECTED":
+    if decision == "REJECTED":
         if (
             manifest["revision_id"] is not None
-            or decision_value["state"] != "REJECTED"
-            or not decision_value["decided_by"]
             or transformation is not None
             or history is not None
+            or manifest["parent"] is not None
         ):
             raise IntegrityError("rejected refinement contract differs")
         return
 
     if (
         manifest["revision_id"] is None
-        or decision_value["state"] != "APPROVED"
-        or not decision_value["decided_by"]
         or transformation is None
         or history is None
     ):
@@ -1476,8 +1559,7 @@ def _validate_refinement_semantics(
         or transformation["parent"]["canonical_document_sha256"]
         != manifest["base"]["canonical_document_sha256"]
         or transformation["finding_id"] != proposal["finding"]["finding_id"]
-        or transformation["decision_id"] != proposal["draft_id"]
-        or transformation["decided_by"] != decision_value["decided_by"]
+        or transformation["draft_id"] != proposal["draft_id"]
         or transformation["refiner"] != proposal["refiner"]
         or transformation["affected_refs"] != proposal["affected_refs"]
         or transformation["forward_edits"] != proposal["forward_edits"]
@@ -1492,11 +1574,11 @@ def _validate_refinement_semantics(
         expected_revision_id = _revision_identity(
             item["parent"]["subject_id"],
             item["parent"]["canonical_document_sha256"],
-            item["decision_id"],
+            item["draft_id"],
             item["prepared_document_sha256"],
         )
         expected_transformation_id = _transformation_identity(
-            item["revision_id"], item["decision_id"], item["refiner"]
+            item["revision_id"], item["draft_id"], item["refiner"]
         )
         if (
             item["revision_id"] != expected_revision_id
@@ -1527,6 +1609,12 @@ def _validate_refinement_semantics(
     if canonical_json(prepared_payload) != prepared_bytes:
         raise IntegrityError("prepared document is not canonical")
     prepared_sha256 = _hash(prepared_bytes)
+    regenerated_document, regenerated_markdown = _prepared_bytes(prepared_payload)
+    if (
+        regenerated_document != prepared_bytes
+        or (root / "prepared/document.md").read_bytes() != regenerated_markdown
+    ):
+        raise IntegrityError("prepared document rendering differs")
     expected_revision_id = _revision_identity(
         manifest["base"]["identity_value"],
         manifest["base"]["canonical_document_sha256"],
@@ -1568,6 +1656,7 @@ def verify_diagnosis(
             raise IntegrityError("diagnosis identity differs")
         if findings["diagnosis_id"] != expected_diagnosis_id:
             raise IntegrityError("diagnosis identity is inconsistent")
+        diagnosis_status_field = "status"
         if (
             manifest["subject"]["identity_value"]
             != findings["subject"]["subject_id"]
@@ -1581,7 +1670,7 @@ def verify_diagnosis(
             )
             or manifest["summary"] != findings["summary"]
             or manifest["ruleset"] != {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH}
-            or manifest["status"]
+            or manifest[diagnosis_status_field]
             != ("FINDINGS" if findings["summary"]["total"] else "NO_FINDINGS")
         ):
             raise IntegrityError("diagnosis references differ")
@@ -1687,14 +1776,22 @@ def verify_refinement(
     base_root: Path | None = None,
 ) -> RefinementVerificationResult:
     files, directories, issues = _inventory(root)
-    manifest = decision = transformation = history = None
+    manifest = proposal = transformation = history = None
     try:
-        _, manifest = _load_json_regular(root / "refinement-manifest.json", "manifest")
-        _, decision = _load_json_regular(root / "decision.json", "decision")
+        manifest_bytes, manifest = _load_json_regular(
+            root / "refinement-manifest.json", "manifest"
+        )
+        proposal_bytes, proposal = _load_json_regular(
+            root / "proposal.json", "proposal"
+        )
         require_record_header(manifest, "refinement")
         _validate("refinement-manifest", manifest)
-        _validate("refinement-draft", decision)
-        if manifest["status"] == "APPLIED":
+        if manifest_bytes != canonical_json(manifest):
+            raise IntegrityError("refinement manifest is not canonical")
+        _validate("refinement-draft", proposal)
+        if proposal_bytes != canonical_json(proposal):
+            raise IntegrityError("proposal is not canonical")
+        if manifest["decision"] == "APPROVED":
             _, transformation = _load_json_regular(
                 root / "transformation.json", "transformation"
             )
@@ -1704,7 +1801,7 @@ def verify_refinement(
             issues.append({"code": "FILE_MISSING", "path": path, "message": "expected file is missing"})
         for path in sorted(files - expected):
             issues.append({"code": "FILE_UNEXPECTED", "path": path, "message": "file is not expected"})
-        allowed_dirs = {"prepared"} if manifest["status"] == "APPLIED" else set()
+        allowed_dirs = {"prepared"} if manifest["decision"] == "APPROVED" else set()
         for path in sorted(directories - allowed_dirs):
             issues.append({"code": "DIRECTORY_UNEXPECTED", "path": path, "message": "directory is not expected"})
         for descriptor in manifest["artifacts"]:
@@ -1714,11 +1811,21 @@ def verify_refinement(
                 or sha256_file(path) != descriptor["sha256"]
             ):
                 issues.append({"code": "HASH_MISMATCH", "path": descriptor["path"], "message": "descriptor differs"})
-        if root.name != manifest["run_id"] or decision["proposal"]["draft_id"] != manifest["draft_id"]:
+        if root.name != manifest["run_id"] or proposal["draft_id"] != manifest["draft_id"]:
             raise IntegrityError("refinement identity differs")
         _validate_refinement_semantics(
-            root, manifest, decision, transformation, history
+            root, manifest, proposal, transformation, history
         )
+        if (root / "report.md").read_bytes() != _render_refinement(
+            manifest, proposal
+        ):
+            issues.append(
+                {
+                    "code": "REPORT_INVALID",
+                    "path": "report.md",
+                    "message": "report differs",
+                }
+            )
     except RuntimeContractError:
         raise
     except (InputError, IntegrityError, OSError, KeyError, TypeError):
@@ -1727,7 +1834,7 @@ def verify_refinement(
     base_status = "NOT_CHECKED"
     derivation_status = (
         "NOT_APPLICABLE"
-        if manifest and manifest.get("status") == "REJECTED"
+        if manifest and manifest.get("decision") == "REJECTED"
         else "NOT_CHECKED"
     )
     reversibility_status = derivation_status
@@ -1753,7 +1860,7 @@ def verify_refinement(
                     raise IntegrityError(
                         "supplied diagnosis integrity is not verified"
                     )
-                proposal_finding = decision["proposal"]["finding"]
+                proposal_finding = proposal["finding"]
                 exact_findings = [
                     finding
                     for finding in finding_set["findings"]
@@ -1763,7 +1870,7 @@ def verify_refinement(
                 diagnosis_matches = (
                     diagnosis_manifest["diagnosis_id"]
                     == manifest["diagnosis"]["diagnosis_id"]
-                    == decision["proposal"]["diagnosis_id"]
+                    == proposal["diagnosis_id"]
                     and diagnosis_manifest["run_id"]
                     == manifest["diagnosis"]["run_id"]
                     and _hash(
@@ -1775,7 +1882,7 @@ def verify_refinement(
                     and _hash((diagnosis_root / "findings.json").read_bytes())
                     == manifest["diagnosis"]["findings_artifact_sha256"]
                     and finding_set["diagnosis_id"]
-                    == decision["proposal"]["diagnosis_id"]
+                    == proposal["diagnosis_id"]
                     and len(exact_findings) == 1
                 )
                 diagnosis_status = "MATCH" if diagnosis_matches else "CHANGED"
@@ -1825,7 +1932,7 @@ def verify_refinement(
                         ),
                     }
                     if base["kind"] == "REVISION"
-                    and manifest["status"] == "APPLIED"
+                    and manifest["decision"] == "APPROVED"
                     else None
                 )
                 base_matches = (
@@ -1839,7 +1946,7 @@ def verify_refinement(
                 )
                 if (
                     base_matches
-                    and manifest["status"] == "APPLIED"
+                    and manifest["decision"] == "APPROVED"
                     and history is not None
                     and base["history"] != history["transformations"][:-1]
                 ):
@@ -1860,38 +1967,38 @@ def verify_refinement(
         if (
             diagnosis_matches
             and base_matches
-            and decision is not None
+            and proposal is not None
             and base is not None
         ):
             try:
                 expected_proposal, _ = _proposal(
                     diagnosis_root,
-                    decision["proposal"]["finding"]["finding_id"],
+                    proposal["finding"]["finding_id"],
                     base_root,
                 )
             except RuntimeContractError:
                 raise
             except Exception:
                 expected_proposal_error = True
-            if manifest["status"] == "REJECTED" and (
+            if manifest["decision"] == "REJECTED" and (
                 expected_proposal_error
                 or expected_proposal is None
-                or decision["proposal"]["forward_edits"]
+                or proposal["forward_edits"]
                 != expected_proposal["forward_edits"]
-                or decision["proposal"]["inverse_edits"]
+                or proposal["inverse_edits"]
                 != expected_proposal["inverse_edits"]
             ):
                 issues.append(
                     {
                         "code": "MANIFEST_INVALID",
-                        "path": "decision.json",
+                        "path": "proposal.json",
                         "message": "refinement edits differ from the selected refiner",
                     }
                 )
         if (
             diagnosis_matches
             and base_matches
-            and manifest["status"] == "APPLIED"
+            and manifest["decision"] == "APPROVED"
             and transformation is not None
             and base is not None
         ):

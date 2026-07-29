@@ -184,6 +184,38 @@ def verify(root: Path) -> None:
     )
     _require(Path("README.md"), readme, "does not ship", "delivery limit")
 
+    controlled = usage_documents[Path("docs/controlled-revisions.md")]
+    for phrase, topic in (
+        ("Inspect `proposal.json`. Do not edit it.", "proposal inspection"),
+        ("--approve", "approval flag"),
+        ("--reject", "rejection flag"),
+        ("only machine-authoritative persisted decision field", "decision authority"),
+        ("path: proposal.json", "proposal path"),
+        ("role: refinement-proposal", "proposal role"),
+        ("media_type: application/json", "proposal media type"),
+        ("An approved publication contains", "approved inventory"),
+        ("A rejected publication contains", "rejected inventory"),
+        ("non-authoritative human rendering", "derived report"),
+        ("Only a record with manifest decision `APPROVED`", "corpus eligibility"),
+    ):
+        _require(Path("docs/controlled-revisions.md"), controlled, phrase, topic)
+
+    corpus = usage_documents[Path("docs/corpus-inspection-comparison.md")]
+    _require(
+        Path("docs/corpus-inspection-comparison.md"),
+        corpus,
+        "does not copy the approval decision",
+        "corpus decision isolation",
+    )
+
+    workbench = usage_documents[Path("docs/local-visual-workbench.md")]
+    _require(
+        Path("docs/local-visual-workbench.md"),
+        workbench,
+        "only from `refinement-manifest.json.decision`",
+        "workbench decision derivation",
+    )
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(

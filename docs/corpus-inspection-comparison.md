@@ -72,7 +72,7 @@ specification, sources, model inventory, and revision bundles.
 
 ## Optional revision comparison
 
-A member can list an existing applied revision:
+A member can list an existing approved revision:
 
 ```json
 {
@@ -90,14 +90,19 @@ A member can list an existing applied revision:
 }
 ```
 
-The three paths form one verification bundle. The refinement must have status
-`APPLIED`. Artifact integrity, diagnosis state, base state, derivation, and
-reversibility must all verify. The source hash and media type must match the
-corpus member.
+The three paths form one verification bundle. The refinement manifest decision
+must be `APPROVED`, its revision ID must be non-null, and its approved artifact
+inventory must be exact. Artifact integrity, diagnosis state, base state,
+derivation, and reversibility must all verify. The source hash and media type
+must match the corpus member.
 
-A rejected decision is not a revision because it has no prepared document.
+A rejected refinement is not a revision because it has no prepared document.
 Corpus inspection reads verified revisions. It does not call a refinement
 draft or resolution function.
+
+Persisted corpus JSON can reference eligible refinement evidence. It does not copy the approval decision.
+The refinement manifest remains the only persisted
+structured decision authority.
 
 ## Execution and output
 

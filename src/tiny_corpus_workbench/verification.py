@@ -544,7 +544,8 @@ def verify_observation(
         issues.extend(_docling_document_schema_issues(root, manifest, actual_files))
 
         overall, comparison_status = _expected_statuses(manifest)
-        if manifest["status"] != overall or manifest["comparison"]["status"] != comparison_status:
+        observation_status_field = "status"
+        if manifest[observation_status_field] != overall or manifest["comparison"]["status"] != comparison_status:
             issues.append(_issue("STATUS_MISMATCH", None, "manifest statuses are inconsistent"))
         for result in manifest["extractors"]:
             expected_count = 2 if result["name"] == "docling" else 1

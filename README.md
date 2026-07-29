@@ -121,7 +121,7 @@ corpus diagnose OBSERVATION_DIRECTORY
 ```
 
 Set `DIAGNOSIS_DIRECTORY` to the parent directory of the diagnosis `manifest`
-path. Choose one supported `FINDING_ID`, then draft a decision:
+path. Choose one supported `FINDING_ID`, then draft a canonical proposal:
 
 ```bash
 corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
@@ -129,16 +129,17 @@ corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
 corpus draft-refinement DIAGNOSIS_DIRECTORY \
   --finding FINDING_ID \
   --base OBSERVATION_DIRECTORY \
-  --output decision.json
+  --output proposal.json
 ```
 
-Edit only `decision.state`, `decision.decided_by`, and the optional
-`decision.note`. An approved decision can then publish one successor:
+Inspect `proposal.json`, but do not edit it. Supply the human decision with
+exactly one resolution flag:
 
 ```bash
-corpus resolve-refinement decision.json \
+corpus resolve-refinement proposal.json \
   --diagnosis DIAGNOSIS_DIRECTORY \
-  --base OBSERVATION_DIRECTORY
+  --base OBSERVATION_DIRECTORY \
+  --approve
 corpus verify-refinement REFINEMENT_DIRECTORY \
   --diagnosis DIAGNOSIS_DIRECTORY \
   --base OBSERVATION_DIRECTORY
@@ -155,7 +156,7 @@ Open the printed local address. Stop the server with `Ctrl-C`.
 ## Records and their roles
 
 Record-producing commands publish a new directory and do not overwrite a
-previous publication. `draft-refinement` writes the requested decision file.
+previous publication. `draft-refinement` writes the requested proposal file.
 Verify commands read records and report results. `workbench` serves admitted
 records without publishing a record.
 
@@ -163,7 +164,7 @@ records without publishing a record.
 | --- | --- | --- |
 | Observation | `manifest.json`, `comparison.json`, and extractor artifacts only when that extractor produced them | Preserves source identity, extractor results, canonical content when available, and descriptive differences. |
 | Diagnosis | `diagnosis-manifest.json`, `findings.json`, `report.md` | Records deterministic findings and human-readable evidence without changing the document. |
-| Refinement | `refinement-manifest.json`, `decision.json`, `report.md`, and, when approved, transformation, history, and prepared-document files | Records the decision and either no revision or one reversible successor. |
+| Refinement | `refinement-manifest.json`, `proposal.json`, `report.md`, and, when approved, transformation, history, and prepared-document files | Records the manifest decision and either no revision or one reversible successor. |
 | Corpus | `corpus-manifest.json`, `corpus-spec.json`, `summary.json`, a static report, and contained member evidence | Aggregates source-text-free counts, findings, extractor deltas, and listed revision histories. |
 
 The lossless Docling JSON is the canonical content. Derived Markdown helps
@@ -194,9 +195,11 @@ Diagnosis publishes a separate immutable record. It does not repair a document
 or authorize a change. `NO_FINDINGS` means only that none of the ten fixed
 rules matched.
 
-An `APPROVED` decision creates one prepared revision. A `REJECTED` decision
-records the decision and creates no prepared document. Diagnose each approved
-revision before drafting its successor.
+`refinement-manifest.json.decision` is the only persisted structured decision
+authority. `--approve` creates one prepared revision. `--reject` records a
+rejection and creates no prepared document. Proposal state `REQUESTED` and
+transformation state `APPLIED` are lifecycle facts, not decision authority.
+Diagnose each approved revision before drafting its successor.
 
 Original sources and raw extraction artifacts remain unchanged. Observation
 and refinement run locally. OCR, plugins, remote extraction services, and LLM

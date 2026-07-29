@@ -8,7 +8,7 @@
     "format_version",
     "run_id",
     "created_at",
-    "status",
+    "decision",
     "revision_id",
     "origin_observation_id",
     "origin_observation_run_id",
@@ -24,7 +24,7 @@
     "format_version": {"const": 1},
     "run_id": {"type": "string", "minLength": 1},
     "created_at": {"type": "string", "format": "date-time"},
-    "status": {"enum": ["APPLIED", "REJECTED"]},
+    "decision": {"enum": ["APPROVED", "REJECTED"]},
     "revision_id": {
       "oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]
     },
@@ -71,7 +71,7 @@
   },
   "allOf": [
     {
-      "if": {"properties": {"status": {"const": "APPLIED"}}},
+      "if": {"properties": {"decision": {"const": "APPROVED"}}},
       "then": {
         "properties": {
           "revision_id": {"$ref": "#/$defs/hash"},
@@ -97,7 +97,7 @@
     {
       "if": {
         "properties": {
-          "status": {"const": "APPLIED"},
+          "decision": {"const": "APPROVED"},
           "base": {"properties": {"kind": {"const": "REFINEMENT"}}}
         }
       },

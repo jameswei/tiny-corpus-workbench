@@ -155,18 +155,21 @@ def parser() -> argparse.ArgumentParser:
         "--subject", metavar="DOCUMENT_DIRECTORY", type=Path
     )
     draft = commands.add_parser(
-        "draft-refinement", help="draft one explicit refinement decision"
+        "draft-refinement", help="draft one canonical refinement proposal"
     )
     draft.add_argument("diagnosis_directory", metavar="DIAGNOSIS_DIRECTORY", type=Path)
     draft.add_argument("--finding", required=True, metavar="FINDING_ID")
     draft.add_argument("--base", required=True, metavar="BASE_DIRECTORY", type=Path)
-    draft.add_argument("--output", required=True, metavar="DECISION_FILE", type=Path)
+    draft.add_argument("--output", required=True, metavar="PROPOSAL_FILE", type=Path)
     resolve = commands.add_parser(
         "resolve-refinement", help="publish one approved or rejected refinement"
     )
-    resolve.add_argument("decision_file", metavar="DECISION_FILE", type=Path)
+    resolve.add_argument("proposal_file", metavar="PROPOSAL_FILE", type=Path)
     resolve.add_argument("--diagnosis", required=True, metavar="DIAGNOSIS_DIRECTORY", type=Path)
     resolve.add_argument("--base", required=True, metavar="BASE_DIRECTORY", type=Path)
+    resolution = resolve.add_mutually_exclusive_group(required=True)
+    resolution.add_argument("--approve", action="store_true")
+    resolution.add_argument("--reject", action="store_true")
     resolve.add_argument(
         "--output-root", type=Path, default=Path("build/controlled-revisions")
     )
@@ -392,7 +395,11 @@ def main(argv: list[str] | None = None) -> int:
                 return int(ExitCode.SUCCESS)
             if args.command == "resolve-refinement":
                 published = resolve_refinement(
-                    args.decision_file, args.diagnosis, args.base, args.output_root
+                    args.proposal_file,
+                    args.diagnosis,
+                    args.base,
+                    args.output_root,
+                    "APPROVED" if args.approve else "REJECTED",
                 )
                 print(
                     json.dumps(

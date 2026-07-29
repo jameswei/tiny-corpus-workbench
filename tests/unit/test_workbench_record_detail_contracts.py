@@ -87,7 +87,7 @@ class WorkbenchRecordDetailContractTests(unittest.TestCase):
         self.assertTrue(
             any(
                 detail["kind"] == "REFINEMENT"
-                and detail["view"]["decision"]["state"] == "REJECTED"
+                and detail["view"]["decision"] == "REJECTED"
                 for detail in details
             )
         )
@@ -156,7 +156,12 @@ class WorkbenchRecordDetailContractTests(unittest.TestCase):
         refinements = [
             value["view"] for value in details if value["kind"] == "REFINEMENT"
         ]
-        by_state = {value["decision"]["state"]: value for value in refinements}
+        by_state = {value["decision"]: value for value in refinements}
+        for value in refinements:
+            self.assertEqual(
+                set(value["proposal"]),
+                {"draft_id", "finding_id", "refiner"},
+            )
         self.assertEqual(by_state["APPROVED"]["derivation_state"], "MATCH")
         self.assertTrue(by_state["APPROVED"]["transformations"])
         self.assertEqual(

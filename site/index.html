@@ -153,9 +153,9 @@ uv run docling-tools models download layout tableformer --output-dir .cache/docl
       <p><strong>Usage after activating <code>.venv</code></strong></p>
       <pre class="command-block"><code>corpus observe fixtures/golden/policy-memo.pdf
 corpus diagnose OBSERVATION_DIRECTORY
-corpus draft-refinement DIAGNOSIS_DIRECTORY --finding FINDING_ID --base OBSERVATION_DIRECTORY --output decision.json
-# Edit only the decision fields, then:
-corpus resolve-refinement decision.json --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
+corpus draft-refinement DIAGNOSIS_DIRECTORY --finding FINDING_ID --base OBSERVATION_DIRECTORY --output proposal.json
+# Inspect the proposal without editing it, then choose one flag:
+corpus resolve-refinement proposal.json --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY --approve
 corpus verify-refinement REFINEMENT_DIRECTORY --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
 corpus inspect fixtures/corpus/golden-matrix.json
 corpus verify-corpus CORPUS_DIRECTORY --spec fixtures/corpus/golden-matrix.json

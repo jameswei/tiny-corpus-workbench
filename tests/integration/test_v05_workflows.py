@@ -15,7 +15,7 @@ from tiny_corpus_workbench.v03 import (
 
 
 class V05RefinementWorkflowTests(unittest.TestCase):
-    def decision(
+    def proposal(
         self,
         diagnosis: Path,
         base: Path,
@@ -31,16 +31,6 @@ class V05RefinementWorkflowTests(unittest.TestCase):
             if item["rule_id"] == rule_id
         )
         draft_refinement(diagnosis, finding_id, base, output)
-        draft = json.loads(output.read_text("utf-8"))
-        draft["decision"] = {
-            "state": state,
-            "decided_by": "integration-owner",
-            "note": "v0.5 workflow",
-        }
-        output.write_text(
-            json.dumps(draft, sort_keys=True, separators=(",", ":")) + "\n",
-            "utf-8",
-        )
         return output
 
     def test_approved_rejected_and_chained_records_verify(self) -> None:
@@ -63,17 +53,18 @@ class V05RefinementWorkflowTests(unittest.TestCase):
             self.assertEqual(int(code), 0)
             first_diagnosis = diagnose(observation, root / "diagnoses")
 
-            approved_decision = self.decision(
+            approved_proposal = self.proposal(
                 first_diagnosis,
                 observation,
                 root / "approved.json",
                 state="APPROVED",
             )
             first_revision = resolve_refinement(
-                approved_decision,
+                approved_proposal,
                 first_diagnosis,
                 observation,
                 root / "revisions",
+                "APPROVED",
             )
             approved = verify_refinement(
                 first_revision, first_diagnosis, observation
@@ -82,17 +73,18 @@ class V05RefinementWorkflowTests(unittest.TestCase):
             self.assertEqual(approved.derivation_state.status, "MATCH")
             self.assertEqual(approved.reversibility_state.status, "MATCH")
 
-            rejected_decision = self.decision(
+            rejected_proposal = self.proposal(
                 first_diagnosis,
                 observation,
                 root / "rejected.json",
                 state="REJECTED",
             )
             rejected_revision = resolve_refinement(
-                rejected_decision,
+                rejected_proposal,
                 first_diagnosis,
                 observation,
                 root / "rejected-revisions",
+                "REJECTED",
             )
             rejected = verify_refinement(
                 rejected_revision, first_diagnosis, observation
@@ -114,7 +106,7 @@ class V05RefinementWorkflowTests(unittest.TestCase):
                 ),
                 1,
             )
-            chained_decision = self.decision(
+            chained_proposal = self.proposal(
                 second_diagnosis,
                 first_revision,
                 root / "chained.json",
@@ -122,10 +114,11 @@ class V05RefinementWorkflowTests(unittest.TestCase):
                 rule_id="TCW-D009",
             )
             second_revision = resolve_refinement(
-                chained_decision,
+                chained_proposal,
                 second_diagnosis,
                 first_revision,
                 root / "chained-revisions",
+                "APPROVED",
             )
             chained = verify_refinement(
                 second_revision, second_diagnosis, first_revision

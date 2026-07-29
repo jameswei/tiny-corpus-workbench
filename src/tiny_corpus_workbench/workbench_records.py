@@ -60,7 +60,7 @@ ALLOWED_ROLES = {
     "markitdown-markdown",
     "diagnostic-findings",
     "diagnostic-report",
-    "refinement-decision",
+    "refinement-proposal",
     "refinement-report",
     "transformation",
     "transformation-history",
@@ -419,12 +419,17 @@ def admit_record(
             top_level=backing.top_level,
         )
     )
+    record_status_field = "status"
     result = AdmittedRecord(
         kind=kind,
         schema_version=schema,
         identity=identity,
         run_id=manifest["run_id"],
-        status=manifest["status"],
+        status=(
+            manifest["decision"]
+            if kind == "REFINEMENT"
+            else manifest[record_status_field]
+        ),
         manifest_name=name,
         manifest=manifest,
         manifest_bytes=before,

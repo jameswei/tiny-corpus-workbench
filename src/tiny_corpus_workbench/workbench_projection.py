@@ -338,7 +338,11 @@ def _record_edges(records: AdmittedRecords, record: AdmittedRecord) -> list[dict
             checked = _verify_refinement_frozen(
                 record, diagnosis_record, base_record
             )
-            expected = "MATCH" if manifest["status"] == "APPLIED" else "NOT_APPLICABLE"
+            expected = (
+                "MATCH"
+                if manifest["decision"] == "APPROVED"
+                else "NOT_APPLICABLE"
+            )
             if (
                 checked.artifact_integrity.status != "VERIFIED"
                 or checked.diagnosis_state.status != "MATCH"
@@ -587,8 +591,8 @@ def _refinement_detail(
 ) -> dict[str, Any]:
     manifest = record.manifest
     by_relation = {item["relation"]: item for item in edges}
-    decision_file = _artifact_json(record, "refinement-decision")
-    approved = manifest["status"] == "APPLIED"
+    proposal = _artifact_json(record, "refinement-proposal")
+    approved = manifest["decision"] == "APPROVED"
     both = (
         by_relation["REFINEMENT_DIAGNOSIS"]["state"] == "MATCH"
         and by_relation["REFINEMENT_BASE"]["state"] == "MATCH"
@@ -627,7 +631,12 @@ def _refinement_detail(
     state = "MATCH" if both else "NOT_CHECKED"
     return {
         "source": _compact_source(manifest["source"]),
-        "decision": copy.deepcopy(decision_file["decision"]),
+        "decision": manifest["decision"],
+        "proposal": {
+            "draft_id": proposal["draft_id"],
+            "finding_id": proposal["finding"]["finding_id"],
+            "refiner": copy.deepcopy(proposal["refiner"]),
+        },
         "diagnosis_state": (
             "MATCH" if by_relation["REFINEMENT_DIAGNOSIS"]["state"] == "MATCH" else "NOT_CHECKED"
         ),

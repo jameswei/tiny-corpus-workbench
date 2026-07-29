@@ -290,8 +290,8 @@ def _admit_revision(
             roots["refinement"] / "refinement-manifest.json",
             "refinement manifest",
         )
-        if manifest.get("status") != "APPLIED" or not manifest.get("revision_id"):
-            raise InputError("revision bundle must identify one applied refinement")
+        if manifest.get("decision") != "APPROVED" or not manifest.get("revision_id"):
+            raise InputError("revision bundle must identify one approved refinement")
         source = manifest.get("source")
         if not isinstance(source, dict) or (
             source.get("sha256") != member_source["sha256"]

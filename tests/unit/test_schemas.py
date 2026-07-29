@@ -270,21 +270,12 @@ class SchemaTests(unittest.TestCase):
                 }
             )
 
-        decision_validator = Draft202012Validator(
-            draft["properties"]["decision"]
+        self.assertNotIn("decision", draft["properties"])
+        self.assertEqual(
+            manifest["properties"]["decision"]["enum"],
+            ["APPROVED", "REJECTED"],
         )
-        decision_validator.validate(
-            {"state": "PENDING", "decided_by": None, "note": None}
-        )
-        decision_validator.validate(
-            {"state": "APPROVED", "decided_by": "owner", "note": None}
-        )
-        for invalid in (
-            {"state": "PENDING", "decided_by": "owner", "note": None},
-            {"state": "REJECTED", "decided_by": None, "note": None},
-        ):
-            with self.assertRaises(ValidationError):
-                decision_validator.validate(invalid)
+        self.assertNotIn("status", manifest["properties"])
 
         edit_validator = Draft202012Validator(
             {"$ref": "#/$defs/edit", "$defs": draft["$defs"]}
