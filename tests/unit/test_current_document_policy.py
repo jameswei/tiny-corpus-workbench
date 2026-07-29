@@ -21,6 +21,8 @@ POLICY_PATHS = (
     Path("docs/evidence-based-diagnosis.md"),
     Path("docs/extraction-observatory.md"),
     Path("docs/local-visual-workbench.md"),
+    Path("docs/plans/v0.5-learning-first-correction-ledger.md"),
+    Path("docs/plans/v0.5-pre-release-amendment-ledger.md"),
     Path("docs/roadmap.md"),
     Path("docs/releases/v0.5.0.md"),
     Path("fixtures/README.md"),
@@ -64,6 +66,57 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertEqual(result.stdout, "")
             self.assertIn(relative.as_posix(), result.stderr)
+            self.assertIn(topic, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertLessEqual(len(result.stderr.splitlines()), 1)
+
+    def assert_replacement_failure(
+        self,
+        relative: Path,
+        old: str,
+        new: str,
+        topic: str,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.copied_policy_tree(root)
+            target = root / relative
+            text = target.read_text("utf-8")
+            self.assertIn(old, text)
+            target.write_text(text.replace(old, new, 1), "utf-8")
+            result = self.invoke(root)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.stdout, "")
+            self.assertIn(relative.as_posix(), result.stderr)
+            self.assertIn(topic, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertLessEqual(len(result.stderr.splitlines()), 1)
+
+    def assert_association_failure(
+        self,
+        relative: Path,
+        old: str,
+        new: str,
+        retained_fact: str,
+        row_label: str,
+        topic: str,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.copied_policy_tree(root)
+            target = root / relative
+            text = target.read_text("utf-8")
+            self.assertEqual(text.count(old), 1)
+            target.write_text(
+                text.replace(old, new, 1)
+                + f"\nUnrelated retained evidence: {retained_fact}\n",
+                "utf-8",
+            )
+            result = self.invoke(root)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.stdout, "")
+            self.assertIn(relative.as_posix(), result.stderr)
+            self.assertIn(row_label, result.stderr)
             self.assertIn(topic, result.stderr)
             self.assertNotIn("Traceback", result.stderr)
             self.assertLessEqual(len(result.stderr.splitlines()), 1)
@@ -123,6 +176,249 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
             "\nStatus: Released\n",
             "released v0.5 claim",
         )
+
+    def test_closeout_documents_contain_independent_expected_facts(self) -> None:
+        expected = {
+            Path("CURRENT.md"): (
+                "The v0.5 learning-first correction is complete and merged.",
+                "9780d87faf1337e4c8acf28ea2e704b39fcb402e",
+                "8b04885a9471091cdfce17560e395a2d103d2806",
+                "c80842cec401d6110ad60ccac696cebb1028d640",
+                "v0.5 is unreleased.",
+                "Tag and GitHub Release creation are not authorized.",
+            ),
+            Path("docs/plans/v0.5-learning-first-correction-ledger.md"): (
+                "Overall correction status: `complete`",
+                "PR #26",
+                "9780d87faf1337e4c8acf28ea2e704b39fcb402e",
+                "8b04885a9471091cdfce17560e395a2d103d2806",
+                "30376868533",
+                "30377410412",
+                "30377410609",
+                "`PASS`",
+            ),
+            Path("docs/plans/v0.5-pre-release-amendment-ledger.md"): (
+                "Overall implementation and integration status: `complete`",
+                "729bb89d5ad82db09851c5602a985e7b9d4f7d5c",
+                "bb4341f6a995a702a89f9bfb6f0873c4671f06f6",
+                "30452529395",
+                "30453075126",
+                "30453075891",
+                "e256fe20897c20399ccbf6a2bb9fad8acfdd43cc",
+                "a829991ded2e6203122e428a990f9893e4c0b41d",
+                "30457725350",
+                "30460335836",
+                "30460335643",
+                "ebbe06a20917b2a0d8f16433a09b009ec37ff8b6",
+                "c03b70ed04dc07f9d5f94e53ca944814ec61f08d",
+                "30468716510",
+                "30470529695",
+                "30470529661",
+                "59fc1df7ef26f914bc828df6a6bd3edc8d3298e0",
+                "c80842cec401d6110ad60ccac696cebb1028d640",
+                "30472255094",
+                "30472763206",
+                "30472763290",
+                "Fresh independent reviewer returned `PASS` with zero findings",
+                "All 169 focused unit tests and 8 integration tests passed",
+                "Tag and GitHub Release: `not authorized`",
+                "Remaining closeout gates: independent review of this closeout candidate; "
+                "hosted CI and Pages for its exact head; authorized merge; post-main CI "
+                "and Pages.",
+                "fresh release-readiness review must review the exact post-closeout "
+                "`main` SHA",
+                "separate owner authorization for that exact SHA",
+            ),
+            Path("docs/releases/v0.5.0.md"): (
+                "four verifier outputs",
+                "dependency-free frozen Python dataclasses",
+                "deterministic compact JSON on standard output",
+                "no verification-result JSON Schemas",
+                "11 retained self-contained JSON Schemas",
+                "canonical proposal-only `proposal.json`",
+                "exactly one of `--approve` or `--reject`",
+                "manifest decision is the only persisted structured authority",
+                "There is no actor, note, manifest status, or `decision.json`",
+                "only fully verified approved revisions",
+                "read-only local internal bridge",
+                "source-only",
+                "v0.5 remains unreleased",
+            ),
+        }
+        for relative, markers in expected.items():
+            text = (REPOSITORY / relative).read_text("utf-8")
+            for marker in markers:
+                with self.subTest(relative=relative.as_posix(), marker=marker):
+                    self.assertIn(marker, text)
+
+    def test_rejects_stale_correction_closeout_status(self) -> None:
+        self.assert_replacement_failure(
+            Path("docs/plans/v0.5-learning-first-correction-ledger.md"),
+            "Overall correction status: `complete`",
+            "Overall status: `building`",
+            "complete correction status",
+        )
+        self.assert_replacement_failure(
+            Path("docs/plans/v0.5-learning-first-correction-ledger.md"),
+            "| PR 9 — Rewrite current documentation and close the correction | "
+            "`452fcd2d8ca39bbb5b92d20d1a7996588baf8ad5` | `complete` |",
+            "| PR 9 — Rewrite current documentation and close the correction | "
+            "`452fcd2d8ca39bbb5b92d20d1a7996588baf8ad5` | `reviewing` |",
+            "complete status",
+        )
+
+    def test_rejects_false_release_authorization(self) -> None:
+        self.assert_replacement_failure(
+            Path("docs/plans/v0.5-pre-release-amendment-ledger.md"),
+            "Tag and GitHub Release: `not authorized`",
+            "Tag and GitHub Release: authorized",
+            "release authorization claim",
+        )
+
+    def test_rejects_stale_or_false_current_behavior(self) -> None:
+        self.assert_policy_failure(
+            Path("docs/releases/v0.5.0.md"),
+            "\nVerification-result JSON Schemas remain part of the release.\n",
+            "verification-result schema claim",
+        )
+        self.assert_replacement_failure(
+            Path("docs/releases/v0.5.0.md"),
+            "The four verifier outputs",
+            "The five verifier outputs",
+            "verifier output count",
+        )
+
+    def test_rejects_changed_remaining_closeout_gates(self) -> None:
+        self.assert_replacement_failure(
+            Path("docs/plans/v0.5-pre-release-amendment-ledger.md"),
+            "Remaining closeout gates: independent review of this closeout candidate; "
+            "hosted CI and Pages for its exact head; authorized merge; post-main CI "
+            "and Pages.",
+            "Remaining closeout gates: release approval only.",
+            "exact remaining closeout gates",
+        )
+
+    def test_rejects_cross_row_or_unrelated_amendment_evidence(self) -> None:
+        ledger = Path("docs/plans/v0.5-pre-release-amendment-ledger.md")
+        cases = (
+            (
+                "reviewed head `729bb89d5ad82db09851c5602a985e7b9d4f7d5c`",
+                "reviewed head `0000000000000000000000000000000000000000`",
+                "729bb89d5ad82db09851c5602a985e7b9d4f7d5c",
+                "Establishment PR",
+                "reviewed head",
+            ),
+            (
+                "squash merge `a829991ded2e6203122e428a990f9893e4c0b41d`",
+                "squash merge `0000000000000000000000000000000000000000`",
+                "a829991ded2e6203122e428a990f9893e4c0b41d",
+                "PR A — Transient typed verification results",
+                "squash merge",
+            ),
+            (
+                "exact-head PR CI `30468716510` passed",
+                "exact-head PR CI `00000000000` passed",
+                "30468716510",
+                "PR B — Proposal-only refinement and one persisted authority",
+                "exact-head PR CI",
+            ),
+            (
+                "post-main CI `30472763206` passed",
+                "post-main CI `00000000000` passed",
+                "30472763206",
+                "Narrow corrective PR",
+                "post-main CI",
+            ),
+            (
+                "post-main Pages `30453075891` passed",
+                "post-main Pages `00000000000` passed",
+                "30453075891",
+                "Establishment PR",
+                "post-main Pages",
+            ),
+        )
+        for old, new, retained, label, topic in cases:
+            with self.subTest(label=label, topic=topic):
+                self.assert_association_failure(
+                    ledger,
+                    old,
+                    new,
+                    retained,
+                    label,
+                    topic,
+                )
+
+    def test_rejects_prefixed_row_fact_phrases(self) -> None:
+        ledger = Path("docs/plans/v0.5-pre-release-amendment-ledger.md")
+        cases = (
+            (
+                "reviewed head `729bb89d5ad82db09851c5602a985e7b9d4f7d5c`",
+                "unreviewed head `729bb89d5ad82db09851c5602a985e7b9d4f7d5c`",
+                "reviewed head `729bb89d5ad82db09851c5602a985e7b9d4f7d5c`",
+                "Establishment PR",
+                "reviewed head",
+            ),
+            (
+                "squash merge `a829991ded2e6203122e428a990f9893e4c0b41d`",
+                "unsquash merge `a829991ded2e6203122e428a990f9893e4c0b41d`",
+                "squash merge `a829991ded2e6203122e428a990f9893e4c0b41d`",
+                "PR A — Transient typed verification results",
+                "squash merge",
+            ),
+            (
+                "zero findings",
+                "nonzero findings",
+                "zero findings",
+                "Combined technical integration review",
+                "findings",
+            ),
+        )
+        for old, new, retained, label, topic in cases:
+            with self.subTest(label=label, topic=topic):
+                self.assert_association_failure(
+                    ledger,
+                    old,
+                    new,
+                    retained,
+                    label,
+                    topic,
+                )
+
+    def test_rejects_correction_pr_number_outside_pr9_row(self) -> None:
+        self.assert_association_failure(
+            Path("docs/plans/v0.5-learning-first-correction-ledger.md"),
+            "PR #26; PR CI run `30376868533` passed",
+            "PR #99; PR CI run `30376868533` passed",
+            "PR #26",
+            "PR 9 — Rewrite current documentation and close the correction",
+            "PR number",
+        )
+
+    def test_rejects_explicit_cross_row_reviewed_head_swap(self) -> None:
+        relative = Path("docs/plans/v0.5-pre-release-amendment-ledger.md")
+        first = "729bb89d5ad82db09851c5602a985e7b9d4f7d5c"
+        second = "e256fe20897c20399ccbf6a2bb9fad8acfdd43cc"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.copied_policy_tree(root)
+            target = root / relative
+            text = target.read_text("utf-8")
+            self.assertEqual(text.count(first), 1)
+            self.assertEqual(text.count(second), 1)
+            text = text.replace(first, "SWAPPED_REVIEW_HEAD", 1)
+            text = text.replace(second, first, 1)
+            target.write_text(
+                text.replace("SWAPPED_REVIEW_HEAD", second, 1),
+                "utf-8",
+            )
+            result = self.invoke(root)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.stdout, "")
+            self.assertIn(relative.as_posix(), result.stderr)
+            self.assertIn("Establishment PR", result.stderr)
+            self.assertIn("reviewed head", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertLessEqual(len(result.stderr.splitlines()), 1)
 
     def test_rejects_binary_docker_and_registry_deliverables(self) -> None:
         claims = (
