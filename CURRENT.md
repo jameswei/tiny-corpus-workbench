@@ -1,31 +1,43 @@
 # Handoff Snapshot
 
-**Last updated:** 2026-07-28
+**Last updated:** 2026-07-30
 
 This is an informational handoff, not a required agent workflow or taskboard.
 Future work may use whichever sound engineering practices fit the task.
 
 ## Status
 
-- Correction PRs
+- The v0.5 learning-first correction is complete and merged. Correction PRs
   [#18](https://github.com/jameswei/tiny-corpus-workbench/pull/18) through
-  [#25](https://github.com/jameswei/tiny-corpus-workbench/pull/25) are merged.
-  Commit `452fcd2d8ca39bbb5b92d20d1a7996588baf8ad5` on `main` contains the
-  completed PR 0 through PR 8 correction slices and their passing hosted
-  evidence.
+  [#26](https://github.com/jameswei/tiny-corpus-workbench/pull/26) delivered
+  PR 0 through PR 9. PR #26 was independently reviewed at
+  `9780d87faf1337e4c8acf28ea2e704b39fcb402e`, returned `PASS`, and was
+  squash-merged as `8b04885a9471091cdfce17560e395a2d103d2806`.
 - The original milestone PRs
   [#13](https://github.com/jameswei/tiny-corpus-workbench/pull/13) and
   [#17](https://github.com/jameswei/tiny-corpus-workbench/pull/17) are merged.
   They represent pre-correction history.
-- This tree contains the final PR 9 documentation closeout. v0.5 is unreleased.
-  Independent PR 9 review, squash merge, post-merge main CI, the
-  required retrospective, and separate release approval remain required.
-- The correction follows the approved
+- The approved v0.5 pre-release amendment is also implemented and merged.
+  Establishment PR #27, amendment PR A #28, amendment PR B #29, and narrow
+  corrective PR #30 are complete. A fresh combined technical integration
+  review returned `PASS` with zero findings for the exact range from
+  `8b04885a9471091cdfce17560e395a2d103d2806` through candidate
+  `c80842cec401d6110ad60ccac696cebb1028d640`.
+- v0.5 is unreleased. Tag and GitHub Release creation are not authorized.
+  This closeout content records evidence only through `c80842c`; its own
+  review, hosted checks, merge, and post-main checks, and the later
+  release-readiness and exact-SHA owner-authorization gates, are verified
+  externally rather than claimed inside the closeout branch.
+- The completed correction follows the approved
   [v0.5 learning-first correction plan](docs/plans/v0.5-learning-first-correction.md)
   and its
   [ledger](docs/plans/v0.5-learning-first-correction-ledger.md). The ledger
-  records the exact reviewed heads, squash commits, and post-merge CI for
-  completed PR 0 through PR 8.
+  records the exact reviewed heads, squash commits, and post-merge hosted
+  evidence for completed PR 0 through PR 9.
+- The amendment follows the frozen
+  [v0.5 pre-release amendment plan](docs/plans/v0.5-pre-release-amendment.md)
+  and its
+  [ledger](docs/plans/v0.5-pre-release-amendment-ledger.md).
 - Milestone v0.1, Extraction Observatory, is released as `v0.1.0` on `main`.
 - The released baseline contains source observation and verification, twelve
   deterministic CC0 fixtures, immutable observation artifacts, tests, user
@@ -165,10 +177,11 @@ confirmation.
 
 ## Active milestone
 
-Milestone v0.5 remains active only as the learning-first correction. PR 0
-through PR 8 corrected records, verification, the local Workbench, obsolete
-machinery, the CLI name, and CI ownership. This tree adds the final
-documentation closeout around the document lifecycle.
+Milestone v0.5 implementation and technical integration are complete. The
+learning-first correction updated records, verification, the local Workbench,
+obsolete machinery, the CLI name, CI ownership, and current documentation.
+The pre-release amendment then made verification results transient typed
+values and reduced refinement decisions to one persisted authority.
 
 The [v0.5 Local Visual Workbench plan](docs/plans/v0.5-local-visual-workbench.md)
 and its
@@ -180,10 +193,12 @@ The Workbench is read-only, loopback-only, and limited to explicitly supplied
 local records. The loopback HTTP server is an internal bridge for the bundled
 browser interface, not a public or stable API.
 
-Implementation follows the current correction plan and ledger linked in the
-Status section. Release, tag, and publication work remain paused until PR 9
-review and merge, final main CI, the required retrospective, and separate
-owner approval are complete.
+The plans and ledgers linked in the Status section record the completed
+implementation and integration evidence. Release, tag, and publication work
+remain paused. Closeout evidence must be established externally, followed by
+a fresh release-readiness review of the exact post-closeout `main` SHA and
+separate owner authorization for that exact SHA before tag or GitHub Release
+creation.
 
 ## Latest completed milestone
 
