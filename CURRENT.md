@@ -23,11 +23,17 @@ Future work may use whichever sound engineering practices fit the task.
   review returned `PASS` with zero findings for the exact range from
   `8b04885a9471091cdfce17560e395a2d103d2806` through candidate
   `c80842cec401d6110ad60ccac696cebb1028d640`.
+- The amendment closeout is complete. PR #31 was independently reviewed at
+  head `5e5a3772a85b44111121ff057f2971db421df1a4` and returned `PASS` with zero
+  findings. Exact-head CI `30476653488` passed Fast and Full. PR #31 was
+  squash-merged as `40b2083de70cfe9f7ad2dfa2cea8435b377a5ecc`.
+  Post-main CI `30477806685` passed Fast and Full, and post-main Pages
+  `30477806662` passed build and deploy at that exact squash.
 - v0.5 is unreleased. Tag and GitHub Release creation are not authorized.
-  This closeout content records evidence only through `c80842c`; its own
-  review, hosted checks, merge, and post-main checks, and the later
-  release-readiness and exact-SHA owner-authorization gates, are verified
-  externally rather than claimed inside the closeout branch.
+  Any current release-readiness verdict and exact-SHA owner authorization are
+  external to this source snapshot. Tag or GitHub Release creation is
+  forbidden unless those external gates have been verified for the exact
+  current candidate.
 - The completed correction follows the approved
   [v0.5 learning-first correction plan](docs/plans/v0.5-learning-first-correction.md)
   and its
@@ -195,10 +201,10 @@ browser interface, not a public or stable API.
 
 The plans and ledgers linked in the Status section record the completed
 implementation and integration evidence. Release, tag, and publication work
-remain paused. Closeout evidence must be established externally, followed by
-a fresh release-readiness review of the exact post-closeout `main` SHA and
-separate owner authorization for that exact SHA before tag or GitHub Release
-creation.
+remain paused. The amendment closeout is complete. Any current
+release-readiness verdict and exact-SHA owner authorization are external to
+this source snapshot. Tag or GitHub Release creation is forbidden unless those
+external gates have been verified for the exact current candidate.
 
 ## Latest completed milestone
 

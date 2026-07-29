@@ -184,8 +184,16 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
                 "9780d87faf1337e4c8acf28ea2e704b39fcb402e",
                 "8b04885a9471091cdfce17560e395a2d103d2806",
                 "c80842cec401d6110ad60ccac696cebb1028d640",
+                "PR #31 was independently reviewed",
+                "5e5a3772a85b44111121ff057f2971db421df1a4",
+                "30476653488",
+                "40b2083de70cfe9f7ad2dfa2cea8435b377a5ecc",
+                "30477806685",
+                "30477806662",
                 "v0.5 is unreleased.",
                 "Tag and GitHub Release creation are not authorized.",
+                "Any current release-readiness verdict and exact-SHA owner authorization are",
+                "external to this source snapshot.",
             ),
             Path("docs/plans/v0.5-learning-first-correction-ledger.md"): (
                 "Overall correction status: `complete`",
@@ -222,11 +230,14 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
                 "Fresh independent reviewer returned `PASS` with zero findings",
                 "All 169 focused unit tests and 8 integration tests passed",
                 "Tag and GitHub Release: `not authorized`",
-                "Remaining closeout gates: independent review of this closeout candidate; "
-                "hosted CI and Pages for its exact head; authorized merge; post-main CI "
-                "and Pages.",
-                "fresh release-readiness review must review the exact post-closeout "
-                "`main` SHA",
+                "| Closeout | `complete` | PR #31;",
+                "5e5a3772a85b44111121ff057f2971db421df1a4",
+                "30476653488",
+                "40b2083de70cfe9f7ad2dfa2cea8435b377a5ecc",
+                "30477806685",
+                "30477806662",
+                "| Release readiness | `external release gate` |",
+                "fresh zero-finding `PASS` for the exact current `main` candidate",
                 "separate owner authorization for that exact SHA",
             ),
             Path("docs/releases/v0.5.0.md"): (
@@ -288,14 +299,31 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
             "verifier output count",
         )
 
-    def test_rejects_changed_remaining_closeout_gates(self) -> None:
+    def test_rejects_stale_closeout_and_release_gate_statuses(self) -> None:
+        for stale_status in ("`external gate`", "`pending`"):
+            with self.subTest(stale_status=stale_status):
+                self.assert_replacement_failure(
+                    Path("docs/plans/v0.5-pre-release-amendment-ledger.md"),
+                    "| Closeout | `complete` |",
+                    f"| Closeout | {stale_status} |",
+                    "Closeout row",
+                )
         self.assert_replacement_failure(
             Path("docs/plans/v0.5-pre-release-amendment-ledger.md"),
-            "Remaining closeout gates: independent review of this closeout candidate; "
-            "hosted CI and Pages for its exact head; authorized merge; post-main CI "
-            "and Pages.",
-            "Remaining closeout gates: release approval only.",
-            "exact remaining closeout gates",
+            "| Release readiness | `external release gate` |",
+            "| Release readiness | `not started` |",
+            "stale release-readiness status",
+        )
+        self.assert_replacement_failure(
+            Path("CURRENT.md"),
+            "The amendment closeout is complete.",
+            "Closeout evidence must be established externally.",
+            "stale closeout evidence status",
+        )
+        self.assert_policy_failure(
+            Path("docs/plans/v0.5-pre-release-amendment-ledger.md"),
+            "\nRemaining closeout gates: release approval only.\n",
+            "stale remaining closeout gates",
         )
 
     def test_rejects_cross_row_or_unrelated_amendment_evidence(self) -> None:
@@ -336,6 +364,56 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
                 "Establishment PR",
                 "post-main Pages",
             ),
+            (
+                "PR #31; reviewed head",
+                "PR #99; reviewed head",
+                "PR #31",
+                "Closeout",
+                "complete status and PR number",
+            ),
+            (
+                "reviewed head `5e5a3772a85b44111121ff057f2971db421df1a4`",
+                "reviewed head `0000000000000000000000000000000000000000`",
+                "5e5a3772a85b44111121ff057f2971db421df1a4",
+                "Closeout",
+                "reviewed head",
+            ),
+            (
+                "fresh independent reviewer returned `PASS` with zero findings; "
+                "exact-head",
+                "fresh independent reviewer returned `FAIL` with findings; exact-head",
+                "fresh independent reviewer returned `PASS` with zero findings",
+                "Closeout",
+                "independent verdict",
+            ),
+            (
+                "exact-head PR CI `30476653488` passed",
+                "exact-head PR CI `00000000000` passed",
+                "30476653488",
+                "Closeout",
+                "exact-head PR CI",
+            ),
+            (
+                "squash merge `40b2083de70cfe9f7ad2dfa2cea8435b377a5ecc`",
+                "squash merge `0000000000000000000000000000000000000000`",
+                "40b2083de70cfe9f7ad2dfa2cea8435b377a5ecc",
+                "Closeout",
+                "squash merge",
+            ),
+            (
+                "post-main CI `30477806685` passed",
+                "post-main CI `00000000000` passed",
+                "30477806685",
+                "Closeout",
+                "post-main CI",
+            ),
+            (
+                "post-main Pages `30477806662` passed",
+                "post-main Pages `00000000000` passed",
+                "30477806662",
+                "Closeout",
+                "post-main Pages",
+            ),
         )
         for old, new, retained, label, topic in cases:
             with self.subTest(label=label, topic=topic):
@@ -366,8 +444,10 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
                 "squash merge",
             ),
             (
-                "zero findings",
-                "nonzero findings",
+                "Fresh independent reviewer returned `PASS` with zero findings "
+                "for exact base",
+                "Fresh independent reviewer returned `PASS` with nonzero findings "
+                "for exact base",
                 "zero findings",
                 "Combined technical integration review",
                 "findings",

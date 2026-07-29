@@ -41,6 +41,9 @@ README_REFINEMENT_ROW = (
     "| Draft one refinement proposal | `corpus draft-refinement` |"
 )
 STALE_README_REFINEMENT_PHRASE = "Draft one decision"
+STALE_CURRENT_CLOSEOUT_PHRASE = "Closeout evidence must be established externally"
+STALE_LEDGER_CLOSEOUT_PHRASE = "Remaining closeout gates:"
+STALE_RELEASE_READINESS_STATUS = "| Release readiness | `not started` |"
 
 
 class PolicyError(ValueError):
@@ -171,6 +174,21 @@ def _require_historical_links(text: str) -> None:
             )
 
 
+def _reject_stale_closeout_status(current: str, amendment_ledger: str) -> None:
+    if STALE_CURRENT_CLOSEOUT_PHRASE.casefold() in current.casefold():
+        raise PolicyError("CURRENT.md: stale closeout evidence status")
+    if STALE_LEDGER_CLOSEOUT_PHRASE.casefold() in amendment_ledger.casefold():
+        raise PolicyError(
+            "docs/plans/v0.5-pre-release-amendment-ledger.md: "
+            "stale remaining closeout gates"
+        )
+    if STALE_RELEASE_READINESS_STATUS.casefold() in amendment_ledger.casefold():
+        raise PolicyError(
+            "docs/plans/v0.5-pre-release-amendment-ledger.md: "
+            "stale release-readiness status"
+        )
+
+
 def verify(root: Path) -> None:
     documents = {path: _read(root, path) for path in POLICY_PATHS}
     usage_documents = {path: _read(root, path) for path in ACTIVE_USAGE_PATHS}
@@ -238,27 +256,13 @@ def verify(root: Path) -> None:
 
     amendment_ledger_path = Path("docs/plans/v0.5-pre-release-amendment-ledger.md")
     amendment_ledger = documents[amendment_ledger_path]
+    _reject_stale_closeout_status(current, amendment_ledger)
     for phrase, topic in (
         (
             "Overall implementation and integration status: `complete`",
             "complete amendment status",
         ),
         ("Tag and GitHub Release: `not authorized`", "release authorization limit"),
-        (
-            "Remaining closeout gates: independent review of this closeout candidate; "
-            "hosted CI and Pages for its exact head; authorized merge; post-main CI "
-            "and Pages.",
-            "exact remaining closeout gates",
-        ),
-        (
-            "a fresh release-readiness review must review the exact post-closeout "
-            "`main` SHA",
-            "post-closeout release-readiness review",
-        ),
-        (
-            "separate owner authorization for that exact SHA",
-            "exact-SHA release authorization",
-        ),
     ):
         _require(amendment_ledger_path, amendment_ledger, phrase, topic)
     for label, facts in (
@@ -360,6 +364,60 @@ def verify(root: Path) -> None:
                     "hosted exact-head checks",
                 ),
                 ("No review issue remains unresolved", "review resolution"),
+            ),
+        ),
+        (
+            "Closeout",
+            (
+                ("`complete` | PR #31;", "complete status and PR number"),
+                (
+                    "reviewed head `5e5a3772a85b44111121ff057f2971db421df1a4`",
+                    "reviewed head",
+                ),
+                (
+                    "fresh independent reviewer returned `PASS` with zero findings",
+                    "independent verdict",
+                ),
+                (
+                    "exact-head PR CI `30476653488` passed Fast and Full",
+                    "exact-head PR CI",
+                ),
+                (
+                    "squash merge `40b2083de70cfe9f7ad2dfa2cea8435b377a5ecc`",
+                    "squash merge",
+                ),
+                (
+                    "post-main CI `30477806685` passed Fast and Full at the exact squash",
+                    "post-main CI",
+                ),
+                (
+                    "post-main Pages `30477806662` passed build and deploy at the "
+                    "exact squash",
+                    "post-main Pages",
+                ),
+                (
+                    "owner-approved Pages interpretation recorded that exact-head "
+                    "Fast ran `validate_site.py` because Pages jobs are main-only",
+                    "pre-merge Pages interpretation",
+                ),
+            ),
+        ),
+        (
+            "Release readiness",
+            (
+                ("`external release gate`", "timeless external status"),
+                (
+                    "The current external release-readiness verdict governs",
+                    "current external verdict boundary",
+                ),
+                (
+                    "fresh zero-finding `PASS` for the exact current `main` candidate",
+                    "exact-candidate release-readiness review",
+                ),
+                (
+                    "separate owner authorization for that exact SHA",
+                    "exact-SHA release authorization",
+                ),
             ),
         ),
     ):
