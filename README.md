@@ -50,7 +50,7 @@ The `corpus` CLI owns workflow execution and verification:
 | Verify an observation | `corpus verify` |
 | Diagnose a document | `corpus diagnose` |
 | Verify a diagnosis | `corpus verify-diagnosis` |
-| Draft one decision | `corpus draft-refinement` |
+| Draft one refinement proposal | `corpus draft-refinement` |
 | Resolve one decision | `corpus resolve-refinement` |
 | Verify a refinement | `corpus verify-refinement` |
 | Inspect an explicit corpus | `corpus inspect` |

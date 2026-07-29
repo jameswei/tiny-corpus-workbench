@@ -10,6 +10,9 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 VALIDATOR = REPOSITORY / "tools/verify_current_document_policy.py"
+README_REFINEMENT_ROW = (
+    "| Draft one refinement proposal | `corpus draft-refinement` |"
+)
 POLICY_PATHS = (
     Path("CURRENT.md"),
     Path("README.md"),
@@ -66,6 +69,10 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
             self.assertLessEqual(len(result.stderr.splitlines()), 1)
 
     def test_current_policy_surfaces_pass(self) -> None:
+        self.assertIn(
+            README_REFINEMENT_ROW,
+            (REPOSITORY / "README.md").read_text("utf-8"),
+        )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.copied_policy_tree(root)
@@ -73,6 +80,28 @@ class CurrentDocumentPolicyTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertEqual(result.stdout, "")
             self.assertEqual(result.stderr, "")
+
+    def test_rejects_stale_readme_refinement_wording(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.copied_policy_tree(root)
+            readme_path = root / "README.md"
+            readme = readme_path.read_text("utf-8")
+            self.assertIn(README_REFINEMENT_ROW, readme)
+            readme_path.write_text(
+                readme.replace(
+                    README_REFINEMENT_ROW,
+                    "| Draft one decision | `corpus draft-refinement` |",
+                ),
+                "utf-8",
+            )
+            result = self.invoke(root)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("README.md", result.stderr)
+            self.assertIn("stale refinement draft wording", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertLessEqual(len(result.stderr.splitlines()), 1)
 
     def test_rejects_unified_public_schema_promise(self) -> None:
         self.assert_policy_failure(
