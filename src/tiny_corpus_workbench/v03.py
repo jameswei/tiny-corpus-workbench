@@ -48,6 +48,13 @@ from tiny_corpus_workbench.domain import (
 from tiny_corpus_workbench.schema_catalog import validate_document
 from tiny_corpus_workbench.source import sha256_file
 from tiny_corpus_workbench.verification import verify_observation
+from tiny_corpus_workbench.verification_results import (
+    ArtifactIntegrity,
+    DiagnosisVerificationResult,
+    RefinementVerificationResult,
+    VerificationIssue,
+    VerificationState,
+)
 
 
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
@@ -239,7 +246,7 @@ def _observation_subject(root: Path) -> dict[str, Any]:
     if not (root / descriptor["path"]).is_file():
         raise CanonicalUnavailableError("canonical Docling artifact is unavailable")
     if (
-        verify_observation(root)["artifact_integrity"]["status"] != "VERIFIED"
+        verify_observation(root).artifact_integrity.status != "VERIFIED"
     ):
         raise InputError("observation integrity is not verified")
     try:
@@ -280,7 +287,7 @@ def _refinement_subject(root: Path) -> dict[str, Any]:
     )
     require_record_header(manifest, "refinement")
     report = verify_refinement(root)
-    if report["artifact_integrity"]["status"] != "VERIFIED":
+    if report.artifact_integrity.status != "VERIFIED":
         raise InputError("refinement integrity is not verified")
     if manifest["status"] != "APPLIED":
         raise InputError("a rejected refinement cannot be a diagnosis subject")
@@ -745,7 +752,7 @@ def _load_diagnosis(root: Path) -> tuple[tuple[Any, ...], dict[str, Any], dict[s
     require_record_header(manifest, "diagnosis")
     _validate("diagnosis-manifest", manifest)
     _validate("finding-set", findings)
-    if verify_diagnosis(root)["artifact_integrity"]["status"] != "VERIFIED":
+    if verify_diagnosis(root).artifact_integrity.status != "VERIFIED":
         raise InputError("diagnosis integrity is not verified")
     return before, manifest, findings
 
@@ -1533,7 +1540,9 @@ def _validate_refinement_semantics(
         raise IntegrityError("revision identity is inconsistent")
 
 
-def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, Any]:
+def verify_diagnosis(
+    root: Path, subject_root: Path | None = None
+) -> DiagnosisVerificationResult:
     files, directories, issues = _inventory(root)
     expected = {"diagnosis-manifest.json", "findings.json", "report.md"}
     for path in sorted(expected - files):
@@ -1602,11 +1611,11 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
         raise
     except (InputError, IntegrityError, OSError, KeyError, TypeError):
         issues.append({"code": "MANIFEST_INVALID", "path": "diagnosis-manifest.json", "message": "diagnosis contract is invalid"})
-    subject_state = {"status": "NOT_CHECKED"}
-    derivation_state = {"status": "NOT_CHECKED"}
+    subject_status = "NOT_CHECKED"
+    derivation_status = "NOT_CHECKED"
     if subject_root is not None and manifest is not None and findings is not None:
         if not subject_root.exists():
-            subject_state = {"status": "MISSING"}
+            subject_status = "MISSING"
         else:
             try:
                 subject = load_subject(subject_root)
@@ -1620,27 +1629,30 @@ def verify_diagnosis(root: Path, subject_root: Path | None = None) -> dict[str, 
                     and subject["manifest_path"] == canonical_manifest_path
                     and subject["source"] == manifest["source"]
                 )
-                subject_state = {"status": "MATCH" if matches else "CHANGED"}
+                subject_status = "MATCH" if matches else "CHANGED"
                 if matches:
                     expected_findings = make_finding_set(subject)
-                    derivation_state = {"status": "MATCH" if expected_findings == findings else "MISMATCH"}
+                    derivation_status = (
+                        "MATCH" if expected_findings == findings else "MISMATCH"
+                    )
             except InputError as error:
                 if "record format is unsupported" in str(error):
                     raise
-                subject_state = {"status": "ERROR"}
+                subject_status = "ERROR"
             except RuntimeContractError:
                 raise
             except Exception:
-                subject_state = {"status": "ERROR"}
+                subject_status = "ERROR"
     status = "VERIFIED" if not issues else ("BROKEN" if any(item["code"] == "MANIFEST_INVALID" for item in issues) else "INTEGRITY_MISMATCH")
-    result = {
-        "diagnosis_directory": str(root.resolve()),
-        "artifact_integrity": {"status": status, "issues": issues},
-        "subject_state": subject_state,
-        "derivation_state": derivation_state,
-    }
-    _validate("diagnosis-verification-result", result)
-    return result
+    return DiagnosisVerificationResult(
+        diagnosis_directory=str(root.resolve()),
+        artifact_integrity=ArtifactIntegrity(
+            status,
+            tuple(VerificationIssue(**item) for item in issues),
+        ),
+        subject_state=VerificationState(subject_status),
+        derivation_state=VerificationState(derivation_status),
+    )
 
 
 def verify_diagnosis_command(root: Path, subject_root: Path | None) -> int:
@@ -1665,15 +1677,15 @@ def verify_diagnosis_command(root: Path, subject_root: Path | None) -> int:
     except Exception as error:
         print(f"internal diagnosis verifier failure: {sanitize_message(error)}", file=sys.stderr)
         return 1
-    print(json.dumps(report, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-    return 0 if report["artifact_integrity"]["status"] == "VERIFIED" else 5
+    print(json.dumps(report.to_json_object(), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+    return 0 if report.artifact_integrity.status == "VERIFIED" else 5
 
 
 def verify_refinement(
     root: Path,
     diagnosis_root: Path | None = None,
     base_root: Path | None = None,
-) -> dict[str, Any]:
+) -> RefinementVerificationResult:
     files, directories, issues = _inventory(root)
     manifest = decision = transformation = history = None
     try:
@@ -1711,14 +1723,18 @@ def verify_refinement(
         raise
     except (InputError, IntegrityError, OSError, KeyError, TypeError):
         issues.append({"code": "MANIFEST_INVALID", "path": "refinement-manifest.json", "message": "refinement contract is invalid"})
-    diagnosis_state = {"status": "NOT_CHECKED"}
-    base_state = {"status": "NOT_CHECKED"}
-    derivation = {"status": "NOT_APPLICABLE" if manifest and manifest.get("status") == "REJECTED" else "NOT_CHECKED"}
-    reversibility = dict(derivation)
+    diagnosis_status = "NOT_CHECKED"
+    base_status = "NOT_CHECKED"
+    derivation_status = (
+        "NOT_APPLICABLE"
+        if manifest and manifest.get("status") == "REJECTED"
+        else "NOT_CHECKED"
+    )
+    reversibility_status = derivation_status
     diagnosis_matches = False
     if diagnosis_root is not None and manifest is not None:
         if not diagnosis_root.exists():
-            diagnosis_state = {"status": "MISSING"}
+            diagnosis_status = "MISSING"
         else:
             try:
                 _, diagnosis_manifest = _load_json_regular(
@@ -1731,7 +1747,7 @@ def verify_refinement(
                 )
                 diagnosis_report = verify_diagnosis(diagnosis_root)
                 if (
-                    diagnosis_report["artifact_integrity"]["status"]
+                    diagnosis_report.artifact_integrity.status
                     != "VERIFIED"
                 ):
                     raise IntegrityError(
@@ -1762,9 +1778,7 @@ def verify_refinement(
                     == decision["proposal"]["diagnosis_id"]
                     and len(exact_findings) == 1
                 )
-                diagnosis_state = {
-                    "status": "MATCH" if diagnosis_matches else "CHANGED"
-                }
+                diagnosis_status = "MATCH" if diagnosis_matches else "CHANGED"
             except RuntimeContractError:
                 raise
             except IntegrityError:
@@ -1779,7 +1793,7 @@ def verify_refinement(
     expected_proposal_error = False
     if base_root is not None and manifest is not None:
         if not base_root.exists():
-            base_state = {"status": "MISSING"}
+            base_status = "MISSING"
         else:
             try:
                 base = load_subject(base_root)
@@ -1830,9 +1844,7 @@ def verify_refinement(
                     and base["history"] != history["transformations"][:-1]
                 ):
                     base_matches = False
-                base_state = {
-                    "status": "MATCH" if base_matches else "CHANGED"
-                }
+                base_status = "MATCH" if base_matches else "CHANGED"
             except InputError as error:
                 if "record format is unsupported" in str(error):
                     raise
@@ -1884,14 +1896,14 @@ def verify_refinement(
             and base is not None
         ):
             if expected_proposal_error or expected_proposal is None:
-                derivation = {"status": "ERROR"}
-                reversibility = {"status": "ERROR"}
+                derivation_status = "ERROR"
+                reversibility_status = "ERROR"
             else:
                 if (
                     transformation["forward_edits"]
                     != expected_proposal["forward_edits"]
                 ):
-                    derivation = {"status": "MISMATCH"}
+                    derivation_status = "MISMATCH"
                 else:
                     try:
                         forward = _apply_edits(
@@ -1902,22 +1914,20 @@ def verify_refinement(
                             root / "prepared/document.json",
                             "prepared document",
                         )
-                        derivation = {
-                            "status": (
-                                "MATCH"
-                                if forward_bytes == prepared_bytes
-                                else "MISMATCH"
-                            )
-                        }
+                        derivation_status = (
+                            "MATCH"
+                            if forward_bytes == prepared_bytes
+                            else "MISMATCH"
+                        )
                     except RuntimeContractError:
                         raise
                     except Exception:
-                        derivation = {"status": "ERROR"}
+                        derivation_status = "ERROR"
                 if (
                     transformation["inverse_edits"]
                     != expected_proposal["inverse_edits"]
                 ):
-                    reversibility = {"status": "MISMATCH"}
+                    reversibility_status = "MISMATCH"
                 else:
                     try:
                         _, prepared_payload = _load_json_regular(
@@ -1933,28 +1943,27 @@ def verify_refinement(
                             base["payload"],
                             base["document_bytes"],
                         )
-                        reversibility = {
-                            "status": (
-                                "MATCH"
-                                if reversed_bytes == base["document_bytes"]
-                                else "MISMATCH"
-                            )
-                        }
+                        reversibility_status = (
+                            "MATCH"
+                            if reversed_bytes == base["document_bytes"]
+                            else "MISMATCH"
+                        )
                     except RuntimeContractError:
                         raise
                     except Exception:
-                        reversibility = {"status": "ERROR"}
+                        reversibility_status = "ERROR"
     status = "VERIFIED" if not issues else ("BROKEN" if any(item["code"] == "MANIFEST_INVALID" for item in issues) else "INTEGRITY_MISMATCH")
-    result = {
-        "refinement_directory": str(root.resolve()),
-        "artifact_integrity": {"status": status, "issues": issues},
-        "diagnosis_state": diagnosis_state,
-        "base_state": base_state,
-        "derivation_state": derivation,
-        "reversibility_state": reversibility,
-    }
-    _validate("refinement-verification-result", result)
-    return result
+    return RefinementVerificationResult(
+        refinement_directory=str(root.resolve()),
+        artifact_integrity=ArtifactIntegrity(
+            status,
+            tuple(VerificationIssue(**item) for item in issues),
+        ),
+        diagnosis_state=VerificationState(diagnosis_status),
+        base_state=VerificationState(base_status),
+        derivation_state=VerificationState(derivation_status),
+        reversibility_state=VerificationState(reversibility_status),
+    )
 
 
 def verify_refinement_command(
@@ -1981,24 +1990,24 @@ def verify_refinement_command(
     except Exception as error:
         print(f"internal refinement verifier failure: {sanitize_message(error)}", file=sys.stderr)
         return 1
-    print(json.dumps(report, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+    print(json.dumps(report.to_json_object(), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
     supplied_states_match = (
         (
             diagnosis_root is None
-            or report["diagnosis_state"]["status"] == "MATCH"
+            or report.diagnosis_state.status == "MATCH"
         )
         and (
             base_root is None
-            or report["base_state"]["status"] == "MATCH"
+            or report.base_state.status == "MATCH"
         )
     )
     replay_states_pass = all(
-        report[name]["status"] in {"MATCH", "NOT_CHECKED", "NOT_APPLICABLE"}
-        for name in ("derivation_state", "reversibility_state")
+        state.status in {"MATCH", "NOT_CHECKED", "NOT_APPLICABLE"}
+        for state in (report.derivation_state, report.reversibility_state)
     )
     return (
         0
-        if report["artifact_integrity"]["status"] == "VERIFIED"
+        if report.artifact_integrity.status == "VERIFIED"
         and supplied_states_match
         and replay_states_pass
         else 5

@@ -138,9 +138,9 @@ class CorpusIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(len(summary["findings"]), 3)
             self.assertEqual(
-                verify_corpus(published.directory, GOLDEN_SPEC)[
-                    "artifact_integrity"
-                ]["status"],
+                verify_corpus(
+                    published.directory, GOLDEN_SPEC
+                ).artifact_integrity.status,
                 "VERIFIED",
             )
 
@@ -169,9 +169,9 @@ class CorpusIntegrationTests(unittest.TestCase):
                 },
             )
             self.assertEqual(
-                verify_corpus(published.directory, QUALITY_SPEC)[
-                    "artifact_integrity"
-                ]["status"],
+                verify_corpus(
+                    published.directory, QUALITY_SPEC
+                ).artifact_integrity.status,
                 "VERIFIED",
             )
 
@@ -203,9 +203,9 @@ class CorpusIntegrationTests(unittest.TestCase):
                 published.directory, GOLDEN_SPEC
             )
             self.assertEqual(
-                verification["artifact_integrity"]["status"], "VERIFIED"
+                verification.artifact_integrity.status, "VERIFIED"
             )
-            self.assertEqual(verification["model_state"]["status"], "MISSING")
+            self.assertEqual(verification.model_state.status, "MISSING")
 
     def test_quality_spec_can_compare_one_explicit_d009_revision(self) -> None:
         with tempfile.TemporaryDirectory() as directory, offline():
@@ -228,7 +228,7 @@ class CorpusIntegrationTests(unittest.TestCase):
                 revision, diagnosis_root, observation
             )
             self.assertEqual(
-                verified["artifact_integrity"]["status"], "VERIFIED"
+                verified.artifact_integrity.status, "VERIFIED"
             )
             spec_path = inputs / "quality-with-revision.json"
             value = _absolute_spec(QUALITY_SPEC, spec_path)
@@ -273,12 +273,10 @@ class CorpusIntegrationTests(unittest.TestCase):
                 self.assertIn(label, report)
             verification = verify_corpus(published.directory, spec_path)
             self.assertEqual(
-                verification["artifact_integrity"]["status"], "VERIFIED"
+                verification.artifact_integrity.status, "VERIFIED"
             )
             self.assertEqual(
-                verification["revision_states"][0]["refinement_state"][
-                    "status"
-                ],
+                verification.revision_states[0].refinement_state.status,
                 "MATCH",
             )
             (revision / "decision.json").write_bytes(
@@ -286,10 +284,10 @@ class CorpusIntegrationTests(unittest.TestCase):
             )
             drifted = verify_corpus(published.directory, spec_path)
             self.assertEqual(
-                drifted["artifact_integrity"]["status"], "VERIFIED"
+                drifted.artifact_integrity.status, "VERIFIED"
             )
             self.assertEqual(
-                drifted["revision_states"][0]["refinement_state"]["status"],
+                drifted.revision_states[0].refinement_state.status,
                 "CHANGED",
             )
 
@@ -331,7 +329,7 @@ class CorpusIntegrationTests(unittest.TestCase):
                 revision2, diagnosis2, revision1
             )
             self.assertEqual(
-                verified["reversibility_state"]["status"], "MATCH"
+                verified.reversibility_state.status, "MATCH"
             )
             spec_path = inputs / "chain-corpus.json"
             spec_path.write_bytes(
@@ -371,9 +369,9 @@ class CorpusIntegrationTests(unittest.TestCase):
                 revision["after_document_sha256"],
             )
             self.assertEqual(
-                verify_corpus(published.directory, spec_path)[
-                    "artifact_integrity"
-                ]["status"],
+                verify_corpus(
+                    published.directory, spec_path
+                ).artifact_integrity.status,
                 "VERIFIED",
             )
 

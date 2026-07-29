@@ -273,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
                 "application.corpus", "verify_corpus"
             )
             verification = verify(published.directory)
-            if verification["artifact_integrity"]["status"] != "VERIFIED":
+            if verification.artifact_integrity.status != "VERIFIED":
                 raise IntegrityError(
                     "published corpus inspection failed verification"
                 )
@@ -313,7 +313,7 @@ def main(argv: list[str] | None = None) -> int:
             return int(ExitCode.INTERNAL)
         print(
             json.dumps(
-                verification,
+                verification.to_json_object(),
                 ensure_ascii=False,
                 sort_keys=True,
                 separators=(",", ":"),
@@ -321,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return (
             int(ExitCode.SUCCESS)
-            if verification["artifact_integrity"]["status"] == "VERIFIED"
+            if verification.artifact_integrity.status == "VERIFIED"
             else int(ExitCode.INTEGRITY)
         )
     if args.command == "verify":

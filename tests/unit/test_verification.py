@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 from unittest import mock
 
@@ -18,7 +19,7 @@ from tiny_corpus_workbench.artifacts import (
     compute_observation_id,
 )
 from tiny_corpus_workbench.domain import RuntimeContractError
-from tiny_corpus_workbench.schema_catalog import validator
+from tiny_corpus_workbench.verification import verify_observation
 
 
 SOURCE = Path("fixtures/golden/policy-memo.md")
@@ -115,7 +116,6 @@ class VerificationTests(unittest.TestCase):
                         report["artifact_integrity"],
                         {"issues": [], "status": "VERIFIED"},
                     )
-                    validator("observation-verification-result").validate(report)
 
     def test_records_and_results_keep_only_domain_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -327,6 +327,59 @@ class VerificationTests(unittest.TestCase):
             self.assertEqual(report["source_state"]["status"], "CHANGED")
             self.assertEqual(report["model_state"]["status"], "NOT_CHECKED")
 
+    def test_result_is_frozen_and_cli_stdout_matches_explicit_serializer(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, published = self.observation(root / "observations")
+            matching = root / "matching.md"
+            matching.write_bytes(SOURCE.read_bytes())
+            changed = root / "changed.md"
+            changed.write_text("# Changed\n", "utf-8")
+            missing = root / "missing.md"
+            invalid = root / "not-a-file"
+            invalid.mkdir()
+
+            result = verify_observation(published, matching)
+            with self.assertRaises(FrozenInstanceError):
+                result.observation_directory = "changed"
+
+            for source, state in (
+                (matching, "MATCH"),
+                (changed, "CHANGED"),
+                (missing, "MISSING"),
+                (invalid, "ERROR"),
+            ):
+                with self.subTest(state=state):
+                    expected = {
+                        "observation_directory": str(published.resolve()),
+                        "artifact_integrity": {
+                            "status": "VERIFIED",
+                            "issues": [],
+                        },
+                        "source_state": {"status": state},
+                        "model_state": {"status": "NOT_CHECKED"},
+                    }
+                    code, stdout, stderr = self.invoke(
+                        "verify",
+                        str(published),
+                        "--source",
+                        str(source),
+                    )
+                    self.assertEqual(code, 0)
+                    self.assertEqual(stderr, "")
+                    self.assertEqual(
+                        stdout,
+                        json.dumps(
+                            expected,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        )
+                        + "\n",
+                    )
+
     def test_verifier_is_read_only_and_needs_no_extractor_import(self) -> None:
         from tiny_corpus_workbench.verification import verify_observation
 
@@ -339,7 +392,7 @@ class VerificationTests(unittest.TestCase):
             ):
                 report = verify_observation(published)
             self.assertEqual(
-                report["artifact_integrity"]["status"], "VERIFIED"
+                report.artifact_integrity.status, "VERIFIED"
             )
             self.assertEqual(snapshot(published), before)
 

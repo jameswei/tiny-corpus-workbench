@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from copy import deepcopy
+from dataclasses import replace
 from itertools import product
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +20,11 @@ from tiny_corpus_workbench.corpus_execution import (
     validate_corpus_manifest_semantics,
 )
 from tiny_corpus_workbench.domain import InputError, IntegrityError
+from tiny_corpus_workbench.verification_results import (
+    ArtifactIntegrity,
+    RefinementVerificationResult,
+    VerificationState,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,7 +34,6 @@ SCHEMA_NAMES = (
     "corpus-spec.schema.json",
     "corpus-manifest.schema.json",
     "corpus-summary.schema.json",
-    "corpus-verification-result.schema.json",
 )
 HASH = "a" * 64
 
@@ -325,29 +330,22 @@ def _valid_summary() -> dict:
     }
 
 
-def _valid_verification() -> dict:
-    return {
-        "corpus_directory": "/corpus",
-        "artifact_integrity": {"status": "VERIFIED", "issues": []},
-        "specification_state": {"status": "MATCH"},
-        "source_states": [
-            {"member_id": "sample", "state": {"status": "MATCH"}}
-        ],
-        "model_state": {"status": "NOT_CHECKED"},
-        "revision_states": [
-            {
-                "member_id": "sample",
-                "revision_id": HASH,
-                "refinement_state": {"status": "MATCH"},
-                "diagnosis_state": {"status": "CHANGED"},
-                "base_state": {"status": "MISSING"},
-            }
-        ],
-    }
+def _refinement_verification(
+    *,
+    derivation: str = "MATCH",
+) -> RefinementVerificationResult:
+    return RefinementVerificationResult(
+        refinement_directory="/tmp/refinement",
+        artifact_integrity=ArtifactIntegrity("VERIFIED", ()),
+        diagnosis_state=VerificationState("MATCH"),
+        base_state=VerificationState("MATCH"),
+        derivation_state=VerificationState(derivation),
+        reversibility_state=VerificationState("MATCH"),
+    )
 
 
 class CorpusSchemaTests(unittest.TestCase):
-    def test_four_schemas_are_unversioned_draft_2020_12_and_closed(self) -> None:
+    def test_three_schemas_are_unversioned_draft_2020_12_and_closed(self) -> None:
         for name in SCHEMA_NAMES:
             with self.subTest(name=name):
                 schema = json.loads((SCHEMAS / name).read_text("utf-8"))
@@ -616,22 +614,6 @@ class CorpusSchemaTests(unittest.TestCase):
             mutate(changed)
             with self.assertRaises(ValidationError):
                 validator.validate(changed)
-
-    def test_verification_schema_guards_only_generated_root_structure(self) -> None:
-        validator = _validator("corpus-verification-result.schema.json")
-        valid = _valid_verification()
-        validator.validate(valid)
-        mutations = (
-            lambda value: value.pop("source_states"),
-            lambda value: value.update(source_states={}),
-            lambda value: value.update(model_state=[]),
-        )
-        for mutate in mutations:
-            changed = deepcopy(valid)
-            mutate(changed)
-            with self.assertRaises(ValidationError):
-                validator.validate(changed)
-
 
 class CorpusAdmissionTests(unittest.TestCase):
     def test_normalizes_members_and_repeated_loads_deterministically(self) -> None:
@@ -973,16 +955,7 @@ class CorpusAdmissionTests(unittest.TestCase):
             spec = _write_spec(
                 root, [_member("with-revision", "source.md", revisions=[bundle])]
             )
-            verified = {
-                name: {"status": status}
-                for name, status in (
-                    ("artifact_integrity", "VERIFIED"),
-                    ("diagnosis_state", "MATCH"),
-                    ("base_state", "MATCH"),
-                    ("derivation_state", "MATCH"),
-                    ("reversibility_state", "MATCH"),
-                )
-            }
+            verified = _refinement_verification()
             with patch(
                 "tiny_corpus_workbench.v03.verify_refinement",
                 return_value=verified,
@@ -1170,8 +1143,10 @@ class CorpusAdmissionTests(unittest.TestCase):
             revision_paths["revision"].unlink()
             saved_refinement.rename(revision_paths["revision"])
 
-            broken = deepcopy(verified)
-            broken["derivation_state"]["status"] = "MISMATCH"
+            broken = replace(
+                verified,
+                derivation_state=VerificationState("MISMATCH"),
+            )
             with patch(
                 "tiny_corpus_workbench.v03.verify_refinement",
                 return_value=broken,

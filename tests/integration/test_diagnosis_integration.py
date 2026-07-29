@@ -59,10 +59,10 @@ class DiagnosisIntegrationTests(unittest.TestCase):
                     self.assertEqual(actual, fixture["expected_rules"])
                     verified = verify_diagnosis(diagnosis, observation)
                     self.assertEqual(
-                        verified["artifact_integrity"]["status"], "VERIFIED"
+                        verified.artifact_integrity.status, "VERIFIED"
                     )
-                    self.assertEqual(verified["subject_state"]["status"], "MATCH")
-                    self.assertEqual(verified["derivation_state"]["status"], "MATCH")
+                    self.assertEqual(verified.subject_state.status, "MATCH")
+                    self.assertEqual(verified.derivation_state.status, "MATCH")
                     self.assertEqual(source.read_bytes(), source_before)
 
     def test_refinement_fixture_registry_runs_offline_with_expected_rules(
@@ -103,13 +103,13 @@ class DiagnosisIntegrationTests(unittest.TestCase):
                         diagnosis, observation
                     )
                     self.assertEqual(
-                        verified["artifact_integrity"]["status"], "VERIFIED"
+                        verified.artifact_integrity.status, "VERIFIED"
                     )
                     self.assertEqual(
-                        verified["subject_state"]["status"], "MATCH"
+                        verified.subject_state.status, "MATCH"
                     )
                     self.assertEqual(
-                        verified["derivation_state"]["status"], "MATCH"
+                        verified.derivation_state.status, "MATCH"
                     )
                     self.assertEqual(source.read_bytes(), source_before)
 

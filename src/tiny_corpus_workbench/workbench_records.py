@@ -371,7 +371,7 @@ def _verify_intrinsic(kind: str, root: Path) -> None:
         result = verify_refinement(root)
     else:
         result = verify_corpus(root)
-    if result["artifact_integrity"]["status"] != "VERIFIED":
+    if result.artifact_integrity.status != "VERIFIED":
         raise IntegrityError("record does not have verified intrinsic integrity")
 
 

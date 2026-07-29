@@ -287,7 +287,7 @@ def _write_publication(
     from tiny_corpus_workbench.corpus_verification import verify_corpus
 
     verification = verify_corpus(staging, _expected_run_id=run_id)
-    if verification["artifact_integrity"]["status"] != "VERIFIED":
+    if verification.artifact_integrity.status != "VERIFIED":
         raise IntegrityError(
             "staged corpus inspection failed self-contained verification"
         )

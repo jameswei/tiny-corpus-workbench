@@ -17,19 +17,15 @@ SCHEMA_FILES: Final[Mapping[str, str]] = MappingProxyType(
     {
         "observation-manifest": "observation-manifest.schema.json",
         "comparison": "comparison.schema.json",
-        "observation-verification-result": "observation-verification-result.schema.json",
         "diagnosis-manifest": "diagnosis-manifest.schema.json",
         "finding-set": "finding-set.schema.json",
-        "diagnosis-verification-result": "diagnosis-verification-result.schema.json",
         "refinement-draft": "refinement-draft.schema.json",
         "refinement-manifest": "refinement-manifest.schema.json",
         "transformation": "transformation.schema.json",
         "transformation-history": "transformation-history.schema.json",
-        "refinement-verification-result": "refinement-verification-result.schema.json",
         "corpus-spec": "corpus-spec.schema.json",
         "corpus-manifest": "corpus-manifest.schema.json",
         "corpus-summary": "corpus-summary.schema.json",
-        "corpus-verification-result": "corpus-verification-result.schema.json",
     }
 )
 

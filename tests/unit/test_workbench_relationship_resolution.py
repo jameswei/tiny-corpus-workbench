@@ -12,6 +12,11 @@ import tiny_corpus_workbench.workbench_records as records_module
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.workbench_projection import build_projection
 from tiny_corpus_workbench.workbench_records import admit_records
+from tiny_corpus_workbench.verification_results import (
+    ArtifactIntegrity,
+    RefinementVerificationResult,
+    VerificationState,
+)
 from tests.unit.workbench_test_support import (
     PublishedDiagnosis,
     PublishedChain,
@@ -227,13 +232,14 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
         )
         with patch(
             "tiny_corpus_workbench.workbench_projection.verify_refinement",
-            return_value={
-                "artifact_integrity": {"status": "VERIFIED"},
-                "diagnosis_state": {"status": "CHANGED"},
-                "base_state": {"status": "NOT_CHECKED"},
-                "derivation_state": {"status": "NOT_CHECKED"},
-                "reversibility_state": {"status": "NOT_CHECKED"},
-            },
+            return_value=RefinementVerificationResult(
+                refinement_directory="/tmp/refinement",
+                artifact_integrity=ArtifactIntegrity("VERIFIED", ()),
+                diagnosis_state=VerificationState("CHANGED"),
+                base_state=VerificationState("NOT_CHECKED"),
+                derivation_state=VerificationState("NOT_CHECKED"),
+                reversibility_state=VerificationState("NOT_CHECKED"),
+            ),
         ), self.assertRaises(IntegrityError):
             build_projection(admitted)
 

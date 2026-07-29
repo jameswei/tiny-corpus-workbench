@@ -60,7 +60,9 @@ def observation_documents() -> tuple[dict, dict]:
 
 class SchemaTests(unittest.TestCase):
     def test_all_schemas_are_valid_and_self_contained(self) -> None:
-        for path in SCHEMAS.glob("*.schema.json"):
+        paths = sorted(SCHEMAS.glob("*.schema.json"))
+        self.assertEqual(len(paths), 11)
+        for path in paths:
             with self.subTest(path=path):
                 schema = json.loads(path.read_text("utf-8"))
                 Draft202012Validator.check_schema(schema)

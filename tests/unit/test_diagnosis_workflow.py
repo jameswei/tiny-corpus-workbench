@@ -183,8 +183,29 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 str(observation),
             )
             self.assertEqual((code, stderr), (0, ""))
+            expected = {
+                "diagnosis_directory": str(first.resolve()),
+                "artifact_integrity": {
+                    "status": "VERIFIED",
+                    "issues": [],
+                },
+                "subject_state": {"status": "MATCH"},
+                "derivation_state": {"status": "MATCH"},
+            }
+            self.assertEqual(
+                stdout,
+                json.dumps(
+                    expected,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+            )
             result = json.loads(stdout)
-            self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
+            self.assertEqual(
+                result["artifact_integrity"]["status"], "VERIFIED"
+            )
             self.assertEqual(result["subject_state"]["status"], "MATCH")
             self.assertEqual(result["derivation_state"]["status"], "MATCH")
             self.assertNotIn("schema_version", result)
@@ -212,9 +233,9 @@ class DiagnosisWorkflowTests(unittest.TestCase):
 
             diagnosis = self.diagnose(observation, root / "diagnoses")
             result = verify_diagnosis(diagnosis, observation)
-            self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
-            self.assertEqual(result["subject_state"]["status"], "MATCH")
-            self.assertEqual(result["derivation_state"]["status"], "MATCH")
+            self.assertEqual(result.artifact_integrity.status, "VERIFIED")
+            self.assertEqual(result.subject_state.status, "MATCH")
+            self.assertEqual(result.derivation_state.status, "MATCH")
 
     def test_checkout_and_runtime_metadata_do_not_change_diagnosis_identity(
         self,
@@ -273,9 +294,9 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             self.assertFalse(output.exists())
 
             result = verify_diagnosis(diagnosis, corrupted)
-            self.assertEqual(result["artifact_integrity"]["status"], "VERIFIED")
-            self.assertNotEqual(result["subject_state"]["status"], "MATCH")
-            self.assertEqual(result["derivation_state"]["status"], "NOT_CHECKED")
+            self.assertEqual(result.artifact_integrity.status, "VERIFIED")
+            self.assertNotEqual(result.subject_state.status, "MATCH")
+            self.assertEqual(result.derivation_state.status, "NOT_CHECKED")
 
     def test_canonical_collection_paths_are_required_before_publication(
         self,
@@ -290,9 +311,7 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                         mismatched_path_docling(kind),
                     )
                     self.assertEqual(
-                        verify_observation(observation)["artifact_integrity"][
-                            "status"
-                        ],
+                        verify_observation(observation).artifact_integrity.status,
                         "VERIFIED",
                     )
                     output = case / "diagnoses"
@@ -611,7 +630,7 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 with self.subTest(operation=name):
                     result = verify_diagnosis(changed)
                     self.assertNotEqual(
-                        result["artifact_integrity"]["status"], "VERIFIED"
+                        result.artifact_integrity.status, "VERIFIED"
                     )
                     code, stdout, stderr = self.invoke(
                         "verify-diagnosis", str(changed)
@@ -761,13 +780,13 @@ class DiagnosisWorkflowTests(unittest.TestCase):
 
                     result = verify_diagnosis(changed)
                     self.assertEqual(
-                        result["artifact_integrity"]["status"],
+                        result.artifact_integrity.status,
                         "BROKEN",
                     )
                     self.assertTrue(
                         any(
-                            issue["code"] == "MANIFEST_INVALID"
-                            for issue in result["artifact_integrity"]["issues"]
+                            issue.code == "MANIFEST_INVALID"
+                            for issue in result.artifact_integrity.issues
                         ),
                         result,
                     )
@@ -778,13 +797,13 @@ class DiagnosisWorkflowTests(unittest.TestCase):
             observation = self.observation(root / "observations")
             diagnosis = self.diagnose(observation, root / "diagnoses")
             self.assertEqual(
-                verify_diagnosis(diagnosis)["subject_state"]["status"],
+                verify_diagnosis(diagnosis).subject_state.status,
                 "NOT_CHECKED",
             )
             self.assertEqual(
                 verify_diagnosis(
                     diagnosis, root / "missing-subject"
-                )["subject_state"]["status"],
+                ).subject_state.status,
                 "MISSING",
             )
             subject = load_subject(observation)
@@ -804,10 +823,10 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                     ):
                         result = verify_diagnosis(diagnosis, observation)
                     self.assertEqual(
-                        result["subject_state"]["status"], "CHANGED"
+                        result.subject_state.status, "CHANGED"
                     )
                     self.assertEqual(
-                        result["derivation_state"]["status"], "NOT_CHECKED"
+                        result.derivation_state.status, "NOT_CHECKED"
                     )
 
     def test_cli_failures_have_exact_exit_and_stream_contracts(self) -> None:

@@ -78,9 +78,9 @@ class V05RefinementWorkflowTests(unittest.TestCase):
             approved = verify_refinement(
                 first_revision, first_diagnosis, observation
             )
-            self.assertEqual(approved["artifact_integrity"]["status"], "VERIFIED")
-            self.assertEqual(approved["derivation_state"]["status"], "MATCH")
-            self.assertEqual(approved["reversibility_state"]["status"], "MATCH")
+            self.assertEqual(approved.artifact_integrity.status, "VERIFIED")
+            self.assertEqual(approved.derivation_state.status, "MATCH")
+            self.assertEqual(approved.reversibility_state.status, "MATCH")
 
             rejected_decision = self.decision(
                 first_diagnosis,
@@ -97,9 +97,9 @@ class V05RefinementWorkflowTests(unittest.TestCase):
             rejected = verify_refinement(
                 rejected_revision, first_diagnosis, observation
             )
-            self.assertEqual(rejected["artifact_integrity"]["status"], "VERIFIED")
+            self.assertEqual(rejected.artifact_integrity.status, "VERIFIED")
             self.assertEqual(
-                rejected["derivation_state"]["status"], "NOT_APPLICABLE"
+                rejected.derivation_state.status, "NOT_APPLICABLE"
             )
             self.assertFalse((rejected_revision / "prepared").exists())
 
@@ -130,9 +130,9 @@ class V05RefinementWorkflowTests(unittest.TestCase):
             chained = verify_refinement(
                 second_revision, second_diagnosis, first_revision
             )
-            self.assertEqual(chained["artifact_integrity"]["status"], "VERIFIED")
-            self.assertEqual(chained["derivation_state"]["status"], "MATCH")
-            self.assertEqual(chained["reversibility_state"]["status"], "MATCH")
+            self.assertEqual(chained.artifact_integrity.status, "VERIFIED")
+            self.assertEqual(chained.derivation_state.status, "MATCH")
+            self.assertEqual(chained.reversibility_state.status, "MATCH")
             first_manifest = json.loads(
                 (first_revision / "refinement-manifest.json").read_text("utf-8")
             )
