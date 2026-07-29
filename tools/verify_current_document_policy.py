@@ -35,6 +35,10 @@ HISTORICAL_PATHS = (
     "docs/plans/v0.5-local-visual-workbench.md",
     "docs/plans/v0.5-local-visual-workbench-ledger.md",
 )
+README_REFINEMENT_ROW = (
+    "| Draft one refinement proposal | `corpus draft-refinement` |"
+)
+STALE_README_REFINEMENT_PHRASE = "Draft one decision"
 
 
 class PolicyError(ValueError):
@@ -90,6 +94,18 @@ def _reject_claims(path: Path, text: str) -> None:
 def _reject_stale_usage(path: Path, text: str) -> None:
     if re.search(r"\btcw\b|\binspect-corpus\b", text):
         raise PolicyError(f"{path.as_posix()}: stale CLI command")
+
+
+def _require_readme_refinement_wording(text: str) -> None:
+    path = Path("README.md")
+    if STALE_README_REFINEMENT_PHRASE.casefold() in text.casefold():
+        raise PolicyError(f"{path.as_posix()}: stale refinement draft wording")
+    _require(
+        path,
+        text,
+        README_REFINEMENT_ROW,
+        "refinement proposal command wording",
+    )
 
 
 def _require_historical_links(text: str) -> None:
@@ -170,6 +186,7 @@ def verify(root: Path) -> None:
         "internal bridge",
     )
     readme = usage_documents[Path("README.md")]
+    _require_readme_refinement_wording(readme)
     _require(
         Path("README.md"),
         readme,
