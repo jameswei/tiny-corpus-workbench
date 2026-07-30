@@ -206,14 +206,16 @@ confirmation.
 
 ## Active milestone
 
-No unreleased milestone is active. v0.5 is the latest completed milestone, and
-v0.5.1 is the latest source release.
+Milestone v0.6, Shared Workbench Workspace, is active on
+`work/v06-shared-workbench-workspace`. v0.5 is the latest completed milestone,
+and v0.5.1 is the latest source release.
 
 The roadmap now records three bounded, progressive Workbench improvements:
 v0.6 Shared Workbench Workspace, v0.7 Web Observation Workflow, and v0.8
 Interactive Document Lifecycle. The next planning target is v0.6. These
-roadmap entries do not activate implementation; v0.6 still requires its own
-focused, reviewed, and approved plan.
+roadmap entries do not activate implementation by themselves. The exact
+[v0.6 plan](docs/plans/v0.6-shared-workbench-workspace.md) passed independent
+review and received explicit owner approval before implementation began.
 
 The [v0.5 Local Visual Workbench plan](docs/plans/v0.5-local-visual-workbench.md)
 and its
@@ -221,9 +223,11 @@ and its
 records of the superseded implementation direction and activity. They do not
 govern current implementation.
 
-The Workbench is read-only, loopback-only, and limited to explicitly supplied
-local records. The loopback HTTP server is an internal bridge for the bundled
-browser interface, not a public or stable API.
+The v0.6 Workbench remains read-only and loopback-only. It discovers the four
+fixed record families under `build/` or a custom workspace and accepts a new
+verified snapshot only after startup or manual transactional refresh. The
+loopback HTTP server is an internal bridge for the bundled browser interface,
+not a public or stable API.
 
 The plans and ledgers linked in the Status section record the completed
 implementation, integration, closeout, release-readiness, authorization, and

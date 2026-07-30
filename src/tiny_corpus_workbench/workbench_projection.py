@@ -862,3 +862,9 @@ def build_projection(records: AdmittedRecords) -> WorkbenchProjection:
     if advertised != set(artifact_contents):
         raise IntegrityError("advertised artifact keys differ from captured bytes")
     return WorkbenchProjection(projection, details, artifact_contents)
+
+
+def empty_projection() -> WorkbenchProjection:
+    """Build the stable read model for a workspace with no records."""
+
+    return build_projection(AdmittedRecords({}, set(), []))

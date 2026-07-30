@@ -4,8 +4,6 @@ import argparse
 import importlib
 import importlib.metadata
 import json
-import os
-import stat
 import sys
 from pathlib import Path
 from typing import Any
@@ -27,39 +25,11 @@ from tiny_corpus_workbench.domain import (
 )
 
 
-WORKBENCH_ROOT_MANIFESTS = (
-    "manifest.json",
-    "diagnosis-manifest.json",
-    "refinement-manifest.json",
-    "corpus-manifest.json",
-)
 PROJECT_VERSION = importlib.metadata.version("tiny-corpus-workbench")
 
 
 def _runtime_import_message(error: Exception, fallback: str) -> str:
     return fallback
-
-
-def _preflight_workbench_roots(roots: list[Path]) -> None:
-    for root in roots:
-        try:
-            metadata = root.lstat()
-        except FileNotFoundError as error:
-            raise InputError("RECORD root is unavailable") from error
-        except OSError:
-            continue
-        if stat.S_ISLNK(metadata.st_mode):
-            continue
-        if not stat.S_ISDIR(metadata.st_mode):
-            raise InputError("RECORD must be a root directory")
-        try:
-            known = any(
-                os.path.lexists(root / name) for name in WORKBENCH_ROOT_MANIFESTS
-            )
-        except OSError:
-            continue
-        if not known:
-            raise InputError("RECORD root is not a supported record")
 
 
 def _verification_callable(name: str) -> Any:
@@ -206,9 +176,9 @@ def parser() -> argparse.ArgumentParser:
     )
     verify_corpus.add_argument("--spec", metavar="CORPUS_SPEC", type=Path)
     workbench = commands.add_parser(
-        "workbench", help="serve explicit records in a read-only local workbench"
+        "workbench", help="serve one workspace in a read-only local workbench"
     )
-    workbench.add_argument("records", metavar="RECORD", type=Path, nargs="+")
+    workbench.add_argument("--workspace", type=Path, default=Path("build"))
     workbench.add_argument("--port", default="8765")
     workbench.add_argument("--no-open", action="store_true")
     return root
@@ -219,9 +189,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "workbench":
         server = None
         try:
-            from tiny_corpus_workbench.application.workbench import (
-                prepare_workbench,
-            )
+            from tiny_corpus_workbench.application.workbench import WorkbenchState
             from tiny_corpus_workbench.workbench_server import (
                 create_server,
                 open_browser,
@@ -230,16 +198,8 @@ def main(argv: list[str] | None = None) -> int:
             )
 
             port = validate_port(args.port)
-            _preflight_workbench_roots(args.records)
-            try:
-                projection = prepare_workbench(args.records)
-            except IntegrityError as error:
-                if "structured response limit" not in str(error):
-                    raise
-                raise InputError(
-                    "workbench projection exceeds the structured response limit"
-                ) from error
-            server = create_server(projection, port)
+            state = WorkbenchState(args.workspace)
+            server = create_server(state, port)
             try:
                 url = serving_url(port)
                 print(url, flush=True)

@@ -145,7 +145,7 @@
         <p><strong>Diagnosis report · Available</strong><span>Deterministic portable evidence</span></p>
         <p><strong>Prepared revision · Available</strong><span>Reversible, attributable transformation history</span></p>
         <p><strong>Static corpus report · Available</strong><span>Offline navigation across explicit local members</span></p>
-        <p><strong>Local Visual Workbench · Available</strong><span>Read-only local exploration of explicit current records</span></p>
+        <p><strong>Local Visual Workbench · Available</strong><span>Read-only workspace exploration with manual transactional refresh</span></p>
       </div>
       <p><strong>One-time setup</strong></p>
       <pre class="command-block"><code>uv sync --frozen --python 3.12
@@ -159,7 +159,7 @@ corpus resolve-refinement proposal.json --diagnosis DIAGNOSIS_DIRECTORY --base O
 corpus verify-refinement REFINEMENT_DIRECTORY --diagnosis DIAGNOSIS_DIRECTORY --base OBSERVATION_DIRECTORY
 corpus inspect fixtures/corpus/golden-matrix.json
 corpus verify-corpus CORPUS_DIRECTORY --spec fixtures/corpus/golden-matrix.json
-corpus workbench RECORD_DIRECTORY --no-open</code></pre>
+corpus workbench --no-open</code></pre>
       <p>The project is distributed as source from its repository. It does not ship prebuilt binaries. After setup, activate <code>.venv</code> to run <code>corpus</code> directly.</p>
       <div class="resource-links">
         <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/learning/README.md">Explore all learning materials</a>

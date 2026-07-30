@@ -211,7 +211,7 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
                 "inspect",
                 str(corpus_spec),
                 "--output-root",
-                str(runtime / "corpora"),
+                str(runtime / "build/corpus-inspection"),
                 "--docling-artifacts",
                 str(unused_models),
                 cwd=export,
@@ -241,7 +241,7 @@ def _available_port() -> int:
 
 def _inspect_workbench(
     export: Path,
-    record: Path,
+    workspace: Path,
     env: dict[str, str],
 ) -> None:
     port = _available_port()
@@ -251,7 +251,8 @@ def _inspect_workbench(
             "-m",
             "tiny_corpus_workbench",
             "workbench",
-            str(record),
+            "--workspace",
+            str(workspace),
             "--port",
             str(port),
             "--no-open",
@@ -330,8 +331,8 @@ def _verify_clean_export(parent: Path) -> None:
     for arguments in commands:
         completed = run(sys.executable, *arguments, cwd=export, env=env)
         sys.stdout.buffer.write(completed.stdout)
-    corpus = _run_workflows(export, runtime, env)
-    _inspect_workbench(export, corpus, env)
+    _run_workflows(export, runtime, env)
+    _inspect_workbench(export, runtime / "build", env)
     after = _inventory(export)
     if after != before:
         raise SystemExit("clean-export validation changed the exported repository tree")

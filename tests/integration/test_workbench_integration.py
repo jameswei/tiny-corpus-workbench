@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from tests.unit.workbench_server_test_support import ServerHarness
 from tests.unit.workbench_test_support import (
+    REPOSITORY,
     PublishedCorpus,
     PublishedDiagnosis,
     PublishedFailedObservation,
     PublishedObservation,
+    PublishedRefinements,
     run_corpus,
 )
 
@@ -22,6 +27,7 @@ class WorkbenchIntegrationTests(unittest.TestCase):
         cls.incomplete = PublishedFailedObservation()
         cls.corpus = PublishedCorpus()
         cls.diagnosis = PublishedDiagnosis()
+        cls.refinements = PublishedRefinements()
         cls.complete_server = ServerHarness(cls.complete.root)
         cls.incomplete_server = ServerHarness(cls.incomplete.root)
         cls.corpus_server = ServerHarness(cls.corpus.root)
@@ -34,6 +40,7 @@ class WorkbenchIntegrationTests(unittest.TestCase):
         cls.corpus_server.close()
         cls.missing_server.close()
         cls.diagnosis.close()
+        cls.refinements.close()
         cls.corpus.close()
         cls.incomplete.close()
         cls.complete.close()
@@ -192,6 +199,99 @@ class WorkbenchIntegrationTests(unittest.TestCase):
             target.write_bytes(original)
         self.assertEqual(response.status, 200)
         self.assertEqual(response.body, captured)
+
+    def test_empty_workspace_accepts_cli_publication_after_refresh(self) -> None:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
+            workspace = Path(temporary)
+            harness = ServerHarness(workspace=workspace)
+            try:
+                empty = json.loads(harness.request("/api/workbench").body)
+                self.assertEqual(empty["refresh"]["status"], "READY")
+                self.assertEqual(empty["counts"]["record_count"], 0)
+                published = run_corpus(
+                    "observe",
+                    str(REPOSITORY / "fixtures/golden/policy-memo.md"),
+                    "--output-root",
+                    str(workspace / "extraction-observatory"),
+                )
+                refreshed = harness.request(
+                    "/api/workbench/refresh",
+                    method="POST",
+                    headers=[("Host", harness.authority), ("Content-Length", "0")],
+                )
+                accepted = json.loads(harness.request("/api/workbench").body)
+                record_key = accepted["records"][0]["record_key"]
+                detail = harness.request(f"/api/records/{record_key}")
+            finally:
+                harness.close()
+        self.assertEqual(Path(published["manifest"]).name, "manifest.json")
+        self.assertEqual(refreshed.status, 204)
+        self.assertEqual(accepted["refresh"]["status"], "READY")
+        self.assertEqual(accepted["counts"]["record_count"], 1)
+        self.assertEqual(json.loads(detail.body)["kind"], "OBSERVATION")
+
+    def test_default_build_workspace_needs_no_output_configuration(self) -> None:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
+            root = Path(temporary)
+            harness = ServerHarness(workspace=root / "build")
+            try:
+                completed = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "tiny_corpus_workbench",
+                        "observe",
+                        str(REPOSITORY / "fixtures/golden/policy-memo.md"),
+                    ],
+                    cwd=root,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                response = harness.request(
+                    "/api/workbench/refresh",
+                    method="POST",
+                    headers=[("Host", harness.authority), ("Content-Length", "0")],
+                )
+                accepted = json.loads(harness.request("/api/workbench").body)
+            finally:
+                harness.close()
+        self.assertEqual(response.status, 204)
+        self.assertEqual(accepted["counts"]["record_count"], 1)
+        manifest = json.loads(completed.stdout)["manifest"]
+        self.assertTrue(manifest.endswith("manifest.json"))
+
+    def test_shared_workspace_accepts_all_four_record_families(self) -> None:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
+            workspace = Path(temporary)
+            supplied = (
+                ("extraction-observatory", self.refinements.observation),
+                ("evidence-based-diagnosis", self.refinements.diagnosis),
+                ("controlled-revisions", self.refinements.applied),
+                ("controlled-revisions", self.refinements.rejected),
+                ("corpus-inspection", self.corpus.root),
+            )
+            for family, source in supplied:
+                destination = workspace / family / source.name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(source, destination)
+            harness = ServerHarness(workspace=workspace)
+            try:
+                accepted = json.loads(harness.request("/api/workbench").body)
+            finally:
+                harness.close()
+        self.assertEqual(
+            {record["kind"] for record in accepted["records"]},
+            {"OBSERVATION", "DIAGNOSIS", "REFINEMENT", "CORPUS"},
+        )
+        self.assertEqual(accepted["counts"]["top_level_record_count"], 5)
+        self.assertGreater(accepted["counts"]["contained_record_count"], 0)
 
 
 if __name__ == "__main__":

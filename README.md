@@ -55,10 +55,12 @@ The `corpus` CLI owns workflow execution and verification:
 | Verify a refinement | `corpus verify-refinement` |
 | Inspect an explicit corpus | `corpus inspect` |
 | Verify a corpus | `corpus verify-corpus` |
-| Open explicit records locally | `corpus workbench` |
+| Open a shared local workspace | `corpus workbench` |
 
 The Local Visual Workbench is the bundled browser interface. It is read-only,
-binds only to `127.0.0.1`, and accepts explicit local record roots. Its
+binds only to `127.0.0.1`, and discovers records in one fixed-layout workspace.
+Use its manual refresh control to accept a new verified snapshot without
+restarting. Its
 loopback HTTP routes are an internal bridge for the bundled HTML, CSS, and
 JavaScript. They are not a public API. The project provides no hosted
 document-processing service.
@@ -143,10 +145,10 @@ corpus verify-refinement REFINEMENT_DIRECTORY \
   --base OBSERVATION_DIRECTORY
 ```
 
-To inspect existing records without changing them:
+To inspect the default `build/` workspace without changing records:
 
 ```bash
-corpus workbench OBSERVATION_DIRECTORY DIAGNOSIS_DIRECTORY --no-open
+corpus workbench --no-open
 ```
 
 Open the printed local address. Stop the server with `Ctrl-C`.
@@ -155,8 +157,9 @@ Open the printed local address. Stop the server with `Ctrl-C`.
 
 Record-producing commands publish a new directory and do not overwrite a
 previous publication. `draft-refinement` writes the requested proposal file.
-Verify commands read records and report results. `workbench` serves admitted
-records without publishing a record.
+Verify commands read records and report results. `workbench` discovers the four
+record families under `build/` by default and serves an accepted in-memory
+snapshot without publishing a record.
 
 | Record | Main files | Role |
 | --- | --- | --- |

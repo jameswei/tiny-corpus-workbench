@@ -15,6 +15,7 @@ const COMPARISON_METRICS = [
 ];
 const elements = {
   announcer: document.getElementById("announcer"),
+  refreshButton: document.getElementById("refresh-records"),
   recordCount: document.getElementById("record-count"),
   recordList: document.getElementById("record-list"),
   recordView: document.getElementById("record-view"),
@@ -28,6 +29,12 @@ const elements = {
   sessionFacts: document.getElementById("session-facts"),
   stateKey: document.getElementById("state-key"),
 };
+let currentProjection = null;
+let selectedRecordKey = null;
+let projectionGeneration = 0;
+let projectionRequestGeneration = 0;
+let detailRequestGeneration = 0;
+let activeDetailPromise = Promise.resolve(true);
 
 const stateHelp = {
   MATCH: "The admitted target is present and its recorded relationship matches.",
@@ -190,9 +197,15 @@ function renderStateKey() {
 }
 
 function renderOverview(projection) {
-  elements.sessionState.replaceWith(status("AVAILABLE"));
+  elements.sessionState.replaceWith(status(projection.refresh.status));
   elements.sessionState = document.querySelector("#session-overview .section-heading .status");
-  elements.sessionMessage.textContent = "The projection is derived in memory. It cannot edit records or run workflows.";
+  if (projection.refresh.status === "FAILED") {
+    elements.sessionMessage.textContent = projection.refresh.message;
+  } else if (projection.counts.record_count === 0) {
+    elements.sessionMessage.textContent = "This workspace has no records. Publish a CLI record into the workspace, then refresh.";
+  } else {
+    elements.sessionMessage.textContent = "This accepted snapshot is derived in memory. It cannot edit records or run workflows.";
+  }
   const counts = projection.counts;
   const facts = [
     ["Records", counts.record_count],
@@ -212,10 +225,17 @@ function recordLabel(record) {
   return `${displayName(record.status)} ${displayName(record.kind)} ${shortHash(record.primary_identity.value)}`;
 }
 
-function renderNavigation(projection) {
+function renderNavigation(projection, generation) {
   elements.recordCount.textContent = String(projection.records.length);
   elements.recordCount.setAttribute("aria-label", `${projection.records.length} records`);
   clear(elements.recordList);
+  if (projection.records.length === 0) {
+    elements.recordList.append(node("p", "No records are available.", "empty"));
+    elements.recordView.hidden = true;
+    selectedRecordKey = null;
+    detailRequestGeneration += 1;
+    return true;
+  }
   for (const record of projection.records) {
     const button = node("button", undefined, "record-button");
     button.type = "button";
@@ -223,9 +243,12 @@ function renderNavigation(projection) {
     button.append(node("strong", displayName(record.kind)));
     button.append(node("small", `${displayName(record.status)} · ${shortHash(record.primary_identity.value)}`));
     button.setAttribute("aria-label", `Open ${recordLabel(record)}`);
-    button.addEventListener("click", () => loadRecord(record));
+    button.addEventListener("click", () => selectRecord(record));
     elements.recordList.append(button);
   }
+  const selected = projection.records.find((record) => record.record_key === selectedRecordKey)
+    || projection.records[0];
+  return selectRecord(selected, generation);
 }
 
 function renderRecordSummary(record, detail) {
@@ -620,7 +643,9 @@ function renderArtifacts(detail) {
   return wrapper;
 }
 
-async function loadRecord(record) {
+async function loadRecord(record, generation = projectionGeneration) {
+  selectedRecordKey = record.record_key;
+  const requestGeneration = ++detailRequestGeneration;
   for (const button of elements.recordList.querySelectorAll("button")) {
     button.setAttribute("aria-current", String(button.dataset.recordKey === record.record_key));
   }
@@ -642,6 +667,13 @@ async function loadRecord(record) {
       throw new Error(`Request failed with status ${response.status}.`);
     }
     const detail = await response.json();
+    if (
+      requestGeneration !== detailRequestGeneration
+      || generation !== projectionGeneration
+      || selectedRecordKey !== record.record_key
+    ) {
+      return false;
+    }
     renderRecordSummary(record, detail);
     clear(elements.recordContent);
     elements.recordContent.append(renderRelationships(detail));
@@ -657,33 +689,105 @@ async function loadRecord(record) {
     elements.recordContent.append(renderArtifacts(detail));
     elements.recordHeading.focus();
     announce(`${recordLabel(record)} loaded.`);
+    return true;
   } catch (error) {
+    if (
+      requestGeneration !== detailRequestGeneration
+      || generation !== projectionGeneration
+      || selectedRecordKey !== record.record_key
+    ) {
+      return false;
+    }
     clear(elements.recordContent);
     elements.recordContent.append(node("p", "The record details are unavailable.", "error"));
     elements.recordHeading.focus();
     announce("Record details could not be loaded.");
+    return false;
+  }
+}
+
+function selectRecord(record, generation = projectionGeneration) {
+  activeDetailPromise = loadRecord(record, generation);
+  return activeDetailPromise;
+}
+
+async function waitForActiveDetail() {
+  let pending;
+  do {
+    pending = activeDetailPromise;
+    await pending;
+  } while (pending !== activeDetailPromise);
+}
+
+async function loadProjection() {
+  const requestGeneration = ++projectionRequestGeneration;
+  const response = await fetch(`${API_ROOT}/workbench`, {
+      credentials: "same-origin",
+      headers: {"Accept": "application/json"},
+  });
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}.`);
+  }
+  const projection = await response.json();
+  if (requestGeneration !== projectionRequestGeneration) {
+    return false;
+  }
+  currentProjection = projection;
+  const generation = ++projectionGeneration;
+  renderOverview(currentProjection);
+  renderNavigation(currentProjection, generation);
+  await waitForActiveDetail();
+  if (
+    requestGeneration !== projectionRequestGeneration
+    || generation !== projectionGeneration
+  ) {
+    return false;
+  }
+  announce(`${currentProjection.counts.record_count} records are ready.`);
+  return true;
+}
+
+async function refreshRecords() {
+  elements.refreshButton.disabled = true;
+  elements.refreshButton.textContent = "Refreshing…";
+  announce("Refreshing workspace records.");
+  try {
+    const response = await fetch(`${API_ROOT}/workbench/refresh`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {"Accept": "application/json"},
+    });
+    if (!response.ok) {
+      const failure = await response.json();
+      if (currentProjection !== null) {
+        currentProjection.refresh = {status: "FAILED", message: failure.message};
+        renderOverview(currentProjection);
+      }
+      throw new Error(failure.message);
+    }
+    if (await loadProjection()) {
+      announce("Workspace records refreshed.");
+    }
+  } catch (error) {
+    announce(`Workspace refresh failed. ${error.message}`);
+  } finally {
+    elements.refreshButton.disabled = false;
+    elements.refreshButton.textContent = "Refresh records";
   }
 }
 
 async function start() {
   renderStateKey();
+  elements.refreshButton.addEventListener("click", refreshRecords);
   try {
-    const response = await fetch(`${API_ROOT}/workbench`, {
-      credentials: "same-origin",
-      headers: {"Accept": "application/json"},
-    });
-    if (!response.ok) {
-      throw new Error(`Request failed with status ${response.status}.`);
-    }
-    const projection = await response.json();
-    renderOverview(projection);
-    renderNavigation(projection);
-    announce(`${projection.counts.record_count} records are ready.`);
+    await loadProjection();
   } catch (error) {
     elements.sessionState.replaceWith(status("FAILED"));
     elements.sessionState = document.querySelector("#session-overview .section-heading .status");
-    elements.sessionMessage.textContent = "The workbench projection is unavailable. Restart the local workbench and try again.";
+    elements.sessionMessage.textContent = "The workbench projection is unavailable. Try again.";
     announce("The workbench projection is unavailable.");
+  } finally {
+    elements.refreshButton.disabled = false;
   }
 }
 
