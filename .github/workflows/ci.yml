@@ -19,6 +19,7 @@ concurrency:
 jobs:
   fast-validation:
     name: Fast validation
+    if: github.event_name != 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -107,6 +108,7 @@ jobs:
 
   full-extraction:
     name: Full extraction
+    if: github.event_name != 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -149,6 +151,50 @@ jobs:
 
       - name: Check post-validation working tree
         run: |
+          git diff --check
+          status="$(git status --porcelain=v1)"
+          if [[ -n "${status}" ]]; then
+            printf '%s\n' "${status}"
+            exit 1
+          fi
+
+  main-smoke:
+    name: Main smoke
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Set up CPython
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked runtime dependencies
+        run: uv sync --frozen --python 3.12
+
+      - name: Verify installed CLI
+        run: uv run --frozen corpus --version
+
+      - name: Run model-free lifecycle smoke
+        run: >-
+          uv run --frozen python -m unittest -v
+          tests.integration.test_v05_workflows
+
+      - name: Check merged diff and working tree
+        run: |
+          git diff --check HEAD^ HEAD
           git diff --check
           status="$(git status --porcelain=v1)"
           if [[ -n "${status}" ]]; then

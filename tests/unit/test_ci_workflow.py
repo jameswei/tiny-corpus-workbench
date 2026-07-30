@@ -12,6 +12,9 @@ FAST_MODULES = {
     "tests.integration.test_v05_workflows",
     "tests.integration.test_workbench_integration",
 }
+MAIN_SMOKE_MODULES = {
+    "tests.integration.test_v05_workflows",
+}
 FULL_MODULES = {
     "tests.compatibility.test_extractor_compatibility",
     "tests.integration.test_golden_observations",
@@ -49,6 +52,7 @@ class CIWorkflowTests(unittest.TestCase):
         cls.workflow = WORKFLOW_PATH.read_text("utf-8")
         cls.fast = _job(cls.workflow, "fast-validation")
         cls.full = _job(cls.workflow, "full-extraction")
+        cls.main = _job(cls.workflow, "main-smoke")
 
     def test_supported_triggers_remain_enabled(self) -> None:
         workflow_header = self.workflow[: self.workflow.index("permissions:\n")]
@@ -56,6 +60,11 @@ class CIWorkflowTests(unittest.TestCase):
         self.assertIn("  push:\n", workflow_header)
         self.assertIn("  workflow_dispatch:\n", workflow_header)
         self.assertEqual(workflow_header.count("      - main\n"), 2)
+
+    def test_pr_and_manual_jobs_do_not_repeat_after_push(self) -> None:
+        self.assertIn("if: github.event_name != 'push'", self.fast)
+        self.assertIn("if: github.event_name != 'push'", self.full)
+        self.assertIn("if: github.event_name == 'push'", self.main)
 
     def test_fast_owns_model_free_tests_and_shared_tools(self) -> None:
         self.assertIn("unittest discover -s tests/unit -v", self.fast)
@@ -80,6 +89,15 @@ class CIWorkflowTests(unittest.TestCase):
         self.assertFalse(
             _explicit_test_modules(self.fast) & _explicit_test_modules(self.full)
         )
+
+    def test_main_runs_only_a_lightweight_exact_main_smoke(self) -> None:
+        self.assertEqual(_explicit_test_modules(self.main), MAIN_SMOKE_MODULES)
+        self.assertIn("uv sync --frozen --python 3.12", self.main)
+        self.assertNotIn("--group test", self.main)
+        self.assertIn("uv run --frozen corpus --version", self.main)
+        self.assertNotIn("unittest discover", self.main)
+        self.assertNotIn("docling-tools models download", self.main)
+        self.assertIn("git diff --check HEAD^ HEAD", self.main)
 
     def test_full_slice_stops_before_a_later_job(self) -> None:
         appended_workflow = (
