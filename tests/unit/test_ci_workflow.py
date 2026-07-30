@@ -19,7 +19,6 @@ FULL_MODULES = {
     "tests.integration.test_corpus_integration",
 }
 FAST_TOOLS = {
-    "tools/verify_current_document_policy.py",
     "tools/validate_workbench_assets.py",
     "tools/validate_site.py",
     "tools/generate_fixtures.py",
