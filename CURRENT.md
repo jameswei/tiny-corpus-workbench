@@ -206,7 +206,14 @@ confirmation.
 
 ## Active milestone
 
-No unreleased milestone is active. v0.5 is the latest completed release.
+No unreleased milestone is active. v0.5 is the latest completed milestone, and
+v0.5.1 is the latest source release.
+
+The roadmap now records three bounded, progressive Workbench improvements:
+v0.6 Shared Workbench Workspace, v0.7 Web Observation Workflow, and v0.8
+Interactive Document Lifecycle. The next planning target is v0.6. These
+roadmap entries do not activate implementation; v0.6 still requires its own
+focused, reviewed, and approved plan.
 
 The [v0.5 Local Visual Workbench plan](docs/plans/v0.5-local-visual-workbench.md)
 and its
