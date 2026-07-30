@@ -29,11 +29,34 @@ Future work may use whichever sound engineering practices fit the task.
   squash-merged as `40b2083de70cfe9f7ad2dfa2cea8435b377a5ecc`.
   Post-main CI `30477806685` passed Fast and Full, and post-main Pages
   `30477806662` passed build and deploy at that exact squash.
-- v0.5 is unreleased. Tag and GitHub Release creation are not authorized.
-  Any current release-readiness verdict and exact-SHA owner authorization are
-  external to this source snapshot. Tag or GitHub Release creation is
-  forbidden unless those external gates have been verified for the exact
-  current candidate.
+- Post-closeout status correction PR #32 was independently reviewed at head
+  `7877c8e028bd7c73af02f6d6c2aa701ed6481aa8` and returned `PASS` with zero
+  findings. PR CI `30479472643` passed Fast and Full, and Copilot completed
+  4/4 with zero comments. PR #32 was squash-merged as
+  `6ed049bbf889cde6ea1ba63b1d57813bac820214`. Post-main CI `30480029674`
+  passed Fast and Full, and post-main Pages `30480029443` passed build and
+  deploy at that exact squash.
+- A final fresh release-readiness review returned `PASS` with zero findings
+  for exact candidate `6ed049bbf889cde6ea1ba63b1d57813bac820214`.
+  Before publication, 291 unit tests and 8 model-free/Workbench integration
+  tests passed, together with portability, policy, assets, site, schema,
+  version, lock, documentation, review-thread, and tag-absence checks. The
+  owner then explicitly authorized that exact SHA for v0.5.0 publication.
+- Milestone v0.5, Local Visual Workbench, was released on 2026-07-30 as
+  [`v0.5.0`](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.5.0).
+  The annotated tag ref targets tag object
+  `2f5843e9ae492eaef6db4cd863e6299fc458c085`, which peels to exact commit
+  `6ed049bbf889cde6ea1ba63b1d57813bac820214`. The published GitHub Release is
+  latest, non-draft, non-prerelease, and source-only, with no custom assets.
+- Post-release correction PR #33 removed the current-document policy validator,
+  its prose and historical-evidence tests, and its CI hook. Documentation and
+  evidence are not executable implementation contracts. A fresh independent
+  review returned `PASS` with zero findings for head
+  `4f6dd65729334b811c29048e19e8cc3b9a2c7dc5`; PR CI `30510663242` passed Fast
+  and Full, and Copilot reviewed 4/4 files with zero comments. PR #33 was
+  squash-merged as `1a358bdf6ab97dd77d31ac8bf8f17c0f3852c6aa`.
+  Post-main CI `30510994588` passed Fast and Full, and post-main Pages
+  `30510994584` passed build and deploy at that exact squash.
 - The completed correction follows the approved
   [v0.5 learning-first correction plan](docs/plans/v0.5-learning-first-correction.md)
   and its
@@ -183,11 +206,7 @@ confirmation.
 
 ## Active milestone
 
-Milestone v0.5 implementation and technical integration are complete. The
-learning-first correction updated records, verification, the local Workbench,
-obsolete machinery, the CLI name, CI ownership, and current documentation.
-The pre-release amendment then made verification results transient typed
-values and reduced refinement decisions to one persisted authority.
+No unreleased milestone is active. v0.5 is the latest completed release.
 
 The [v0.5 Local Visual Workbench plan](docs/plans/v0.5-local-visual-workbench.md)
 and its
@@ -200,13 +219,31 @@ local records. The loopback HTTP server is an internal bridge for the bundled
 browser interface, not a public or stable API.
 
 The plans and ledgers linked in the Status section record the completed
-implementation and integration evidence. Release, tag, and publication work
-remain paused. The amendment closeout is complete. Any current
-release-readiness verdict and exact-SHA owner authorization are external to
-this source snapshot. Tag or GitHub Release creation is forbidden unless those
-external gates have been verified for the exact current candidate.
+implementation, integration, closeout, release-readiness, authorization, and
+publication evidence.
 
 ## Latest completed milestone
+
+Milestone v0.5 adds the bundled Local Visual Workbench for read-only inspection
+of explicit verified records. It serves a frozen in-memory projection through
+a loopback-only internal bridge and does not discover records, persist session
+state, or move workflow execution out of the CLI.
+
+The learning-first correction aligned current records, verification, CLI
+ownership, documentation, and the Workbench. The pre-release amendment made
+verification results transient typed values and reduced refinement decisions
+to one persisted authority.
+
+PR #32 supplied the final status correction and was independently reviewed,
+CI-verified, and squash-merged as exact release target
+`6ed049bbf889cde6ea1ba63b1d57813bac820214`. A separate final readiness review
+returned `PASS` with zero findings for that exact commit, and the owner
+explicitly authorized it. The annotated `v0.5.0` tag peels to the same commit,
+and the
+[GitHub Release](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.5.0)
+was published on 2026-07-30 as the latest source-only release.
+
+## Previous released milestone
 
 Milestone v0.4 adds explicit, local corpus inspection over the released
 observation and diagnosis contracts. It processes members sequentially,
@@ -240,7 +277,7 @@ CI, release-target CI, Pages deployment, tagged documentation, and the live
 website all passed final verification. At the v0.4 closeout, no later
 milestone was active.
 
-## Previous released milestone
+## Earlier released milestone
 
 Milestone v0.3 adds explicit refinement decisions and immutable prepared
 revisions. It includes fixed refiners for whitespace normalization, repeated

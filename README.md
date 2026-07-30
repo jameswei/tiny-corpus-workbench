@@ -71,9 +71,7 @@ document-processing service.
 | [v0.2.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.2.0) | Evidence-Based Diagnosis |
 | [v0.3.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.3.0) | Controlled Revisions |
 | [v0.4.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.4.0) | Corpus Inspection and Comparison |
-
-The v0.5 Local Visual Workbench is available in the current source checkout
-but remains unreleased.
+| [v0.5.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.5.0) | Local Visual Workbench |
 
 ## One-time setup
 
