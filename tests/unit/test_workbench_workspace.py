@@ -104,6 +104,29 @@ class WorkbenchWorkspaceTests(unittest.TestCase):
         self.assertIsNone(state.refresh_message)
         self.assertEqual(state.projection_object()["refresh"]["message"], None)
 
+    def test_response_limit_failure_preserves_snapshot_and_can_recover(self) -> None:
+        self.publish_copy("extraction-observatory/one")
+        state = WorkbenchState(self.workspace)
+        original_projection = state.projection
+        original_details = state.projection.details
+        original_artifacts = state.projection.artifact_contents
+
+        with patch(
+            "tiny_corpus_workbench.application.workbench.MAX_STRUCTURED_RESPONSE",
+            1,
+        ):
+            failed = state.refresh()
+        self.assertFalse(failed.succeeded)
+        self.assertIn("structured response limit", failed.message)
+        self.assertIs(state.projection, original_projection)
+        self.assertIs(state.projection.details, original_details)
+        self.assertIs(state.projection.artifact_contents, original_artifacts)
+
+        recovered = state.refresh()
+        self.assertTrue(recovered.succeeded)
+        self.assertEqual(state.refresh_status, "READY")
+        self.assertIsNone(state.refresh_message)
+
     def test_workspace_replaced_by_file_preserves_last_good_snapshot(self) -> None:
         self.publish_copy("extraction-observatory/one")
         state = WorkbenchState(self.workspace)

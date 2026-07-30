@@ -21,7 +21,10 @@ from tiny_corpus_workbench.workbench_projection import (
     build_projection,
     empty_projection,
 )
-from tiny_corpus_workbench.workbench_records import admit_records
+from tiny_corpus_workbench.workbench_records import (
+    MAX_STRUCTURED_RESPONSE,
+    admit_records,
+)
 
 
 FAMILIES = (
@@ -30,7 +33,6 @@ FAMILIES = (
     ("controlled-revisions", "refinement-manifest.json"),
     ("corpus-inspection", "corpus-manifest.json"),
 )
-MAX_STRUCTURED_RESPONSE = 4 * 1024 * 1024
 
 
 def prepare_workbench(
