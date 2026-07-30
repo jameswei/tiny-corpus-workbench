@@ -234,9 +234,9 @@ Use the deeper guides for exact behavior:
 - [Local Visual Workbench](docs/local-visual-workbench.md)
 
 The historical [project proposal](docs/proposal.md) records the original
-brainstorming direction. The current
-[v0.5 learning-first correction](docs/plans/v0.5-learning-first-correction.md)
-supersedes the original v0.5 implementation direction.
+brainstorming direction. The consolidated
+[v0.5 outcome and rationale](docs/plans/v0.5-local-visual-workbench.md)
+records the final Local Visual Workbench design.
 
 ## Distribution and license
 
