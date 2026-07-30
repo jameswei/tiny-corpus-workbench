@@ -1,10 +1,11 @@
 # Local Visual Workbench
 
-The Local Visual Workbench gives you a read-only browser view of explicit v0.5
-records. It uses the same verification and evidence contracts as the CLI.
+The Local Visual Workbench gives you a read-only browser view of records in one
+local workspace. It uses the same verification and evidence contracts as the
+CLI.
 
 The workbench is local software. It is not a hosted service. It binds only to
-`127.0.0.1`, keeps one frozen projection in memory, and writes no session
+`127.0.0.1`, keeps one accepted projection in memory, and writes no session
 state.
 
 ## One-time setup
@@ -20,20 +21,17 @@ command with `uv run`.
 
 ## Start the workbench
 
-Create an observation that needs no model files:
+Create an observation that needs no model files. The default producer output
+already uses the default workspace:
 
 ```bash
-corpus observe fixtures/golden/policy-memo.md \
-  --output-root /tmp/corpus-workbench-observations
+corpus observe fixtures/golden/policy-memo.md
 ```
-
-The command prints one JSON object. Use the parent directory of its `manifest`
-value as `OBSERVATION_DIRECTORY`.
 
 Start the workbench without opening a browser automatically:
 
 ```bash
-corpus workbench OBSERVATION_DIRECTORY --no-open
+corpus workbench --no-open
 ```
 
 The command prints only the serving address. The default address is
@@ -45,28 +43,34 @@ the server.
 Use `--port PORT` to select an unused port from 1024 through 65535. Omit
 `--no-open` to ask the operating system to open the browser after startup.
 
-## Supply records explicitly
+## Use the workspace
 
-Pass one or more record root directories:
+The default workspace is `build/`. Use a different workspace when necessary:
 
 ```bash
-corpus workbench OBSERVATION_DIRECTORY \
-  DIAGNOSIS_DIRECTORY REFINEMENT_DIRECTORY CORPUS_DIRECTORY --no-open
+corpus workbench --workspace /tmp/my-workspace --no-open
 ```
 
-Each root must contain one supported v0.5 root manifest. The command accepts
-observation, diagnosis, refinement, and corpus records. Before startup, it
-verifies current record integrity, relationships, containment, file type,
-recorded size, and recorded hashes. It also captures the admitted manifest and
-listed-artifact bytes once and keeps them in memory.
+Publish custom-workspace records with each existing producer's `--output-root`
+option. Place them under the matching family directory:
 
-The workbench does not scan parent directories. It does not follow source
-paths or accept URLs. Corpus records can add their verified contained
-observation and diagnosis records. Equal logical copies collapse to one
-record. Conflicting logical copies stop startup.
+```text
+WORKSPACE/extraction-observatory/
+WORKSPACE/evidence-based-diagnosis/
+WORKSPACE/controlled-revisions/
+WORKSPACE/corpus-inspection/
+```
 
-Old v0.1 through v0.4 artifacts are unsupported. Regenerate them with v0.5
-before you use this workbench.
+The Workbench scans only these four families and their exact manifest names.
+It ignores `inputs/`, unrelated directories, and `.staging-*` publication
+directories. A missing workspace or family directory is empty and is not
+created. Corpus descriptors add their verified contained observation and
+diagnosis records; those children do not become separate top-level discoveries.
+
+Startup and each manual refresh verify the complete candidate before accepting
+it. A failed refresh keeps the previous session, record details, and captured
+artifact bytes visible. Fix or remove the invalid candidate, then refresh
+again. A successful refresh clears the error and replaces the snapshot.
 
 ## Inspect the evidence
 
@@ -101,16 +105,19 @@ GET or HEAD /assets/workbench.js
 GET or HEAD /api/workbench
 GET or HEAD /api/records/{record_key}
 GET or HEAD /api/artifacts/{artifact_key}
+POST /api/workbench/refresh
 ```
 
 The JSON routes are an internal interface for the bundled UI. They are not a
 public interface. Artifact responses come from bytes captured during
-admission. Restart the workbench to admit changed records. Opaque artifact
-keys never expose backing filesystem paths.
+admission. Disk changes do not alter those bytes until a successful refresh.
+Opaque artifact keys never expose backing filesystem paths.
 
-The server returns `404` for unknown routes or keys and `405` for methods other
-than `GET` and `HEAD`. The bundled UI uses text-only DOM construction and makes
-no remote requests.
+The refresh operation accepts an empty request body and runs synchronously.
+The server returns `404` for unknown routes or keys, `405` for unsupported
+methods, `400` for a nonempty refresh body, and `409` when a refresh candidate
+fails. The bundled UI uses text-only DOM construction and makes no remote
+requests.
 
 The service is loopback-only, but other local processes can reach a loopback
 port. Do not treat the workbench as an access-control or authentication
@@ -133,5 +140,5 @@ source or prepared document passages unless you explicitly retrieve an
 admitted plain-text artifact.
 
 See the [README](../README.md) for the complete CLI path and the
-[v0.5 lesson](../learning/v0.5-local-visual-workbench.md) for a short guided
-exercise.
+[v0.6 lesson](../learning/v0.6-shared-workbench-workspace.md) for a guided
+workspace and refresh exercise.

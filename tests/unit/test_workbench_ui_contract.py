@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -74,6 +75,167 @@ class WorkbenchUIContractTests(unittest.TestCase):
             "return `${displayName(record.status)} ${displayName(record.kind)}",
             script,
         )
+
+    def test_manual_refresh_and_selection_contracts_are_visible(self) -> None:
+        html = (ASSETS / "index.html").read_text("utf-8")
+        script = (ASSETS / "workbench.js").read_text("utf-8")
+        self.assertIn('id="refresh-records"', html)
+        for marker in (
+            'fetch(`${API_ROOT}/workbench/refresh`',
+            'method: "POST"',
+            "elements.refreshButton.disabled = true",
+            'elements.refreshButton.textContent = "Refreshing…"',
+            "Publish a CLI record into the workspace, then refresh.",
+            "selectedRecordKey",
+            "record.record_key === selectedRecordKey",
+            "currentProjection.refresh = {status: \"FAILED\"",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, script)
+
+    def test_reordered_detail_responses_cannot_replace_active_selection(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is unavailable for the bundled UI behavior test")
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+
+function fakeElement(id = "") {
+  return {
+    id,
+    appended: [],
+    dataset: {},
+    disabled: false,
+    hidden: false,
+    textContent: "",
+    firstChild: null,
+    append(...values) { this.appended.push(...values); },
+    addEventListener() {},
+    focus() {},
+    querySelectorAll() { return []; },
+    removeChild() {},
+    replaceWith() {},
+    setAttribute() {},
+  };
+}
+
+const ids = [
+  "announcer", "refresh-records", "record-count", "record-list", "record-view",
+  "record-heading", "record-kind", "record-state", "record-summary",
+  "record-content", "session-state", "session-message", "session-facts",
+  "state-key",
+];
+const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
+global.Node = class {};
+global.document = {
+  createDocumentFragment: () => fakeElement(),
+  createElement: () => fakeElement(),
+  getElementById: (id) => registry[id],
+  querySelector: () => fakeElement(),
+};
+
+let source = fs.readFileSync(process.argv[1], "utf8");
+source = source.replace(/\nstart\(\);\s*$/, "");
+source += `
+const renders = [];
+const announcements = [];
+renderRecordSummary = (record) => { renders.push(record.record_key); };
+renderRelationships = () => fakeElement();
+renderObservation = () => fakeElement();
+announce = (message) => { announcements.push(message); };
+
+function record(key) {
+  return {
+    record_key: key,
+    kind: "OBSERVATION",
+    status: "SUCCESS",
+    primary_identity: {value: key},
+  };
+}
+function detail() {
+  return {kind: "OBSERVATION", artifacts: [], relationships: [], view: {}};
+}
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return {promise, resolve};
+}
+
+(async () => {
+  const pending = new Map();
+  fetch = (url) => {
+    const value = deferred();
+    pending.set(url, value);
+    return value.promise;
+  };
+  const first = loadRecord(record("first"));
+  const second = loadRecord(record("second"));
+  pending.get("/api/records/second").resolve({
+    ok: true,
+    json: async () => detail(),
+  });
+  if (await second !== true) throw new Error("active detail did not render");
+  pending.get("/api/records/first").resolve({
+    ok: true,
+    json: async () => detail(),
+  });
+  if (await first !== false) throw new Error("stale detail was not rejected");
+  if (renders.join(",") !== "second") {
+    throw new Error("stale detail replaced the active selection");
+  }
+  if (selectedRecordKey !== "second") throw new Error("selection changed");
+
+  const detailResponse = deferred();
+  const projection = {
+    session_id: "session",
+    counts: {
+      record_count: 1,
+      top_level_record_count: 1,
+      contained_record_count: 0,
+    },
+    refresh: {status: "READY", message: null},
+    records: [record("refreshed")],
+  };
+  fetch = async (url) => {
+    if (url === "/api/workbench/refresh") return {ok: true};
+    if (url === "/api/workbench") {
+      return {ok: true, json: async () => projection};
+    }
+    if (url === "/api/records/refreshed") return detailResponse.promise;
+    throw new Error("unexpected URL " + url);
+  };
+  const refresh = refreshRecords();
+  await Promise.resolve();
+  await Promise.resolve();
+  if (!elements.refreshButton.disabled) {
+    throw new Error("refresh control enabled before detail completed");
+  }
+  if (announcements.includes("Workspace records refreshed.")) {
+    throw new Error("refresh announced completion before detail completed");
+  }
+  detailResponse.resolve({ok: true, json: async () => detail()});
+  await refresh;
+  if (elements.refreshButton.disabled) {
+    throw new Error("refresh control remained disabled");
+  }
+  if (!announcements.includes("Workspace records refreshed.")) {
+    throw new Error("refresh completion was not announced");
+  }
+})().catch((error) => {
+  process.stderr.write(error.stack + "\\n");
+  process.exitCode = 1;
+});
+`;
+vm.runInThisContext(source, {filename: process.argv[1]});
+"""
+        completed = subprocess.run(
+            [node, "-e", harness, str(ASSETS / "workbench.js")],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
 
     def test_ui_uses_exactly_the_ten_comparison_metrics(
         self,

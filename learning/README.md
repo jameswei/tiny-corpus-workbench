@@ -31,6 +31,7 @@ requires all applicable writing rules and controlled-dictionary checks.
 | v0.3 | [Controlled Revisions](v0.3-controlled-revisions.md) | Available | 60 minutes |
 | v0.4 | [Corpus Inspection and Comparison](v0.4-corpus-inspection-comparison.md) | Available | 60–75 minutes |
 | v0.5 | [Local Visual Workbench](v0.5-local-visual-workbench.md) | Available | 30–45 minutes |
+| v0.6 | [Shared Workbench Workspace](v0.6-shared-workbench-workspace.md) | Available in current source | 30–45 minutes |
 
 ## How to use a lesson
 
@@ -51,7 +52,8 @@ Use these companion documents when you need more precision:
 - [Corpus Inspection and Comparison guide](../docs/corpus-inspection-comparison.md):
   corpus specifications, reports, verification, and privacy limits
 - [Local Visual Workbench guide](../docs/local-visual-workbench.md): explicit
-  record admission, browser views, API limits, and local security
+  workspace discovery, browser views, refresh behavior, API limits, and local
+  security
 - [Accepted v0.1 plan](../docs/plans/v0.1-extraction-observatory.md): complete
   implementation and review contract
 - [Accepted v0.2 plan](../docs/plans/v0.2-evidence-based-diagnosis.md): complete
@@ -66,4 +68,6 @@ Use these companion documents when you need more precision:
   completed pre-release amendment contract
 - [Original v0.5 plan](../docs/plans/v0.5-local-visual-workbench.md):
   historical record of the superseded implementation direction
+- [Accepted v0.6 plan](../docs/plans/v0.6-shared-workbench-workspace.md):
+  shared workspace and manual transactional refresh contract
 - [Project roadmap](../docs/roadmap.md): milestone sequence and boundaries

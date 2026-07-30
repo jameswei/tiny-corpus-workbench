@@ -15,6 +15,10 @@ record shapes. These internal shapes can change as the learning tool improves.
 Git tags preserve earlier implementations; the current project does not
 promise cross-version readers or migrations.
 
+The v0.6 through v0.8 sequence deliberately splits the next Workbench
+direction into bounded, independently useful increments. It is not one large
+Webapp implementation milestone.
+
 ## Milestone overview
 
 | Version | Milestone | Primary outcome |
@@ -25,6 +29,9 @@ promise cross-version readers or migrations.
 | v0.3 | Controlled Revisions | Apply approved, reversible refinements without losing history. |
 | v0.4 | Corpus Inspection and Comparison | Inspect patterns across a small mixed-format corpus. |
 | v0.5 | Local Visual Workbench | Explore artifacts and revisions through a local web interface. |
+| v0.6 | Shared Workbench Workspace | Keep CLI-produced records available to one independently running, refreshable Workbench. |
+| v0.7 | Web Observation Workflow | Observe one guided or uploaded document through the browser. |
+| v0.8 | Interactive Document Lifecycle | Diagnose and explicitly resolve one document refinement through the browser. |
 | v1.0 | Coherent Workbench | Present the complete learning workflow through clear local interfaces. |
 
 ## v0.0 — Planning Baseline
@@ -122,6 +129,77 @@ Deliverables:
 
 Exit condition: a user can inspect the end-to-end preparation history through
 the browser without exposing the service beyond the local machine.
+
+## v0.6 — Shared Workbench Workspace
+
+Replace the startup-only record list with one explicit local workspace shared
+by the CLI and Workbench.
+
+Deliverables:
+
+- a small workspace layout for inputs and current record families
+- Workbench startup without requiring an existing record
+- bounded discovery of complete records inside that workspace
+- manual refresh of the current record catalog
+- atomic replacement of the current in-memory projection
+- clear empty, loading, invalid-record, and refresh-failure states
+
+Exit condition: a user can keep the Workbench running, publish a record with
+the CLI, refresh the browser, and inspect the new record without restarting the
+server or resupplying record paths.
+
+This increment does not add browser uploads, workflow execution, filesystem
+watching, Docker delivery, or a public API.
+
+## v0.7 — Web Observation Workflow
+
+Make observation the first document-preparation operation available through
+the browser.
+
+Deliverables:
+
+- one guided project fixture and one local document-upload path
+- a lightweight in-memory job model with queued, running, completed, and
+  failed states
+- stage-level observation feedback without invented percentage progress
+- direct reuse of the same observation application service as the CLI
+- automatic publication into and refresh of the shared workspace
+- clear handling of unsupported inputs, extraction failures, and missing PDF
+  models
+
+Exit condition: a learner can select the guided Markdown example or upload one
+supported document, run observation, and inspect the two extraction views and
+canonical evidence without using the CLI. The CLI remains an equivalent
+interface over the same observation application behavior.
+
+This increment does not add diagnosis, refinement, corpus execution,
+persistent jobs, Docker delivery, or a public API.
+
+## v0.8 — Interactive Document Lifecycle
+
+Complete the single-document preparation lifecycle through the browser while
+preserving explicit human authority.
+
+Deliverables:
+
+- observation verification and evidence-based diagnosis
+- finding views that distinguish detected conditions from available refiners
+- proposal creation for the supported deterministic refiners
+- readable before-and-after proposal evidence without manual JSON editing
+- mutually exclusive approve and reject actions
+- immutable refinement publication, verification, revision history, and
+  reversibility views
+- CLI-to-Workbench and Workbench-to-CLI continuation over the same workspace
+
+Exit condition: a learner can use the guided whitespace example to observe,
+verify, diagnose, inspect the D009 evidence, create a proposal, explicitly
+approve or reject it, and inspect the resulting verification and revision
+history. Diagnosis never authorizes mutation, rejection creates no revision,
+and approval never overwrites earlier evidence.
+
+This increment remains single-document focused. It does not add browser-driven
+corpus execution, automatic repair, persistent jobs, Docker delivery, hosted
+services, authentication, or a public API.
 
 ## v1.0 — Coherent Workbench
 

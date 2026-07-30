@@ -7,8 +7,10 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 from tiny_corpus_workbench import cli
@@ -93,14 +95,22 @@ class WorkbenchCliTests(unittest.TestCase):
         self.assertEqual(completed.stdout, "")
         self.assertTrue(completed.stderr.startswith("usage: corpus "))
 
-    def test_parser_exposes_only_fixed_port_and_browser_options(self) -> None:
+    def test_parser_exposes_only_workspace_port_and_browser_options(self) -> None:
         args = cli.parser().parse_args(
-            ["workbench", str(self.published.root), "--port", "9123", "--no-open"]
+            ["workbench", "--workspace", "/tmp/example", "--port", "9123", "--no-open"]
         )
         self.assertEqual(args.command, "workbench")
+        self.assertEqual(args.workspace, Path("/tmp/example"))
         self.assertEqual(args.port, "9123")
         self.assertTrue(args.no_open)
         self.assertFalse(hasattr(args, "host"))
+        self.assertFalse(hasattr(args, "records"))
+
+    def test_workspace_defaults_to_build_and_old_record_syntax_exits_two(self) -> None:
+        args = cli.parser().parse_args(["workbench", "--no-open"])
+        self.assertEqual(args.workspace, Path("build"))
+        with redirect_stderr(io.StringIO()), self.assertRaisesRegex(SystemExit, "2"):
+            cli.parser().parse_args(["workbench", str(self.published.root)])
 
     def test_port_contract_is_closed(self) -> None:
         self.assertEqual(validate_port("1024"), 1024)
@@ -124,7 +134,8 @@ class WorkbenchCliTests(unittest.TestCase):
             code = cli.main(
                 [
                     "workbench",
-                    str(self.published.root),
+                    "--workspace",
+                    str(self.published.root.parent),
                     "--port",
                     str(port),
                     "--no-open",
@@ -151,7 +162,13 @@ class WorkbenchCliTests(unittest.TestCase):
             redirect_stderr(stderr),
         ):
             code = cli.main(
-                ["workbench", str(self.published.root), "--port", str(port)]
+                [
+                    "workbench",
+                    "--workspace",
+                    str(self.published.root.parent),
+                    "--port",
+                    str(port),
+                ]
             )
         self.assertEqual(code, 0)
         self.assertTrue(stdout.getvalue())
@@ -176,7 +193,13 @@ class WorkbenchCliTests(unittest.TestCase):
             redirect_stderr(stderr),
         ):
             code = cli.main(
-                ["workbench", str(self.published.root), "--port", str(port)]
+                [
+                    "workbench",
+                    "--workspace",
+                    str(self.published.root.parent),
+                    "--port",
+                    str(port),
+                ]
             )
         self.assertEqual(code, 0)
         self.assertEqual(stderr.getvalue(), "")
@@ -184,13 +207,45 @@ class WorkbenchCliTests(unittest.TestCase):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             probe.bind(("127.0.0.1", port))
 
-    def test_missing_root_and_unavailable_port_fail_without_ready_output(self) -> None:
+    def test_missing_workspace_starts_empty_without_creating_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "missing"
+            port = available_port()
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with (
+                patch(
+                    "tiny_corpus_workbench.workbench_server."
+                    "WorkbenchHTTPServer.serve_forever",
+                    side_effect=KeyboardInterrupt,
+                ),
+                redirect_stdout(stdout),
+                redirect_stderr(stderr),
+            ):
+                code = cli.main(
+                    [
+                        "workbench",
+                        "--workspace",
+                        str(workspace),
+                        "--port",
+                        str(port),
+                        "--no-open",
+                    ]
+                )
+            self.assertEqual(code, 0)
+            self.assertFalse(workspace.exists())
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(stdout.getvalue(), f"http://127.0.0.1:{port}/\n")
+
+    def test_non_directory_workspace_fails_without_ready_output(self) -> None:
         stdout, stderr = io.StringIO(), io.StringIO()
-        with redirect_stdout(stdout), redirect_stderr(stderr):
-            code = cli.main(["workbench", "/does/not/exist", "--no-open"])
+        with tempfile.NamedTemporaryFile() as workspace:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                code = cli.main(
+                    ["workbench", "--workspace", workspace.name, "--no-open"]
+                )
         self.assertEqual(code, 2)
         self.assertEqual(stdout.getvalue(), "")
-        self.assertNotIn("/does/not/exist", stderr.getvalue())
+        self.assertEqual(stderr.getvalue(), "workspace must be a directory\n")
 
 
 if __name__ == "__main__":

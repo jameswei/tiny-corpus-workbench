@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib.resources import files
 
 from tiny_corpus_workbench.canonical_json import canonical_json
+from tiny_corpus_workbench.application.workbench import WorkbenchState
 from tiny_corpus_workbench.domain import InputError, StableError
 from tiny_corpus_workbench.workbench_projection import WorkbenchProjection
 from tiny_corpus_workbench.workbench_records import MAX_ARTIFACT_CONTENT
@@ -22,8 +23,10 @@ MAX_STRUCTURED_RESPONSE = 4 * 1024 * 1024
 KEY = re.compile(r"[0-9a-f]{64}\Z")
 
 ERRORS = {
+    "INVALID_REQUEST": (400, "request body must be empty"),
     "NOT_FOUND": (404, "resource was not found"),
     "METHOD_NOT_ALLOWED": (405, "method is not allowed"),
+    "WORKSPACE_REFRESH_FAILED": (409, "workspace refresh failed"),
     "RESPONSE_TOO_LARGE": (413, "response exceeds the allowed limit"),
     "INTERNAL_ERROR": (500, "request could not be completed"),
 }
@@ -37,13 +40,15 @@ class Response:
     headers: tuple[tuple[str, str], ...] = ()
 
 
-def _error(code: str) -> Response:
-    status, message = ERRORS[code]
-    headers = (("Allow", "GET, HEAD"),) if status == 405 else ()
+def _error(
+    code: str, *, allow: str | None = None, message: str | None = None
+) -> Response:
+    status, default_message = ERRORS[code]
+    headers = (("Allow", allow),) if allow is not None else ()
     return Response(
         status,
         "application/json; charset=utf-8",
-        canonical_json(StableError(code, message).to_dict()),
+        canonical_json(StableError(code, message or default_message).to_dict()),
         headers,
     )
 
@@ -67,10 +72,10 @@ def serving_url(port: int) -> str:
 
 
 class WorkbenchApplication:
-    """Frozen routing state over one startup-captured projection."""
+    """Routing over one transactionally refreshed workspace state."""
 
-    def __init__(self, projection: WorkbenchProjection) -> None:
-        self.projection = projection
+    def __init__(self, state: WorkbenchState) -> None:
+        self.state = state
         asset_root = files("tiny_corpus_workbench").joinpath("workbench_assets")
         self.static = {
             "/": (
@@ -87,13 +92,31 @@ class WorkbenchApplication:
             ),
         }
         structured = [
-            projection.projection_bytes(),
-            *(projection.detail_bytes(key) for key in projection.details),
+            state.projection_bytes(),
+            *(state.projection.detail_bytes(key) for key in state.projection.details),
         ]
         if any(len(value) > MAX_STRUCTURED_RESPONSE for value in structured):
             raise InputError("workbench response exceeds the allowed limit")
 
-    def route(self, target: str) -> Response:
+    @property
+    def projection(self) -> WorkbenchProjection:
+        return self.state.projection
+
+    def route(self, target: str, *, method: str = "GET", body: bytes = b"") -> Response:
+        if target == "/api/workbench/refresh":
+            if method != "POST":
+                return _error("METHOD_NOT_ALLOWED", allow="POST")
+            if body:
+                return _error("INVALID_REQUEST")
+            result = self.state.refresh()
+            if result.succeeded:
+                return Response(204, "application/json; charset=utf-8", b"")
+            return _error(
+                "WORKSPACE_REFRESH_FAILED",
+                message=result.message,
+            )
+        if method not in {"GET", "HEAD"}:
+            return _error("METHOD_NOT_ALLOWED", allow="GET, HEAD")
         if target in self.static:
             content_type, body = self.static[target]
             return Response(200, content_type, body)
@@ -101,7 +124,7 @@ class WorkbenchApplication:
             return Response(
                 200,
                 "application/json; charset=utf-8",
-                self.projection.projection_bytes(),
+                self.state.projection_bytes(),
             )
         for prefix, values in (
             ("/api/records/", self.projection.details),
@@ -145,16 +168,28 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         message: str | None = None,
         explain: str | None = None,
     ) -> None:
-        self._send(_error("METHOD_NOT_ALLOWED"), head=self.command == "HEAD")
+        self._send(
+            _error("METHOD_NOT_ALLOWED", allow="GET, HEAD"),
+            head=self.command == "HEAD",
+        )
 
     def do_GET(self) -> None:
-        self._send(self.application.route(self.path), head=False)
+        self._send(self.application.route(self.path, method="GET"), head=False)
 
     def do_HEAD(self) -> None:
-        self._send(self.application.route(self.path), head=True)
+        self._send(self.application.route(self.path, method="HEAD"), head=True)
 
     def do_POST(self) -> None:
-        self._send(_error("METHOD_NOT_ALLOWED"), head=False)
+        if self.path == "/api/workbench/refresh":
+            lengths = self.headers.get_all("Content-Length", [])
+            transfers = self.headers.get_all("Transfer-Encoding", [])
+            if transfers or len(lengths) > 1 or (lengths and lengths[0] != "0"):
+                self._send(_error("INVALID_REQUEST"), head=False)
+                return
+        self._send(
+            self.application.route(self.path, method=self.command),
+            head=False,
+        )
 
     do_PUT = do_POST
     do_PATCH = do_POST
@@ -162,9 +197,11 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
     do_OPTIONS = do_POST
 
     def _send(self, response: Response, *, head: bool) -> None:
+        self.close_connection = True
         self.send_response(response.status)
         self.send_header("Content-Type", response.content_type)
         self.send_header("Content-Length", str(len(response.body)))
+        self.send_header("Connection", "close")
         for name, value in response.headers:
             self.send_header(name, value)
         self.end_headers()
@@ -177,10 +214,10 @@ class WorkbenchHTTPServer(HTTPServer):
 
 
 def create_server(
-    projection: WorkbenchProjection, port: int
+    state: WorkbenchState, port: int
 ) -> WorkbenchHTTPServer:
     server = WorkbenchHTTPServer((HOST, validate_port(port)), WorkbenchHandler)
-    server.application = WorkbenchApplication(projection)
+    server.application = WorkbenchApplication(state)
     return server
 
 

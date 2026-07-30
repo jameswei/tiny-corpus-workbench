@@ -87,6 +87,30 @@ button {
   color: #88d6ae;
 }
 
+.header-actions {
+  display: grid;
+  justify-items: end;
+  gap: 0.75rem;
+}
+
+.refresh-button {
+  border: 1px solid #b9d6c9;
+  border-radius: 0.45rem;
+  padding: 0.6rem 0.85rem;
+  color: #f7fbf8;
+  background: transparent;
+  cursor: pointer;
+}
+
+.refresh-button:hover {
+  background: rgb(255 255 255 / 10%);
+}
+
+.refresh-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(15rem, 21rem) minmax(0, 1fr);
@@ -347,6 +371,10 @@ code,
 
   .read-only {
     margin-top: 1rem;
+  }
+
+  .header-actions {
+    justify-items: start;
   }
 
   .layout {

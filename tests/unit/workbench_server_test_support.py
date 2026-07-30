@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import socket
+import shutil
+import tempfile
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 
-from tiny_corpus_workbench.workbench_projection import build_projection
+from tiny_corpus_workbench.application.workbench import WorkbenchState
 from tiny_corpus_workbench.workbench_records import admit_records
 from tiny_corpus_workbench.workbench_server import create_server
 
@@ -23,13 +26,39 @@ class RawResponse:
 
 
 class ServerHarness:
-    def __init__(self, root) -> None:
-        self.records = admit_records([root])
-        self.projection = build_projection(self.records)
+    def __init__(self, root=None, *, workspace=None) -> None:
+        self.temporary = None
+        self.records = None
+        if workspace is not None:
+            self.workspace = Path(workspace)
+        else:
+            if root is None:
+                raise ValueError("root or workspace is required")
+            self._copy_record_into_workspace(root)
+        self.state = WorkbenchState(self.workspace)
+        self.projection = self.state.projection
         self.port = available_port()
-        self.server = create_server(self.projection, self.port)
+        self.server = create_server(self.state, self.port)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
+
+    def _copy_record_into_workspace(self, root) -> None:
+        manifest_names = {
+            "manifest.json": "extraction-observatory",
+            "diagnosis-manifest.json": "evidence-based-diagnosis",
+            "refinement-manifest.json": "controlled-revisions",
+            "corpus-manifest.json": "corpus-inspection",
+        }
+        source = Path(root)
+        manifest = next(name for name in manifest_names if (source / name).is_file())
+        self.temporary = tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        )
+        self.workspace = Path(self.temporary.name)
+        copied = self.workspace / manifest_names[manifest] / source.name
+        copied.parent.mkdir()
+        shutil.copytree(source, copied)
+        self.records = admit_records([copied])
 
     @property
     def authority(self) -> str:
@@ -43,6 +72,8 @@ class ServerHarness:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=5)
+        if self.temporary is not None:
+            self.temporary.cleanup()
 
     def request(
         self,
