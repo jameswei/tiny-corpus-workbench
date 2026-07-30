@@ -140,5 +140,5 @@ source or prepared document passages unless you explicitly retrieve an
 admitted plain-text artifact.
 
 See the [README](../README.md) for the complete CLI path and the
-[v0.5 lesson](../learning/v0.5-local-visual-workbench.md) for a short guided
-exercise.
+[v0.6 lesson](../learning/v0.6-shared-workbench-workspace.md) for a guided
+workspace and refresh exercise.

@@ -222,6 +222,7 @@ lifecycle:
 3. [control revisions](learning/v0.3-controlled-revisions.md)
 4. [compare an explicit corpus](learning/v0.4-corpus-inspection-comparison.md)
 5. [explore records in the Local Visual Workbench](learning/v0.5-local-visual-workbench.md)
+6. [refresh a shared Workbench workspace](learning/v0.6-shared-workbench-workspace.md)
 
 Use the deeper guides for exact behavior:
 
