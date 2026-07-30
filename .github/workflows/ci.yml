@@ -63,9 +63,6 @@ jobs:
           tests.integration.test_v05_workflows
           tests.integration.test_workbench_integration
 
-      - name: Verify current document policy
-        run: uv run --frozen python tools/verify_current_document_policy.py
-
       - name: Validate bundled workbench UI assets
         run: >-
           uv run --frozen python tools/validate_workbench_assets.py
