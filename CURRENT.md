@@ -212,8 +212,9 @@ and v0.5.1 is the latest source release.
 
 The roadmap now records three bounded, progressive Workbench improvements:
 v0.6 Shared Workbench Workspace, v0.7 Web Observation Workflow, and v0.8
-Interactive Document Lifecycle. The next planning target is v0.6. These
-roadmap entries do not activate implementation by themselves. The exact
+Interactive Document Lifecycle. The v0.6 release candidate now awaits
+integration review, PR, and release gates. These roadmap entries do not
+activate implementation by themselves. The exact
 [v0.6 plan](docs/plans/v0.6-shared-workbench-workspace.md) passed independent
 review and received explicit owner approval before implementation began.
 
