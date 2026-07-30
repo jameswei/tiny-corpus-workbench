@@ -7,6 +7,22 @@ Future work may use whichever sound engineering practices fit the task.
 
 ## Status
 
+- Milestone v0.6, Shared Workbench Workspace, was delivered through core PR
+  [#37](https://github.com/jameswei/tiny-corpus-workbench/pull/37), merged as
+  `74d1c860392c42f91f294d17b6b09263790b3611`, and pre-release public-surface
+  PR [#38](https://github.com/jameswei/tiny-corpus-workbench/pull/38), merged
+  as exact release target
+  `545be3c6520290450971f718094f9ca0838ef925`.
+- A final fresh release-readiness review returned `PASS` with zero findings
+  for that exact target, and the owner explicitly authorized it. Main CI
+  `30541505013` and Pages `30541504973` passed at the same commit.
+- [`v0.6.0`](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.6.0)
+  was published on 2026-07-30 as the latest, source-only GitHub Release with
+  no custom assets. Annotated tag object
+  `1595ace0575c8e8aa54ba07e886d6e1b06e467c1` peels to the exact release
+  target. Tag CI `30542655933` passed Fast and Full, and the downloaded GitHub
+  source archive contained the `0.6.0` package metadata, approved plan, and
+  release note.
 - The v0.5 learning-first correction is complete and merged. Correction PRs
   [#18](https://github.com/jameswei/tiny-corpus-workbench/pull/18) through
   [#26](https://github.com/jameswei/tiny-corpus-workbench/pull/26) delivered
@@ -206,15 +222,14 @@ confirmation.
 
 ## Active milestone
 
-Milestone v0.6, Shared Workbench Workspace, is active on
-`work/v06-shared-workbench-workspace`. v0.5 is the latest completed milestone,
-and v0.5.1 is the latest source release.
+No unreleased milestone is active. v0.6, Shared Workbench Workspace, is the
+latest completed milestone and `v0.6.0` is the latest source release.
 
 The roadmap now records three bounded, progressive Workbench improvements:
 v0.6 Shared Workbench Workspace, v0.7 Web Observation Workflow, and v0.8
-Interactive Document Lifecycle. The v0.6 release candidate now awaits
-integration review, PR, and release gates. These roadmap entries do not
-activate implementation by themselves. The exact
+Interactive Document Lifecycle. The v0.7 and v0.8 entries remain inactive and
+each requires its own reviewed and approved implementation plan before work
+begins. Roadmap entries do not activate implementation by themselves. The exact
 [v0.6 plan](docs/plans/v0.6-shared-workbench-workspace.md) passed independent
 review and received explicit owner approval before implementation began.
 
@@ -230,11 +245,29 @@ verified snapshot only after startup or manual transactional refresh. The
 loopback HTTP server is an internal bridge for the bundled browser interface,
 not a public or stable API.
 
-The plans and ledgers linked in the Status section record the completed
-implementation, integration, closeout, release-readiness, authorization, and
-publication evidence.
+The historical plans and ledgers linked in the Status section record the
+completed v0.5 work and its review evidence.
 
 ## Latest completed milestone
+
+Milestone v0.6 lets the read-only Local Visual Workbench discover the four
+fixed record families under `build/` or a custom workspace. Startup and manual
+refresh accept a new immutable in-memory projection only after the complete
+candidate passes verification. A failed refresh reports the error and keeps
+the last good record details and captured artifact bytes.
+
+Core PR #37 was merged as
+`74d1c860392c42f91f294d17b6b09263790b3611`. Public-surface PR #38 was merged
+as exact release target `545be3c6520290450971f718094f9ca0838ef925`.
+A fresh release-readiness review returned `PASS` with zero findings for that
+target, the owner explicitly authorized it, and main CI and Pages passed.
+Annotated `v0.6.0` tag object
+`1595ace0575c8e8aa54ba07e886d6e1b06e467c1` peels to the same target. The
+[GitHub Release](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.6.0)
+was published on 2026-07-30 as the latest source-only release with no custom
+assets, and tag CI passed Fast and Full.
+
+## Previous completed milestone
 
 Milestone v0.5 adds the bundled Local Visual Workbench for read-only inspection
 of explicit verified records. It serves a frozen in-memory projection through
@@ -255,7 +288,7 @@ and the
 [GitHub Release](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.5.0)
 was published on 2026-07-30 as the latest source-only release.
 
-## Previous released milestone
+## Earlier released milestone
 
 Milestone v0.4 adds explicit, local corpus inspection over the released
 observation and diagnosis contracts. It processes members sequentially,
@@ -289,7 +322,7 @@ CI, release-target CI, Pages deployment, tagged documentation, and the live
 website all passed final verification. At the v0.4 closeout, no later
 milestone was active.
 
-## Earlier released milestone
+## Release history
 
 Milestone v0.3 adds explicit refinement decisions and immutable prepared
 revisions. It includes fixed refiners for whitespace normalization, repeated
