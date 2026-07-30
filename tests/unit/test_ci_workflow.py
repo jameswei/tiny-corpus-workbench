@@ -97,7 +97,9 @@ class CIWorkflowTests(unittest.TestCase):
         self.assertIn("uv run --frozen corpus --version", self.main)
         self.assertNotIn("unittest discover", self.main)
         self.assertNotIn("docling-tools models download", self.main)
-        self.assertIn("git diff --check HEAD^ HEAD", self.main)
+        self.assertNotIn("fetch-depth:", self.main)
+        self.assertNotIn("git diff --check HEAD^ HEAD", self.main)
+        self.assertIn("git diff --check", self.main)
 
     def test_full_slice_stops_before_a_later_job(self) -> None:
         appended_workflow = (

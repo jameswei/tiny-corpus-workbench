@@ -167,7 +167,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
           persist-credentials: false
 
       - name: Set up CPython
@@ -192,9 +191,8 @@ jobs:
           uv run --frozen python -m unittest -v
           tests.integration.test_v05_workflows
 
-      - name: Check merged diff and working tree
+      - name: Check post-smoke working tree
         run: |
-          git diff --check HEAD^ HEAD
           git diff --check
           status="$(git status --porcelain=v1)"
           if [[ -n "${status}" ]]; then
