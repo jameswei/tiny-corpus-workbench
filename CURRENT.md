@@ -245,9 +245,6 @@ verified snapshot only after startup or manual transactional refresh. The
 loopback HTTP server is an internal bridge for the bundled browser interface,
 not a public or stable API.
 
-The historical plans and ledgers linked in the Status section record the
-completed v0.5 work and its review evidence.
-
 ## Latest completed milestone
 
 Milestone v0.6 lets the read-only Local Visual Workbench discover the four
@@ -286,7 +283,7 @@ returned `PASS` with zero findings for that exact commit, and the owner
 explicitly authorized it. The annotated `v0.5.0` tag peels to the same commit,
 and the
 [GitHub Release](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.5.0)
-was published on 2026-07-30 as the latest source-only release.
+was published on 2026-07-30 as a source-only release.
 
 ## Earlier released milestone
 
