@@ -54,20 +54,16 @@ Use these companion documents when you need more precision:
 - [Local Visual Workbench guide](../docs/local-visual-workbench.md): explicit
   workspace discovery, browser views, refresh behavior, API limits, and local
   security
-- [Accepted v0.1 plan](../docs/plans/v0.1-extraction-observatory.md): complete
-  implementation and review contract
-- [Accepted v0.2 plan](../docs/plans/v0.2-evidence-based-diagnosis.md): complete
-  diagnosis implementation and review contract
-- [Accepted v0.3 plan](../docs/plans/v0.3-controlled-revisions.md): complete
-  controlled-revision implementation and review contract
-- [Accepted v0.4 plan](../docs/plans/v0.4-corpus-inspection-comparison.md):
-  complete corpus inspection and comparison contract
-- [Accepted v0.5 correction plan](../docs/plans/v0.5-learning-first-correction.md):
-  completed learning-first correction scope
-- [Frozen v0.5 pre-release amendment](../docs/plans/v0.5-pre-release-amendment.md):
-  completed pre-release amendment contract
-- [Original v0.5 plan](../docs/plans/v0.5-local-visual-workbench.md):
-  historical record of the superseded implementation direction
-- [Accepted v0.6 plan](../docs/plans/v0.6-shared-workbench-workspace.md):
-  shared workspace and manual transactional refresh contract
+- [v0.1 outcome and rationale](../docs/plans/v0.1-extraction-observatory.md):
+  historical extraction milestone and boundaries
+- [v0.2 outcome and rationale](../docs/plans/v0.2-evidence-based-diagnosis.md):
+  historical diagnosis milestone and boundaries
+- [v0.3 outcome and rationale](../docs/plans/v0.3-controlled-revisions.md):
+  historical controlled-revision milestone and boundaries
+- [v0.4 outcome and rationale](../docs/plans/v0.4-corpus-inspection-comparison.md):
+  historical corpus milestone and boundaries
+- [v0.5 outcome and rationale](../docs/plans/v0.5-local-visual-workbench.md):
+  final learning-first Local Visual Workbench design
+- [v0.6 outcome and rationale](../docs/plans/v0.6-shared-workbench-workspace.md):
+  historical shared-workspace milestone and boundaries
 - [Project roadmap](../docs/roadmap.md): milestone sequence and boundaries

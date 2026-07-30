@@ -1,7 +1,6 @@
 # Repository-authored text has a byte-stable LF checkout representation.
 *.py text eol=lf
 *.md text eol=lf
-docs/plans/v0.5-learning-first-correction.md whitespace=-trailing-space
 *.toml text eol=lf
 *.json text eol=lf
 *.txt text eol=lf
