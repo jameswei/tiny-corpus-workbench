@@ -42,11 +42,13 @@ class WorkbenchWorkspaceTests(unittest.TestCase):
         shutil.copytree(self.published.root, target)
         return target
 
-    def test_missing_and_empty_workspace_have_stable_empty_projection(self) -> None:
-        missing = self.workspace / "missing"
+    def test_missing_workspace_and_parents_are_created_with_empty_projection(
+        self,
+    ) -> None:
+        missing = self.workspace / "missing" / "nested"
         state = WorkbenchState(missing)
         expected = empty_projection()
-        self.assertFalse(missing.exists())
+        self.assertTrue(missing.is_dir())
         self.assertEqual(state.refresh_status, "READY")
         self.assertEqual(state.projection.projection, expected.projection)
         self.assertEqual(
@@ -64,8 +66,16 @@ class WorkbenchWorkspaceTests(unittest.TestCase):
         with patch(
             "tiny_corpus_workbench.application.workbench.os.access",
             return_value=False,
-        ), self.assertRaisesRegex(InputError, "workspace must be readable"):
+        ), self.assertRaisesRegex(
+            InputError, "workspace must be readable, writable, and searchable"
+        ):
             WorkbenchState(self.workspace)
+
+    def test_existing_non_directory_workspace_is_rejected(self) -> None:
+        target = self.workspace / "workspace"
+        target.write_text("not a directory", "utf-8")
+        with self.assertRaisesRegex(InputError, "workspace must be a directory"):
+            WorkbenchState(target)
 
     def test_discovery_is_fixed_nested_deterministic_and_excludes_staging(self) -> None:
         second = self.publish_copy("extraction-observatory/z")

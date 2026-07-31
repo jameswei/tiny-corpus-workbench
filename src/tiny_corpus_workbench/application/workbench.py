@@ -44,19 +44,23 @@ def prepare_workbench(
 
 
 def validate_workspace(value: str | os.PathLike[str]) -> Path:
-    """Validate an existing workspace without creating it."""
+    """Create and validate one workspace that can accept future records."""
 
     workspace = Path(value)
     try:
+        workspace.mkdir(parents=True, exist_ok=True)
+    except FileExistsError:
+        pass
+    except OSError as error:
+        raise InputError("workspace is unavailable") from error
+    try:
         metadata = workspace.stat()
-    except FileNotFoundError:
-        return workspace
     except OSError as error:
         raise InputError("workspace is unavailable") from error
     if not stat.S_ISDIR(metadata.st_mode):
         raise InputError("workspace must be a directory")
-    if not os.access(workspace, os.R_OK | os.X_OK):
-        raise InputError("workspace must be readable")
+    if not os.access(workspace, os.R_OK | os.W_OK | os.X_OK):
+        raise InputError("workspace must be readable, writable, and searchable")
     return workspace
 
 

@@ -207,7 +207,7 @@ class WorkbenchCliTests(unittest.TestCase):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             probe.bind(("127.0.0.1", port))
 
-    def test_missing_workspace_starts_empty_without_creating_it(self) -> None:
+    def test_missing_workspace_is_created_and_starts_empty(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary) / "missing"
             port = available_port()
@@ -232,7 +232,7 @@ class WorkbenchCliTests(unittest.TestCase):
                     ]
                 )
             self.assertEqual(code, 0)
-            self.assertFalse(workspace.exists())
+            self.assertTrue(workspace.is_dir())
             self.assertEqual(stderr.getvalue(), "")
             self.assertEqual(stdout.getvalue(), f"http://127.0.0.1:{port}/\n")
 
