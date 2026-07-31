@@ -11,9 +11,11 @@ WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 FAST_MODULES = {
     "tests.integration.test_v05_workflows",
     "tests.integration.test_workbench_integration",
+    "tests.integration.test_workbench_observation_journey",
 }
 MAIN_SMOKE_MODULES = {
     "tests.integration.test_v05_workflows",
+    "tests.integration.test_web_observation_smoke",
 }
 FULL_MODULES = {
     "tests.compatibility.test_extractor_compatibility",

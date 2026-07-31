@@ -5,24 +5,25 @@ review evidence, or publication state.
 
 ## Source state
 
-This checkout identifies package version `0.6.1`. The completed product
+This checkout identifies package version `0.7.0`. The current product
 milestones cover:
 
 1. extraction observation;
 2. evidence-based diagnosis;
 3. controlled revisions;
 4. corpus inspection and comparison;
-5. the read-only Local Visual Workbench; and
-6. shared workspace discovery with transactional manual refresh.
+5. the Local Visual Workbench;
+6. shared workspace discovery with transactional refresh; and
+7. guided or uploaded observation from the browser.
 
 For published versions and release availability, use
 [GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases).
 
 ## Active work
 
-No product milestone after v0.6 is active. A roadmap entry or historical plan
-does not authorize implementation. New work needs an explicit, current scope
-approved by the project owner.
+The current source is prepared for the v0.7 Web Observation Workflow release.
+This statement does not claim that a tag or GitHub Release exists. GitHub
+Releases owns publication state.
 
 ## Settled invariants
 
@@ -33,9 +34,10 @@ approved by the project owner.
 - Diagnosis records findings but does not authorize mutation.
 - Interpretive refinements require explicit human confirmation.
 - Record-producing commands publish new immutable directories.
-- The `corpus` CLI owns lifecycle execution and verification.
-- The Workbench is read-only and loopback-only. Its HTTP routes are an internal
-  bridge, not a public API.
+- The `corpus` CLI provides every lifecycle and verification command.
+- The Workbench can publish observations. Published records stay immutable.
+- The Workbench is loopback-only. Its HTTP routes are an internal bridge, not
+  a public API.
 - Distribution is source-only. The project provides no hosted processing
   service.
 

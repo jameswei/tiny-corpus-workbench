@@ -42,7 +42,7 @@ a concise overview.
 
 ## Current interfaces
 
-The `corpus` CLI owns workflow execution and verification:
+The `corpus` CLI provides every lifecycle command and verification command:
 
 | Lifecycle task | Command |
 | --- | --- |
@@ -57,13 +57,13 @@ The `corpus` CLI owns workflow execution and verification:
 | Verify a corpus | `corpus verify-corpus` |
 | Open a shared local workspace | `corpus workbench` |
 
-The Local Visual Workbench is the bundled browser interface. It is read-only,
-binds only to `127.0.0.1`, and discovers records in one fixed-layout workspace.
-Use its manual refresh control to accept a new verified snapshot without
-restarting. Its
-loopback HTTP routes are an internal bridge for the bundled HTML, CSS, and
-JavaScript. They are not a public API. The project provides no hosted
-document-processing service.
+The Local Visual Workbench is the bundled browser interface. It can observe
+the guided policy memo or one uploaded `.docx`, `.md`, `.pdf`, or `.txt` file.
+Published records stay immutable. The Workbench binds only to `127.0.0.1` and
+discovers records in one fixed-layout workspace. Automatic and manual refresh
+accept only a complete verified snapshot. Its loopback HTTP routes are an
+internal bridge for the bundled HTML, CSS, and JavaScript. They are not a
+public API. The project provides no hosted document-processing service.
 
 ## Released milestones
 
@@ -154,6 +154,10 @@ corpus workbench --no-open
 
 Open the printed local address. Stop the server with `Ctrl-C`.
 
+In the browser, select **Observe policy memo** for the model-free guided path.
+You can also select one supported local document up to 32 MiB. The browser
+shows source metadata but does not display or serve the uploaded original.
+
 ## Records and their roles
 
 Record-producing commands publish a new directory and do not overwrite a
@@ -224,6 +228,7 @@ lifecycle:
 4. [compare an explicit corpus](learning/v0.4-corpus-inspection-comparison.md)
 5. [explore records in the Local Visual Workbench](learning/v0.5-local-visual-workbench.md)
 6. [refresh a shared Workbench workspace](learning/v0.6-shared-workbench-workspace.md)
+7. [observe a document in the browser](learning/v0.7-web-observation-workflow.md)
 
 Use the deeper guides for exact behavior:
 
