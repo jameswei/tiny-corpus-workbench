@@ -8,7 +8,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from tiny_corpus_workbench.application.records import record_header
 from tiny_corpus_workbench.artifacts import (
@@ -45,6 +45,13 @@ MARKITDOWN_CONFIG = {
     "llm_client": False,
     "text_hints": "extension-media-type-utf8",
 }
+OBSERVATION_STAGES = (
+    "PREPARING_SOURCE",
+    "EXTRACTING_DOCLING",
+    "EXTRACTING_MARKITDOWN",
+    "BUILDING_EVIDENCE",
+    "VERIFYING_AND_PUBLISHING",
+)
 
 
 def validate_staged_schemas(root: Path) -> None:
@@ -117,8 +124,16 @@ def _extractor_versions() -> dict[str, str]:
 
 
 def observe(
-    source_value: str, output_root: Path, model_root: Path
+    source_value: str,
+    output_root: Path,
+    model_root: Path,
+    progress: Callable[[str], None] | None = None,
 ) -> tuple[ExitCode, Path]:
+    def report(stage: str) -> None:
+        if progress is not None:
+            progress(stage)
+
+    report("PREPARING_SOURCE")
     docling_adapter, markitdown_adapter = _preflight_extractors()
     extractor_versions = _extractor_versions()
     snapshot = SourceSnapshot(source_value)
@@ -155,6 +170,7 @@ def observe(
             )
             document_schema = {"name": None, "version": None}
 
+            report("EXTRACTING_DOCLING")
             if model_error is not None:
                 docling_result["error"] = model_error.to_dict()
             else:
@@ -205,6 +221,7 @@ def observe(
                         time.monotonic_ns() - started
                     ) // 1_000_000
 
+            report("EXTRACTING_MARKITDOWN")
             started = time.monotonic_ns()
             try:
                 markitdown_adapter.convert(source_path, staging / "markitdown")
@@ -228,6 +245,7 @@ def observe(
                     time.monotonic_ns() - started
                 ) // 1_000_000
 
+            report("BUILDING_EVIDENCE")
             docling_view = None
             if docling_result["status"] in ("SUCCESS", "PARTIAL_SUCCESS"):
                 path = staging / "docling/document.md"
@@ -309,6 +327,7 @@ def observe(
                     ),
                 ]
             )
+            report("VERIFYING_AND_PUBLISHING")
             snapshot.cleanup()
             if is_pdf and model_error is None:
                 try:

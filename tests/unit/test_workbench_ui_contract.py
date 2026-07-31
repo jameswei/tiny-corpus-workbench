@@ -85,13 +85,671 @@ class WorkbenchUIContractTests(unittest.TestCase):
             'method: "POST"',
             "elements.refreshButton.disabled = true",
             'elements.refreshButton.textContent = "Refreshing…"',
-            "Publish a CLI record into the workspace, then refresh.",
+            "Observe a document here, or publish a CLI record and refresh.",
             "selectedRecordKey",
             "record.record_key === selectedRecordKey",
             "currentProjection.refresh = {status: \"FAILED\"",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, script)
+
+    def test_observation_controls_are_accessible_and_metadata_only(self) -> None:
+        html = (ASSETS / "index.html").read_text("utf-8")
+        script = (ASSETS / "workbench.js").read_text("utf-8")
+        for marker in (
+            "Run local observations and inspect immutable prepared-document evidence.",
+            "Published records stay immutable",
+            'id="observe-guided"',
+            ">Observe policy memo<",
+            'id="observation-file" type="file"',
+            'accept=".docx,.md,.pdf,.txt"',
+            "One file, up to 32 MiB.",
+            'id="observation-alert" class="notice" role="alert" tabindex="-1"',
+            'aria-label="Observation source metadata"',
+            'aria-label="Observation job status"',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, html)
+        self.assertNotIn("Read only", html)
+        for marker in (
+            '["Filename", job.input.name]',
+            '["Format", job.input.media_type]',
+            '["Size", formatBytes(job.input.size)]',
+            '["SHA-256", job.input.sha256, true]',
+            "The previous record view remains available.",
+            "selectedRecordKey = job.observation.record_key",
+            "encodeURIComponent(file.name)",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, script)
+        for forbidden in ("FileReader", "readAsText", "readAsDataURL", "percentage"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, script)
+
+    def test_observation_polling_uses_one_fixed_terminal_aware_interval(self) -> None:
+        script = (ASSETS / "workbench.js").read_text("utf-8")
+        self.assertIn("const OBSERVATION_POLL_INTERVAL_MS = 300;", script)
+        self.assertEqual(script.count("setTimeout("), 1)
+        self.assertNotIn("setInterval(", script)
+        self.assertIn(
+            'job.state === "QUEUED" || job.state === "RUNNING"',
+            script,
+        )
+        self.assertIn("stopObservationPolling();", script)
+        self.assertIn("handledTerminalJobId !== job.job_id", script)
+        self.assertIn("announcedActiveStage !== activeStage", script)
+        self.assertIn("Observation stage:", script)
+        self.assertIn("Use Refresh records to load and select it.", script)
+
+    def test_observation_stage_sequence_survives_skipped_poll_snapshots(
+        self,
+    ) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is unavailable for the stage cadence test")
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+
+function fakeElement(id = "") {
+  return {
+    id,
+    appended: [],
+    attributes: {},
+    className: "",
+    dataset: {},
+    disabled: false,
+    files: [],
+    hidden: false,
+    textContent: "",
+    firstChild: null,
+    append(...values) { this.appended.push(...values); },
+    addEventListener() {},
+    focus() {},
+    querySelectorAll() { return []; },
+    removeChild() { this.firstChild = null; },
+    replaceWith() {},
+    setAttribute(name, value) { this.attributes[name] = value; },
+  };
+}
+
+const ids = [
+  "announcer", "observe-guided", "observe-upload", "observation-file",
+  "observation-state", "observation-message", "observation-alert",
+  "observation-source", "observation-progress", "refresh-records",
+  "record-count", "record-list", "record-view", "record-heading", "record-kind",
+  "record-state", "record-summary", "record-content", "session-state",
+  "session-message", "session-facts", "state-key",
+];
+const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
+global.Node = class {};
+global.document = {
+  createDocumentFragment: () => fakeElement(),
+  createElement: () => fakeElement(),
+  getElementById: (id) => registry[id],
+  querySelector: () => registry["observation-state"],
+};
+
+let source = fs.readFileSync(process.argv[1], "utf8");
+source = source.replace(/\nstart\(\);\s*$/, "");
+source += `
+function job(jobId, state, overrides = {}) {
+  return Object.assign({
+    job_id: jobId,
+    state,
+    stage: null,
+    input: {
+      kind: "GUIDED",
+      name: "policy-memo.md",
+      media_type: "text/markdown",
+      size: 20,
+      sha256: "a".repeat(64),
+    },
+    observation: null,
+    refresh: null,
+    error: null,
+  }, overrides);
+}
+
+function renderedStages() {
+  const wrapper = elements.observationProgress.appended.at(-1);
+  const value = wrapper.appended[1];
+  return value.appended[0].appended;
+}
+
+function assertSequence(expectedStates, expectedCurrent = null) {
+  const stages = renderedStages();
+  const names = stages.map((item) => item.dataset.stage);
+  if (names.join("|") !== OBSERVATION_STAGES.join("|")) {
+    throw new Error("ordered stage sequence was not always present");
+  }
+  const states = stages.map((item) => item.dataset.stageState);
+  if (states.join("|") !== expectedStates.join("|")) {
+    throw new Error("dishonest stage states: " + states.join("|"));
+  }
+  const current = stages
+    .filter((item) => item.attributes["aria-current"] === "step")
+    .map((item) => item.dataset.stage);
+  const expected = expectedCurrent === null ? [] : [expectedCurrent];
+  if (current.join("|") !== expected.join("|")) {
+    throw new Error("current real snapshot stage was not exact");
+  }
+}
+
+renderObservationJob(job("jump", "RUNNING", {stage: "PREPARING_SOURCE"}));
+assertSequence(
+  ["Current", "Waiting", "Waiting", "Waiting", "Waiting", "Waiting"],
+  "PREPARING_SOURCE",
+);
+
+renderObservationJob(job("jump", "RUNNING", {stage: "EXTRACTING_MARKITDOWN"}));
+assertSequence(
+  ["Completed", "Completed", "Current", "Waiting", "Waiting", "Waiting"],
+  "EXTRACTING_MARKITDOWN",
+);
+
+renderObservationJob(job("jump", "COMPLETED", {
+  observation: {status: "SUCCESS", observation_id: "ready", record_key: "r".repeat(64)},
+  refresh: {status: "READY", message: null},
+}));
+assertSequence(["Completed", "Completed", "Completed", "Completed", "Completed", "Completed"]);
+
+renderObservationJob(job("refresh-failed", "COMPLETED", {
+  observation: {status: "SUCCESS", observation_id: "published", record_key: null},
+  refresh: {status: "FAILED", message: "candidate rejected"},
+}));
+assertSequence(["Completed", "Completed", "Completed", "Completed", "Completed", "Failed"]);
+
+renderObservationJob(job("reloaded-failure", "FAILED", {
+  error: {code: "OBSERVATION_RUNTIME_FAILED", message: "observation failed"},
+}));
+assertSequence(["Unknown", "Unknown", "Unknown", "Unknown", "Unknown", "Not reached"]);
+
+renderObservationJob(job("observed-failure", "RUNNING", {stage: "BUILDING_EVIDENCE"}));
+renderObservationJob(job("observed-failure", "FAILED", {
+  error: {code: "OBSERVATION_INTERNAL_FAILED", message: "observation failed"},
+}));
+assertSequence([
+  "Completed",
+  "Completed",
+  "Completed",
+  "Last observed",
+  "Not reached or unknown",
+  "Not reached",
+]);
+`;
+vm.runInThisContext(source, {filename: process.argv[1]});
+"""
+        completed = subprocess.run(
+            [node, "-e", harness, str(ASSETS / "workbench.js")],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_observation_job_behavior_recovers_polls_selects_and_retains(
+        self,
+    ) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is unavailable for the bundled UI behavior test")
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+
+function fakeElement(id = "") {
+  return {
+    id,
+    appended: [],
+    className: "",
+    dataset: {},
+    disabled: false,
+    files: [],
+    focusCount: 0,
+    hidden: false,
+    textContent: "",
+    firstChild: null,
+    append(...values) { this.appended.push(...values); },
+    addEventListener() {},
+    focus() { this.focusCount += 1; },
+    querySelectorAll() { return []; },
+    removeChild() { this.firstChild = null; },
+    replaceWith() {},
+    setAttribute() {},
+  };
+}
+
+const ids = [
+  "announcer", "observe-guided", "observe-upload", "observation-file",
+  "observation-state", "observation-message", "observation-alert",
+  "observation-source", "observation-progress", "refresh-records",
+  "record-count", "record-list", "record-view", "record-heading", "record-kind",
+  "record-state", "record-summary", "record-content", "session-state",
+  "session-message", "session-facts", "state-key",
+];
+const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
+global.Node = class {};
+global.document = {
+  createDocumentFragment: () => fakeElement(),
+  createElement: () => fakeElement(),
+  getElementById: (id) => registry[id],
+  querySelector: (selector) => selector.startsWith("#observation")
+    ? registry["observation-state"]
+    : fakeElement(),
+};
+
+let scheduled = [];
+global.setTimeout = (callback, delay) => {
+  scheduled.push({callback, delay});
+  return scheduled.length;
+};
+global.clearTimeout = () => {};
+
+let source = fs.readFileSync(process.argv[1], "utf8");
+source = source.replace(/\nstart\(\);\s*$/, "");
+source += `
+const capabilities = {
+  guided: {id: "policy-memo-md", name: "policy-memo.md", media_type: "text/markdown"},
+  upload: {extensions: [".docx", ".md", ".pdf", ".txt"], max_bytes: 33554432},
+};
+function input(kind = "GUIDED") {
+  return {
+    kind,
+    name: kind === "UPLOAD" ? "learner memo.md" : "policy-memo.md",
+    media_type: "text/markdown",
+    size: 20,
+    sha256: "a".repeat(64),
+  };
+}
+function job(state, overrides = {}) {
+  return Object.assign({
+    job_id: "job-one",
+    state,
+    stage: null,
+    input: input(),
+    observation: null,
+    refresh: null,
+    error: null,
+  }, overrides);
+}
+
+(async () => {
+  const announcements = [];
+  announce = (message) => { announcements.push(message); };
+  let projectionLoads = 0;
+  loadProjection = async () => {
+    projectionLoads += 1;
+    if (selectedRecordKey !== "r".repeat(64)) {
+      throw new Error("returned observation record was not selected");
+    }
+    return true;
+  };
+
+  await handleObservationEnvelope({
+    capabilities,
+    job: job("RUNNING", {stage: "EXTRACTING_MARKITDOWN"}),
+  });
+  if (!elements.guidedButton.disabled || !elements.uploadButton.disabled) {
+    throw new Error("active job did not disable both submits");
+  }
+  if (scheduled.length !== 1 || scheduled[0].delay !== 300) {
+    throw new Error("active job did not schedule the one fixed interval");
+  }
+  if (!elements.observationMessage.textContent.includes("Extracting Markitdown")) {
+    throw new Error("exact current stage was not presented");
+  }
+  if (announcements.join("|") !== "Observation stage: Extracting Markitdown.") {
+    throw new Error("first active stage was not announced");
+  }
+
+  scheduled = [];
+  await handleObservationEnvelope({
+    capabilities,
+    job: job("RUNNING", {stage: "EXTRACTING_MARKITDOWN"}),
+  });
+  if (announcements.length !== 1) {
+    throw new Error("unchanged active stage was announced again");
+  }
+
+  scheduled = [];
+  await handleObservationEnvelope({
+    capabilities,
+    job: job("RUNNING", {stage: "BUILDING_EVIDENCE"}),
+  });
+  if (announcements[1] !== "Observation stage: Building Evidence.") {
+    throw new Error("changed active stage was not announced");
+  }
+
+  scheduled = [];
+  await handleObservationEnvelope({
+    capabilities,
+    job: job("COMPLETED", {
+      observation: {
+        status: "SUCCESS",
+        observation_id: "observation",
+        record_key: "r".repeat(64),
+      },
+      refresh: {status: "READY", message: null},
+    }),
+  });
+  if (projectionLoads !== 1) throw new Error("terminal READY did not reload projection");
+  if (scheduled.length !== 0) throw new Error("terminal job continued polling");
+  if (elements.guidedButton.disabled) throw new Error("terminal job kept guided disabled");
+
+  let retainedLoads = projectionLoads;
+  await handleObservationEnvelope({
+    capabilities,
+    job: job("COMPLETED", {
+      job_id: "job-two",
+      observation: {
+        status: "SUCCESS",
+        observation_id: "published",
+        record_key: null,
+      },
+      refresh: {status: "FAILED", message: "candidate records are invalid"},
+    }),
+  });
+  if (projectionLoads !== retainedLoads) {
+    throw new Error("refresh failure replaced the current projection");
+  }
+  if (!elements.observationAlert.textContent.includes("was published")) {
+    throw new Error("refresh failure did not distinguish publication");
+  }
+  if (!elements.observationAlert.textContent.includes("previous record view")) {
+    throw new Error("refresh failure did not explain retention");
+  }
+
+  scheduled = [];
+  const announcementsBeforeSuperseded = announcements.length;
+  const alertFocusBeforeSuperseded = elements.observationAlert.focusCount;
+  loadProjection = async () => false;
+  await handleObservationEnvelope({
+    capabilities,
+    job: job("COMPLETED", {
+      job_id: "job-superseded",
+      observation: {
+        status: "SUCCESS",
+        observation_id: "published-superseded",
+        record_key: "t".repeat(64),
+      },
+      refresh: {status: "READY", message: null},
+    }),
+  });
+  if (selectedRecordKey !== "t".repeat(64)) {
+    throw new Error("superseded terminal load discarded the returned record key");
+  }
+  if (handledTerminalJobId !== "job-superseded") {
+    throw new Error("superseded terminal load was not marked handled");
+  }
+  if (!elements.observationAlert.hidden || elements.observationAlert.textContent) {
+    throw new Error("superseded terminal load showed a false error");
+  }
+  if (elements.observationAlert.focusCount !== alertFocusBeforeSuperseded) {
+    throw new Error("superseded terminal load moved focus to an error");
+  }
+  if (announcements.length !== announcementsBeforeSuperseded) {
+    throw new Error("superseded terminal load announced an outcome");
+  }
+  if (scheduled.length !== 0) {
+    throw new Error("superseded terminal load scheduled another poll");
+  }
+
+  let manualSelectedSupersededKey = false;
+  loadProjection = async () => {
+    manualSelectedSupersededKey = selectedRecordKey === "t".repeat(64);
+    return true;
+  };
+  fetch = async (url) => {
+    if (url === "/api/workbench/refresh") return {ok: true};
+    throw new Error("unexpected superseding refresh URL " + url);
+  };
+  await refreshRecords();
+  if (!manualSelectedSupersededKey) {
+    throw new Error("manual refresh did not own the stored superseded selection");
+  }
+  if (announcements[announcements.length - 1] !== "Workspace records refreshed.") {
+    throw new Error("manual refresh did not own the success announcement");
+  }
+
+  scheduled = [];
+  loadProjection = async () => {
+    throw new Error("detail route unavailable");
+  };
+  await handleObservationEnvelope({
+    capabilities,
+    job: job("COMPLETED", {
+      job_id: "job-view-failure",
+      observation: {
+        status: "SUCCESS",
+        observation_id: "published-ready",
+        record_key: "s".repeat(64),
+      },
+      refresh: {status: "READY", message: null},
+    }),
+  });
+  if (selectedRecordKey !== "s".repeat(64)) {
+    throw new Error("terminal view failure discarded the returned record key");
+  }
+  if (handledTerminalJobId !== "job-view-failure") {
+    throw new Error("terminal view failure was not marked handled");
+  }
+  if (!elements.observationAlert.textContent.includes("refresh succeeded")) {
+    throw new Error("terminal view failure did not preserve refresh outcome");
+  }
+  if (!elements.observationAlert.textContent.includes("Use Refresh records")) {
+    throw new Error("terminal view failure omitted manual recovery");
+  }
+  if (elements.observationAlert.textContent.includes("try again while the job is active")) {
+    throw new Error("terminal view failure promised an active-job retry");
+  }
+  if (scheduled.length !== 0) {
+    throw new Error("terminal view failure scheduled another poll");
+  }
+
+  let manualSelectedStoredKey = false;
+  loadProjection = async () => {
+    manualSelectedStoredKey = selectedRecordKey === "s".repeat(64);
+    return true;
+  };
+  fetch = async (url) => {
+    if (url === "/api/workbench/refresh") return {ok: true};
+    throw new Error("unexpected manual recovery URL " + url);
+  };
+  await refreshRecords();
+  if (!manualSelectedStoredKey) {
+    throw new Error("manual refresh could not reuse the stored record key");
+  }
+  if (!announcements.includes("Workspace records refreshed.")) {
+    throw new Error("manual refresh recovery was not announced");
+  }
+
+  const requests = [];
+  elements.uploadInput.files = [{
+    name: "learner memo.md",
+    size: 20,
+    bytes: "# Browser upload",
+  }];
+  latestObservationJob = null;
+  observationCapabilities = capabilities;
+  fetch = async (url, options) => {
+    requests.push({url, options});
+    return {
+      ok: true,
+      json: async () => ({job: job("QUEUED", {
+        job_id: "job-three",
+        input: input("UPLOAD"),
+      })}),
+    };
+  };
+  await submitUploadedObservation();
+  if (requests[0].url !== "/api/observation-jobs/upload?filename=learner%20memo.md") {
+    throw new Error("upload filename was not encoded into the local route");
+  }
+  if (requests[0].options.body !== elements.uploadInput.files[0]) {
+    throw new Error("selected upload bytes were not submitted");
+  }
+})().catch((error) => {
+  process.stderr.write(error.stack + "\\n");
+  process.exitCode = 1;
+});
+`;
+vm.runInThisContext(source, {filename: process.argv[1]});
+"""
+        completed = subprocess.run(
+            [node, "-e", harness, str(ASSETS / "workbench.js")],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_startup_failures_are_isolated_between_projection_and_observation(
+        self,
+    ) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is unavailable for the bundled UI behavior test")
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+
+function fakeElement(id = "") {
+  return {
+    id,
+    appended: [],
+    className: "",
+    dataset: {},
+    disabled: true,
+    files: [],
+    hidden: false,
+    textContent: "",
+    firstChild: null,
+    append(...values) { this.appended.push(...values); },
+    addEventListener() {},
+    focus() {},
+    querySelectorAll() { return []; },
+    removeChild() { this.firstChild = null; },
+    replaceWith() {},
+    setAttribute() {},
+  };
+}
+
+const ids = [
+  "announcer", "observe-guided", "observe-upload", "observation-file",
+  "observation-state", "observation-message", "observation-alert",
+  "observation-source", "observation-progress", "refresh-records",
+  "record-count", "record-list", "record-view", "record-heading", "record-kind",
+  "record-state", "record-summary", "record-content", "session-state",
+  "session-message", "session-facts", "state-key",
+];
+const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
+global.Node = class {};
+global.document = {
+  createDocumentFragment: () => fakeElement(),
+  createElement: () => fakeElement(),
+  getElementById: (id) => registry[id],
+  querySelector: (selector) => selector.startsWith("#observation")
+    ? registry["observation-state"]
+    : registry["session-state"],
+};
+
+let source = fs.readFileSync(process.argv[1], "utf8");
+source = source.replace(/\nstart\(\);\s*$/, "");
+source += `
+const capabilities = {
+  guided: {id: "policy-memo-md", name: "policy-memo.md", media_type: "text/markdown"},
+  upload: {extensions: [".docx", ".md", ".pdf", ".txt"], max_bytes: 33554432},
+};
+
+(async () => {
+  renderStateKey = () => {};
+  const announcements = [];
+  announce = (message) => { announcements.push(message); };
+
+  loadProjection = async () => {
+    elements.sessionState.dataset.state = "READY";
+    elements.sessionMessage.textContent = "Projection ready.";
+    return true;
+  };
+  readObservationJobs = async () => {
+    throw new Error("jobs unavailable");
+  };
+  await start();
+  if (elements.sessionMessage.textContent !== "Projection ready.") {
+    throw new Error("jobs failure replaced the successful projection");
+  }
+  if (elements.sessionState.dataset.state !== "READY") {
+    throw new Error("jobs failure falsely marked the projection failed");
+  }
+  if (elements.observationMessage.textContent !== "Observation controls are unavailable.") {
+    throw new Error("jobs failure did not identify the failed surface");
+  }
+  if (!elements.observationAlert.textContent.includes("Restart the local Workbench")) {
+    throw new Error("jobs failure omitted accurate recovery guidance");
+  }
+  if (!elements.guidedButton.disabled || !elements.uploadButton.disabled) {
+    throw new Error("unavailable observation controls were enabled");
+  }
+  if (elements.refreshButton.disabled) {
+    throw new Error("projection recovery control remained disabled");
+  }
+  if (announcements.includes("The workbench projection is unavailable. Use Refresh records.")) {
+    throw new Error("jobs failure announced a false projection failure");
+  }
+
+  const secondAnnouncementStart = announcements.length;
+  elements.refreshButton.disabled = true;
+  elements.guidedButton.disabled = true;
+  elements.uploadButton.disabled = true;
+  elements.observationAlert.hidden = false;
+  elements.observationAlert.textContent = "old failure";
+  observationCapabilities = null;
+  latestObservationJob = null;
+  loadProjection = async () => {
+    throw new Error("projection unavailable");
+  };
+  readObservationJobs = async () => {
+    observationCapabilities = capabilities;
+    renderObservationJob(null);
+  };
+  await start();
+  if (!elements.sessionMessage.textContent.includes("Use Refresh records")) {
+    throw new Error("projection failure omitted manual recovery guidance");
+  }
+  if (elements.observationMessage.textContent !== "Run the guided example or observe one local document.") {
+    throw new Error("projection failure replaced successful observation controls");
+  }
+  if (elements.guidedButton.disabled) {
+    throw new Error("projection failure disabled successful guided controls");
+  }
+  if (!elements.observationAlert.hidden || elements.observationAlert.textContent) {
+    throw new Error("projection failure showed a false observation error");
+  }
+  if (elements.refreshButton.disabled) {
+    throw new Error("projection recovery control remained disabled");
+  }
+  const secondAnnouncements = announcements.slice(secondAnnouncementStart);
+  if (!secondAnnouncements.includes("The workbench projection is unavailable. Use Refresh records.")) {
+    throw new Error("projection failure was not announced accurately");
+  }
+  if (secondAnnouncements.includes("Observation controls are unavailable.")) {
+    throw new Error("projection failure announced a false jobs failure");
+  }
+})().catch((error) => {
+  process.stderr.write(error.stack + "\\n");
+  process.exitCode = 1;
+});
+`;
+vm.runInThisContext(source, {filename: process.argv[1]});
+"""
+        completed = subprocess.run(
+            [node, "-e", harness, str(ASSETS / "workbench.js")],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
 
     def test_reordered_detail_responses_cannot_replace_active_selection(self) -> None:
         node = shutil.which("node")

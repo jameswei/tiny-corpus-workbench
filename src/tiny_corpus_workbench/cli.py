@@ -176,9 +176,14 @@ def parser() -> argparse.ArgumentParser:
     )
     verify_corpus.add_argument("--spec", metavar="CORPUS_SPEC", type=Path)
     workbench = commands.add_parser(
-        "workbench", help="serve one workspace in a read-only local workbench"
+        "workbench", help="serve one workspace in a local workbench"
     )
     workbench.add_argument("--workspace", type=Path, default=Path("build"))
+    workbench.add_argument(
+        "--docling-artifacts",
+        type=Path,
+        default=Path(".cache/docling/models"),
+    )
     workbench.add_argument("--port", default="8765")
     workbench.add_argument("--no-open", action="store_true")
     return root
@@ -199,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
 
             port = validate_port(args.port)
             state = WorkbenchState(args.workspace)
-            server = create_server(state, port)
+            server = create_server(state, port, args.docling_artifacts)
             try:
                 url = serving_url(port)
                 print(url, flush=True)

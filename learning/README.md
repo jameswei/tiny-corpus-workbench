@@ -32,6 +32,7 @@ requires all applicable writing rules and controlled-dictionary checks.
 | v0.4 | [Corpus Inspection and Comparison](v0.4-corpus-inspection-comparison.md) | Available | 60–75 minutes |
 | v0.5 | [Local Visual Workbench](v0.5-local-visual-workbench.md) | Available | 30–45 minutes |
 | v0.6 | [Shared Workbench Workspace](v0.6-shared-workbench-workspace.md) | Available in current source | 30–45 minutes |
+| v0.7 | [Web Observation Workflow](v0.7-web-observation-workflow.md) | Available in current source | 20–30 minutes |
 
 ## How to use a lesson
 
@@ -66,4 +67,6 @@ Use these companion documents when you need more precision:
   final learning-first Local Visual Workbench design
 - [v0.6 outcome and rationale](../docs/plans/v0.6-shared-workbench-workspace.md):
   historical shared-workspace milestone and boundaries
+- [v0.7 approved plan](../docs/plans/v0.7-web-observation-workflow.md):
+  browser observation workflow and boundaries
 - [Project roadmap](../docs/roadmap.md): milestone sequence and boundaries

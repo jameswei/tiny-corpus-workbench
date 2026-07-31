@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 import socket
 import unittest
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
+from tiny_corpus_workbench.workbench_projection import empty_projection
 from tests.unit.workbench_server_test_support import ServerHarness
 from tests.unit.workbench_test_support import PublishedObservation
 
@@ -99,6 +100,36 @@ class WorkbenchHttpTests(unittest.TestCase):
         self.assertEqual(
             detail.body, self.harness.projection.detail_bytes(record_key)
         )
+
+    def test_record_and_artifact_requests_capture_one_projection_snapshot(
+        self,
+    ) -> None:
+        application = self.harness.server.application
+        captured = self.harness.state.projection
+        record_key = captured.projection["records"][0]["record_key"]
+        detail = captured.details[record_key]
+        artifact_key = detail["artifacts"][0]["artifact_key"]
+        routes = (
+            (
+                f"/api/records/{record_key}",
+                captured.detail_bytes(record_key),
+            ),
+            (
+                f"/api/artifacts/{artifact_key}",
+                captured.artifact_contents[artifact_key],
+            ),
+        )
+        for route, expected in routes:
+            with self.subTest(route=route), patch.object(
+                type(application),
+                "projection",
+                new_callable=PropertyMock,
+                side_effect=[captured, empty_projection()],
+            ) as projection:
+                response = self.harness.request(route)
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.body, expected)
+                self.assertEqual(projection.call_count, 1)
 
     def test_unknown_malformed_and_absent_keys_return_stable_404(self) -> None:
         for target in (

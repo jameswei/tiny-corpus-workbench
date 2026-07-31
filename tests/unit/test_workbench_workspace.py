@@ -4,6 +4,8 @@ import json
 import os
 import shutil
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -42,11 +44,13 @@ class WorkbenchWorkspaceTests(unittest.TestCase):
         shutil.copytree(self.published.root, target)
         return target
 
-    def test_missing_and_empty_workspace_have_stable_empty_projection(self) -> None:
-        missing = self.workspace / "missing"
+    def test_missing_workspace_and_parents_are_created_with_empty_projection(
+        self,
+    ) -> None:
+        missing = self.workspace / "missing" / "nested"
         state = WorkbenchState(missing)
         expected = empty_projection()
-        self.assertFalse(missing.exists())
+        self.assertTrue(missing.is_dir())
         self.assertEqual(state.refresh_status, "READY")
         self.assertEqual(state.projection.projection, expected.projection)
         self.assertEqual(
@@ -64,8 +68,16 @@ class WorkbenchWorkspaceTests(unittest.TestCase):
         with patch(
             "tiny_corpus_workbench.application.workbench.os.access",
             return_value=False,
-        ), self.assertRaisesRegex(InputError, "workspace must be readable"):
+        ), self.assertRaisesRegex(
+            InputError, "workspace must be readable, writable, and searchable"
+        ):
             WorkbenchState(self.workspace)
+
+    def test_existing_non_directory_workspace_is_rejected(self) -> None:
+        target = self.workspace / "workspace"
+        target.write_text("not a directory", "utf-8")
+        with self.assertRaisesRegex(InputError, "workspace must be a directory"):
+            WorkbenchState(target)
 
     def test_discovery_is_fixed_nested_deterministic_and_excludes_staging(self) -> None:
         second = self.publish_copy("extraction-observatory/z")
@@ -174,6 +186,45 @@ class WorkbenchWorkspaceTests(unittest.TestCase):
         self.assertEqual(state.refresh_status, "FAILED")
         self.assertEqual(state.projection.projection["records"], [])
         self.assertIn("extraction-observatory/bad", state.refresh_message)
+
+    def test_concurrent_refreshes_are_serialized(self) -> None:
+        state = WorkbenchState(self.workspace)
+        original = state._candidate_projection
+        entered = threading.Event()
+        release = threading.Event()
+        counter_lock = threading.Lock()
+        active = 0
+        maximum = 0
+
+        def blocked_candidate(roots):
+            nonlocal active, maximum
+            with counter_lock:
+                active += 1
+                maximum = max(maximum, active)
+            entered.set()
+            release.wait(2)
+            try:
+                return original(roots)
+            finally:
+                with counter_lock:
+                    active -= 1
+
+        with patch.object(
+            state, "_candidate_projection", side_effect=blocked_candidate
+        ):
+            first = threading.Thread(target=state.refresh)
+            second = threading.Thread(target=state.refresh)
+            first.start()
+            self.assertTrue(entered.wait(1))
+            second.start()
+            time.sleep(0.05)
+            self.assertEqual(maximum, 1)
+            release.set()
+            first.join(2)
+            second.join(2)
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(maximum, 1)
 
 
 if __name__ == "__main__":

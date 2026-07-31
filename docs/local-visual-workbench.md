@@ -1,8 +1,8 @@
 # Local Visual Workbench
 
-The Local Visual Workbench gives you a read-only browser view of records in one
-local workspace. It uses the same verification and evidence contracts as the
-CLI.
+The Local Visual Workbench can run one observation and show verified records in
+one local workspace. Published records stay immutable. The Workbench uses the
+same observation, verification, and evidence contracts as the CLI.
 
 The workbench is local software. It is not a hosted service. It binds only to
 `127.0.0.1`, keeps one accepted projection in memory, and writes no session
@@ -21,13 +21,6 @@ command with `uv run`.
 
 ## Start the workbench
 
-Create an observation that needs no model files. The default producer output
-already uses the default workspace:
-
-```bash
-corpus observe fixtures/golden/policy-memo.md
-```
-
 Start the workbench without opening a browser automatically:
 
 ```bash
@@ -42,6 +35,49 @@ the server.
 
 Use `--port PORT` to select an unused port from 1024 through 65535. Omit
 `--no-open` to ask the operating system to open the browser after startup.
+
+Use `--docling-artifacts MODEL_DIRECTORY` to select local Docling models for
+PDF observation. The default is `.cache/docling/models`.
+
+## Observe a document
+
+Select **Observe policy memo** for the guided model-free path. The Workbench
+publishes a new observation, refreshes the complete workspace, and selects the
+new record.
+
+You can also select one `.docx`, `.md`, `.pdf`, or `.txt` file. The limit is
+32 MiB. The Workbench derives the format from the filename and content. It
+shows the filename, format, size, and SHA-256. It does not show or serve the
+uploaded original.
+
+The browser always lists these real observation stages in order:
+
+```text
+PREPARING_SOURCE
+EXTRACTING_DOCLING
+EXTRACTING_MARKITDOWN
+BUILDING_EVIDENCE
+VERIFYING_AND_PUBLISHING
+REFRESHING_WORKSPACE
+```
+
+The Workbench marks the current stage from the latest server snapshot. A fast
+stage can finish between polls. In that case, the ordered list shows the stage
+as completed but does not claim that the browser observed it live.
+
+Only one observation can run at a time. Job state stays in memory. A browser
+reload restores the latest job from the running server. A server restart clears
+the job but keeps accepted inputs and published observations.
+
+An upload is stored immutably at
+`WORKSPACE/inputs/SHA256/ORIGINAL_FILENAME`. Each observation is a new
+immutable run. The guided fixture stays in the source checkout and is not
+copied to `inputs/`.
+
+A published observation is complete even when an extractor reports failure or
+partial success. If automatic refresh rejects the complete candidate, the new
+record stays on disk and the previous browser projection stays visible. Fix the
+candidate, then use manual refresh.
 
 ## Use the workspace
 
@@ -61,11 +97,12 @@ WORKSPACE/controlled-revisions/
 WORKSPACE/corpus-inspection/
 ```
 
-The Workbench scans only these four families and their exact manifest names.
-It ignores `inputs/`, unrelated directories, and `.staging-*` publication
-directories. A missing workspace or family directory is empty and is not
-created. Corpus descriptors add their verified contained observation and
-diagnosis records; those children do not become separate top-level discoveries.
+The Workbench creates the selected workspace and missing parents at startup.
+It scans only these four families and their exact manifest names. It ignores
+`inputs/`, unrelated directories, and `.staging-*` publication directories.
+A missing family directory is empty. Corpus descriptors add their verified
+contained observation and diagnosis records; those children do not become
+separate top-level discoveries.
 
 Startup and each manual refresh verify the complete candidate before accepting
 it. A failed refresh keeps the previous session, record details, and captured
@@ -96,7 +133,7 @@ does not execute artifact markup.
 
 ## API boundary
 
-The browser uses these read-only routes:
+The browser uses these internal routes:
 
 ```text
 GET or HEAD /
@@ -105,7 +142,10 @@ GET or HEAD /assets/workbench.js
 GET or HEAD /api/workbench
 GET or HEAD /api/records/{record_key}
 GET or HEAD /api/artifacts/{artifact_key}
+GET or HEAD /api/observation-jobs
 POST /api/workbench/refresh
+POST /api/observation-jobs/guided
+POST /api/observation-jobs/upload?filename=NAME
 ```
 
 The JSON routes are an internal interface for the bundled UI. They are not a
@@ -114,19 +154,20 @@ admission. Disk changes do not alter those bytes until a successful refresh.
 Opaque artifact keys never expose backing filesystem paths.
 
 The refresh operation accepts an empty request body and runs synchronously.
-The server returns `404` for unknown routes or keys, `405` for unsupported
-methods, `400` for a nonempty refresh body, and `409` when a refresh candidate
-fails. The bundled UI uses text-only DOM construction and makes no remote
-requests.
+Observation submissions return an accepted in-memory job. The bundled UI polls
+only while that job is queued or running. The server bounds upload bodies
+before it reads them. The bundled UI uses text-only DOM construction and makes
+no remote requests.
 
 The service is loopback-only, but other local processes can reach a loopback
-port. Do not treat the workbench as an access-control or authentication
-boundary. Stop the server when you finish.
+port. An unrelated webpage can trigger a request without reading its response.
+Do not treat the Workbench as an access-control or authentication boundary.
+Stop the server when you finish.
 
 ## Integrity and authority limits
 
-The workbench is read-only. It cannot run extraction, diagnosis, refinement,
-or corpus workflows. Use the existing CLI commands for those operations.
+The Workbench can run observation. It cannot run diagnosis, refinement, or
+corpus workflows. Use the existing CLI commands for those operations.
 
 Diagnosis still does not authorize mutation. The Workbench cannot decide or
 apply a proposal. It derives `APPROVED` or `REJECTED` only from `refinement-manifest.json.decision`;
@@ -139,6 +180,7 @@ They do not prove authorship or authenticity. The interface does not show
 source or prepared document passages unless you explicitly retrieve an
 admitted plain-text artifact.
 
-See the [README](../README.md) for the complete CLI path and the
-[v0.6 lesson](../learning/v0.6-shared-workbench-workspace.md) for a guided
-workspace and refresh exercise.
+See the [README](../README.md) for the complete CLI path, the
+[v0.7 lesson](../learning/v0.7-web-observation-workflow.md) for browser
+observation, and the [v0.6 lesson](../learning/v0.6-shared-workbench-workspace.md)
+for manual workspace refresh.

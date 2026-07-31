@@ -71,6 +71,17 @@ def validate(root: Path) -> list[str]:
         errors.append("missing aria-live status region")
     if ("div", "aria-live", "polite") not in parser.attributes:
         errors.append("missing polite aria-live region")
+    for required in (
+        ("button", "id", "observe-guided"),
+        ("input", "id", "observation-file"),
+        ("input", "type", "file"),
+        ("input", "accept", ".docx,.md,.pdf,.txt"),
+        ("button", "id", "observe-upload"),
+        ("div", "id", "observation-alert"),
+        ("div", "role", "alert"),
+    ):
+        if required not in parser.attributes:
+            errors.append(f"missing observation accessibility contract: {required}")
     for tag, name, value in parser.attributes:
         if name in {"src", "href"} and not (
             value.startswith("/") or value.startswith("#")
@@ -89,6 +100,9 @@ def validate(root: Path) -> list[str]:
             errors.append(f"workbench.js contains forbidden capability: {token}")
     for required in (
         'const API_ROOT = "/api"',
+        "OBSERVATION_POLL_INTERVAL_MS",
+        "handleObservationEnvelope",
+        "encodeURIComponent(file.name)",
         "document.createElement",
         ".textContent",
         "prefers-reduced-motion",

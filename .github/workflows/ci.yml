@@ -63,6 +63,7 @@ jobs:
           uv run --frozen --group test python -m unittest -v
           tests.integration.test_v05_workflows
           tests.integration.test_workbench_integration
+          tests.integration.test_workbench_observation_journey
 
       - name: Validate bundled workbench UI assets
         run: >-
@@ -186,10 +187,11 @@ jobs:
       - name: Verify installed CLI
         run: uv run --frozen corpus --version
 
-      - name: Run model-free lifecycle smoke
+      - name: Run model-free lifecycle and guided Web observation smoke
         run: >-
           uv run --frozen python -m unittest -v
           tests.integration.test_v05_workflows
+          tests.integration.test_web_observation_smoke
 
       - name: Check post-smoke working tree
         run: |
