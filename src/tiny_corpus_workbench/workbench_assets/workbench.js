@@ -2,6 +2,14 @@
 
 const API_ROOT = "/api";
 const OBSERVATION_POLL_INTERVAL_MS = 300;
+const OBSERVATION_STAGES = [
+  "PREPARING_SOURCE",
+  "EXTRACTING_DOCLING",
+  "EXTRACTING_MARKITDOWN",
+  "BUILDING_EVIDENCE",
+  "VERIFYING_AND_PUBLISHING",
+  "REFRESHING_WORKSPACE",
+];
 const COMPARISON_METRICS = [
   "bytes",
   "characters",
@@ -50,6 +58,8 @@ let observationPollTimer = null;
 let handledTerminalJobId = null;
 let announcedActiveJobId = null;
 let announcedActiveStage = null;
+let observedProgressJobId = null;
+let lastObservedStageIndex = -1;
 
 const stateHelp = {
   MATCH: "The admitted target is present and its recorded relationship matches.",
@@ -162,8 +172,93 @@ function appendFacts(target, entries) {
   }
 }
 
+function rememberObservedStage(job) {
+  if (job === null) {
+    observedProgressJobId = null;
+    lastObservedStageIndex = -1;
+    return;
+  }
+  if (observedProgressJobId !== job.job_id) {
+    observedProgressJobId = job.job_id;
+    lastObservedStageIndex = -1;
+  }
+  const stageIndex = OBSERVATION_STAGES.indexOf(job.stage);
+  if (isActiveJob(job) && stageIndex >= 0) {
+    lastObservedStageIndex = Math.max(lastObservedStageIndex, stageIndex);
+  }
+}
+
+function observationStageState(job, stageIndex) {
+  if (job === null || job.state === "QUEUED") {
+    return {label: "Waiting", current: false};
+  }
+  const currentIndex = OBSERVATION_STAGES.indexOf(job.stage);
+  if (isActiveJob(job) && currentIndex >= 0) {
+    if (stageIndex < currentIndex) {
+      return {label: "Completed", current: false};
+    }
+    if (stageIndex === currentIndex) {
+      return {label: "Current", current: true};
+    }
+    return {label: "Waiting", current: false};
+  }
+  if (job.state === "COMPLETED") {
+    if (stageIndex < OBSERVATION_STAGES.length - 1) {
+      return {label: "Completed", current: false};
+    }
+    if (job.refresh && job.refresh.status === "READY") {
+      return {label: "Completed", current: false};
+    }
+    if (job.refresh && job.refresh.status === "FAILED") {
+      return {label: "Failed", current: false};
+    }
+    return {label: "Unknown", current: false};
+  }
+  if (job.state === "FAILED") {
+    if (stageIndex === OBSERVATION_STAGES.length - 1) {
+      return {label: "Not reached", current: false};
+    }
+    if (lastObservedStageIndex < 0) {
+      return {label: "Unknown", current: false};
+    }
+    if (stageIndex < lastObservedStageIndex) {
+      return {label: "Completed", current: false};
+    }
+    if (stageIndex === lastObservedStageIndex) {
+      return {label: "Last observed", current: false};
+    }
+    return {label: "Not reached or unknown", current: false};
+  }
+  return {label: "Waiting", current: false};
+}
+
+function appendObservationStages(target, job) {
+  const wrapper = node("div");
+  const value = node("dd");
+  const stages = node("ol", undefined, "observation-stages");
+  stages.setAttribute("aria-label", "Observation stage sequence");
+  for (const [stageIndex, stage] of OBSERVATION_STAGES.entries()) {
+    const presentation = observationStageState(job, stageIndex);
+    const item = node("li", undefined, "observation-stage");
+    item.dataset.stage = stage;
+    item.dataset.stageState = presentation.label;
+    if (presentation.current) {
+      item.setAttribute("aria-current", "step");
+    }
+    item.append(
+      node("span", displayName(stage), "observation-stage-name"),
+      node("span", `— ${presentation.label}`, "observation-stage-state"),
+    );
+    stages.append(item);
+  }
+  value.append(stages);
+  wrapper.append(node("dt", "Ordered stages"), value);
+  target.append(wrapper);
+}
+
 function renderObservationJob(job) {
   latestObservationJob = job;
+  rememberObservedStage(job);
   const stateValue = job === null ? "AVAILABLE" : job.state;
   elements.observationState.replaceWith(status(stateValue));
   elements.observationState = document.querySelector("#observation-workflow .section-heading .status");
@@ -173,6 +268,7 @@ function renderObservationJob(job) {
 
   if (job === null) {
     elements.observationMessage.textContent = "Run the guided example or observe one local document.";
+    appendObservationStages(elements.observationProgress, job);
     updateObservationControls();
     return;
   }
@@ -197,6 +293,7 @@ function renderObservationJob(job) {
     ["Observation", observationStatus],
     ["Workspace refresh", refreshStatus],
   ]);
+  appendObservationStages(elements.observationProgress, job);
 
   if (job.state === "FAILED" && job.error !== null) {
     setObservationAlert(

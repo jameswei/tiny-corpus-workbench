@@ -50,7 +50,7 @@ You can also select one `.docx`, `.md`, `.pdf`, or `.txt` file. The limit is
 shows the filename, format, size, and SHA-256. It does not show or serve the
 uploaded original.
 
-The browser shows these real observation stages:
+The browser always lists these real observation stages in order:
 
 ```text
 PREPARING_SOURCE
@@ -60,6 +60,10 @@ BUILDING_EVIDENCE
 VERIFYING_AND_PUBLISHING
 REFRESHING_WORKSPACE
 ```
+
+The Workbench marks the current stage from the latest server snapshot. A fast
+stage can finish between polls. In that case, the ordered list shows the stage
+as completed but does not claim that the browser observed it live.
 
 Only one observation can run at a time. Job state stays in memory. A browser
 reload restores the latest job from the running server. A server restart clears

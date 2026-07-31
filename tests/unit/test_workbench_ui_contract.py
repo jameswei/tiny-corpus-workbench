@@ -141,6 +141,153 @@ class WorkbenchUIContractTests(unittest.TestCase):
         self.assertIn("Observation stage:", script)
         self.assertIn("Use Refresh records to load and select it.", script)
 
+    def test_observation_stage_sequence_survives_skipped_poll_snapshots(
+        self,
+    ) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is unavailable for the stage cadence test")
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+
+function fakeElement(id = "") {
+  return {
+    id,
+    appended: [],
+    attributes: {},
+    className: "",
+    dataset: {},
+    disabled: false,
+    files: [],
+    hidden: false,
+    textContent: "",
+    firstChild: null,
+    append(...values) { this.appended.push(...values); },
+    addEventListener() {},
+    focus() {},
+    querySelectorAll() { return []; },
+    removeChild() { this.firstChild = null; },
+    replaceWith() {},
+    setAttribute(name, value) { this.attributes[name] = value; },
+  };
+}
+
+const ids = [
+  "announcer", "observe-guided", "observe-upload", "observation-file",
+  "observation-state", "observation-message", "observation-alert",
+  "observation-source", "observation-progress", "refresh-records",
+  "record-count", "record-list", "record-view", "record-heading", "record-kind",
+  "record-state", "record-summary", "record-content", "session-state",
+  "session-message", "session-facts", "state-key",
+];
+const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
+global.Node = class {};
+global.document = {
+  createDocumentFragment: () => fakeElement(),
+  createElement: () => fakeElement(),
+  getElementById: (id) => registry[id],
+  querySelector: () => registry["observation-state"],
+};
+
+let source = fs.readFileSync(process.argv[1], "utf8");
+source = source.replace(/\nstart\(\);\s*$/, "");
+source += `
+function job(jobId, state, overrides = {}) {
+  return Object.assign({
+    job_id: jobId,
+    state,
+    stage: null,
+    input: {
+      kind: "GUIDED",
+      name: "policy-memo.md",
+      media_type: "text/markdown",
+      size: 20,
+      sha256: "a".repeat(64),
+    },
+    observation: null,
+    refresh: null,
+    error: null,
+  }, overrides);
+}
+
+function renderedStages() {
+  const wrapper = elements.observationProgress.appended.at(-1);
+  const value = wrapper.appended[1];
+  return value.appended[0].appended;
+}
+
+function assertSequence(expectedStates, expectedCurrent = null) {
+  const stages = renderedStages();
+  const names = stages.map((item) => item.dataset.stage);
+  if (names.join("|") !== OBSERVATION_STAGES.join("|")) {
+    throw new Error("ordered stage sequence was not always present");
+  }
+  const states = stages.map((item) => item.dataset.stageState);
+  if (states.join("|") !== expectedStates.join("|")) {
+    throw new Error("dishonest stage states: " + states.join("|"));
+  }
+  const current = stages
+    .filter((item) => item.attributes["aria-current"] === "step")
+    .map((item) => item.dataset.stage);
+  const expected = expectedCurrent === null ? [] : [expectedCurrent];
+  if (current.join("|") !== expected.join("|")) {
+    throw new Error("current real snapshot stage was not exact");
+  }
+}
+
+renderObservationJob(job("jump", "RUNNING", {stage: "PREPARING_SOURCE"}));
+assertSequence(
+  ["Current", "Waiting", "Waiting", "Waiting", "Waiting", "Waiting"],
+  "PREPARING_SOURCE",
+);
+
+renderObservationJob(job("jump", "RUNNING", {stage: "EXTRACTING_MARKITDOWN"}));
+assertSequence(
+  ["Completed", "Completed", "Current", "Waiting", "Waiting", "Waiting"],
+  "EXTRACTING_MARKITDOWN",
+);
+
+renderObservationJob(job("jump", "COMPLETED", {
+  observation: {status: "SUCCESS", observation_id: "ready", record_key: "r".repeat(64)},
+  refresh: {status: "READY", message: null},
+}));
+assertSequence(["Completed", "Completed", "Completed", "Completed", "Completed", "Completed"]);
+
+renderObservationJob(job("refresh-failed", "COMPLETED", {
+  observation: {status: "SUCCESS", observation_id: "published", record_key: null},
+  refresh: {status: "FAILED", message: "candidate rejected"},
+}));
+assertSequence(["Completed", "Completed", "Completed", "Completed", "Completed", "Failed"]);
+
+renderObservationJob(job("reloaded-failure", "FAILED", {
+  error: {code: "OBSERVATION_RUNTIME_FAILED", message: "observation failed"},
+}));
+assertSequence(["Unknown", "Unknown", "Unknown", "Unknown", "Unknown", "Not reached"]);
+
+renderObservationJob(job("observed-failure", "RUNNING", {stage: "BUILDING_EVIDENCE"}));
+renderObservationJob(job("observed-failure", "FAILED", {
+  error: {code: "OBSERVATION_INTERNAL_FAILED", message: "observation failed"},
+}));
+assertSequence([
+  "Completed",
+  "Completed",
+  "Completed",
+  "Last observed",
+  "Not reached or unknown",
+  "Not reached",
+]);
+`;
+vm.runInThisContext(source, {filename: process.argv[1]});
+"""
+        completed = subprocess.run(
+            [node, "-e", harness, str(ASSETS / "workbench.js")],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def test_observation_job_behavior_recovers_polls_selects_and_retains(
         self,
     ) -> None:
