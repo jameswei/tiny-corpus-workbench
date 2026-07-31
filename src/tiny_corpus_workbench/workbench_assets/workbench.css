@@ -32,6 +32,10 @@ button {
   font: inherit;
 }
 
+input {
+  font: inherit;
+}
+
 .skip-link {
   position: fixed;
   z-index: 10;
@@ -79,11 +83,11 @@ button {
   color: #b9d6c9;
 }
 
-.read-only {
+.record-policy {
   white-space: nowrap;
 }
 
-.read-only span {
+.record-policy span {
   color: #88d6ae;
 }
 
@@ -109,6 +113,74 @@ button {
 .refresh-button:disabled {
   cursor: wait;
   opacity: 0.65;
+}
+
+.observation-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.action-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--surface-soft);
+}
+
+.action-card h3 {
+  margin-top: 0;
+}
+
+.action-card label,
+.action-card input {
+  display: block;
+  width: 100%;
+}
+
+.action-card input {
+  margin: 0.45rem 0;
+}
+
+.help {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.primary-button {
+  border: 1px solid var(--accent);
+  border-radius: 0.45rem;
+  padding: 0.6rem 0.85rem;
+  color: var(--surface);
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.primary-button:hover {
+  background: var(--accent-strong);
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.notice {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  border-left: 0.3rem solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+}
+
+.notice.error {
+  border-left-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 8%, var(--surface));
+}
+
+#observation-source,
+#observation-progress {
+  margin-top: 1rem;
 }
 
 .layout {
@@ -369,7 +441,7 @@ code,
     display: block;
   }
 
-  .read-only {
+  .record-policy {
     margin-top: 1rem;
   }
 
@@ -394,7 +466,8 @@ code,
 
   .facts,
   .state-grid,
-  .card-grid {
+  .card-grid,
+  .observation-actions {
     grid-template-columns: 1fr;
   }
 }

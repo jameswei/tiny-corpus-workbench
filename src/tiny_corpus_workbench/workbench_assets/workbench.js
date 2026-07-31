@@ -1,6 +1,7 @@
 "use strict";
 
 const API_ROOT = "/api";
+const OBSERVATION_POLL_INTERVAL_MS = 300;
 const COMPARISON_METRICS = [
   "bytes",
   "characters",
@@ -15,6 +16,14 @@ const COMPARISON_METRICS = [
 ];
 const elements = {
   announcer: document.getElementById("announcer"),
+  guidedButton: document.getElementById("observe-guided"),
+  uploadButton: document.getElementById("observe-upload"),
+  uploadInput: document.getElementById("observation-file"),
+  observationState: document.getElementById("observation-state"),
+  observationMessage: document.getElementById("observation-message"),
+  observationAlert: document.getElementById("observation-alert"),
+  observationSource: document.getElementById("observation-source"),
+  observationProgress: document.getElementById("observation-progress"),
   refreshButton: document.getElementById("refresh-records"),
   recordCount: document.getElementById("record-count"),
   recordList: document.getElementById("record-list"),
@@ -35,6 +44,12 @@ let projectionGeneration = 0;
 let projectionRequestGeneration = 0;
 let detailRequestGeneration = 0;
 let activeDetailPromise = Promise.resolve(true);
+let observationCapabilities = null;
+let latestObservationJob = null;
+let observationPollTimer = null;
+let handledTerminalJobId = null;
+let announcedActiveJobId = null;
+let announcedActiveStage = null;
 
 const stateHelp = {
   MATCH: "The admitted target is present and its recorded relationship matches.",
@@ -102,6 +117,256 @@ function status(value) {
 
 function announce(message) {
   elements.announcer.textContent = message;
+}
+
+function isActiveJob(job) {
+  return job !== null && (job.state === "QUEUED" || job.state === "RUNNING");
+}
+
+function formatBytes(value) {
+  if (!Number.isFinite(value)) {
+    return "Unknown";
+  }
+  if (value < 1024) {
+    return `${value} bytes`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KiB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function setObservationAlert(message, tone = "warning", focus = false) {
+  elements.observationAlert.hidden = !message;
+  elements.observationAlert.className = tone === "error" ? "notice error" : "notice";
+  elements.observationAlert.textContent = message || "";
+  if (message && focus) {
+    elements.observationAlert.focus();
+  }
+}
+
+function updateObservationControls() {
+  const active = isActiveJob(latestObservationJob);
+  const hasCapabilities = observationCapabilities !== null;
+  const hasFile = elements.uploadInput.files && elements.uploadInput.files.length === 1;
+  elements.guidedButton.disabled = active || !hasCapabilities;
+  elements.uploadButton.disabled = active || !hasCapabilities || !hasFile;
+}
+
+function appendFacts(target, entries) {
+  clear(target);
+  for (const [label, value, monospaced] of entries) {
+    const wrapper = node("div");
+    wrapper.append(node("dt", label), node("dd", value, monospaced ? "mono" : undefined));
+    target.append(wrapper);
+  }
+}
+
+function renderObservationJob(job) {
+  latestObservationJob = job;
+  const stateValue = job === null ? "AVAILABLE" : job.state;
+  elements.observationState.replaceWith(status(stateValue));
+  elements.observationState = document.querySelector("#observation-workflow .section-heading .status");
+  setObservationAlert("");
+  clear(elements.observationSource);
+  clear(elements.observationProgress);
+
+  if (job === null) {
+    elements.observationMessage.textContent = "Run the guided example or observe one local document.";
+    updateObservationControls();
+    return;
+  }
+
+  const stage = job.stage === null ? "Not active" : displayName(job.stage);
+  const observationStatus = job.observation === null
+    ? "Not published"
+    : displayName(job.observation.status);
+  const refreshStatus = job.refresh === null ? "Not started" : displayName(job.refresh.status);
+  elements.observationMessage.textContent = isActiveJob(job)
+    ? `Observation is ${displayName(job.state).toLowerCase()}. Current stage: ${stage}.`
+    : `Observation job ${displayName(job.state).toLowerCase()}.`;
+  appendFacts(elements.observationSource, [
+    ["Filename", job.input.name],
+    ["Format", job.input.media_type],
+    ["Size", formatBytes(job.input.size)],
+    ["SHA-256", job.input.sha256, true],
+  ]);
+  appendFacts(elements.observationProgress, [
+    ["Job state", displayName(job.state)],
+    ["Current stage", stage],
+    ["Observation", observationStatus],
+    ["Workspace refresh", refreshStatus],
+  ]);
+
+  if (job.state === "FAILED" && job.error !== null) {
+    setObservationAlert(
+      `${job.error.code}: ${job.error.message}`,
+      "error",
+      handledTerminalJobId !== job.job_id,
+    );
+  } else if (job.state === "COMPLETED" && job.refresh && job.refresh.status === "FAILED") {
+    setObservationAlert(
+      `The observation was published, but the current workspace projection rejected the complete candidate. The previous record view remains available. ${job.refresh.message || ""}`.trim(),
+      "warning",
+      handledTerminalJobId !== job.job_id,
+    );
+  } else if (
+    job.state === "COMPLETED"
+    && job.observation
+    && job.observation.status !== "SUCCESS"
+  ) {
+    setObservationAlert(
+      `The immutable observation was published with ${displayName(job.observation.status)} evidence. Inspect the extractor outcomes for details.`,
+    );
+  }
+  updateObservationControls();
+}
+
+function stopObservationPolling() {
+  if (observationPollTimer !== null) {
+    clearTimeout(observationPollTimer);
+    observationPollTimer = null;
+  }
+}
+
+function scheduleObservationPoll() {
+  stopObservationPolling();
+  if (isActiveJob(latestObservationJob)) {
+    observationPollTimer = setTimeout(pollObservationJob, OBSERVATION_POLL_INTERVAL_MS);
+  }
+}
+
+async function handleObservationEnvelope(envelope) {
+  observationCapabilities = envelope.capabilities;
+  const job = envelope.job;
+  renderObservationJob(job);
+  if (isActiveJob(job)) {
+    const activeStage = job.stage === null ? job.state : job.stage;
+    if (
+      announcedActiveJobId !== job.job_id
+      || announcedActiveStage !== activeStage
+    ) {
+      announce(
+        job.stage === null
+          ? `Observation ${displayName(job.state).toLowerCase()}.`
+          : `Observation stage: ${displayName(job.stage)}.`,
+      );
+      announcedActiveJobId = job.job_id;
+      announcedActiveStage = activeStage;
+    }
+  }
+  if (!isActiveJob(job) && job !== null && handledTerminalJobId !== job.job_id) {
+    handledTerminalJobId = job.job_id;
+    if (
+      job.state === "COMPLETED"
+      && job.refresh
+      && job.refresh.status === "READY"
+      && job.observation
+      && job.observation.record_key
+    ) {
+      selectedRecordKey = job.observation.record_key;
+      try {
+        if (await loadProjection()) {
+          announce("Published observation selected in the refreshed workspace.");
+        }
+      } catch (error) {
+        setObservationAlert(
+          "The observation was published and the workspace refresh succeeded, but the updated record view could not be loaded. Use Refresh records to load and select it.",
+          "error",
+          true,
+        );
+        announce("The published observation view could not be loaded. Use Refresh records.");
+      }
+    } else if (job.state === "COMPLETED") {
+      announce("The observation was published, but the workspace view was not refreshed.");
+    } else {
+      announce("Observation failed before publication.");
+    }
+  }
+  scheduleObservationPoll();
+}
+
+async function readObservationJobs() {
+  const response = await fetch(`${API_ROOT}/observation-jobs`, {
+    credentials: "same-origin",
+    headers: {"Accept": "application/json"},
+  });
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}.`);
+  }
+  await handleObservationEnvelope(await response.json());
+}
+
+async function pollObservationJob() {
+  observationPollTimer = null;
+  try {
+    await readObservationJobs();
+  } catch (error) {
+    setObservationAlert(
+      "Observation status is unavailable. The Workbench will try again while the job is active.",
+      "error",
+    );
+    announce("Observation status could not be loaded.");
+    scheduleObservationPoll();
+  }
+}
+
+async function submitObservation(target, body) {
+  stopObservationPolling();
+  elements.guidedButton.disabled = true;
+  elements.uploadButton.disabled = true;
+  setObservationAlert("");
+  announce("Submitting an observation.");
+  try {
+    const options = {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {"Accept": "application/json"},
+    };
+    if (body !== undefined) {
+      options.body = body;
+    }
+    const response = await fetch(`${API_ROOT}/observation-jobs${target}`, options);
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(`${payload.code}: ${payload.message}`);
+    }
+    announce("Observation accepted.");
+    await handleObservationEnvelope({
+      capabilities: observationCapabilities,
+      job: payload.job,
+    });
+  } catch (error) {
+    setObservationAlert(error.message, "error", true);
+    announce("Observation submission failed.");
+    updateObservationControls();
+  }
+}
+
+function submitGuidedObservation() {
+  return submitObservation("/guided");
+}
+
+function submitUploadedObservation() {
+  const file = elements.uploadInput.files && elements.uploadInput.files[0];
+  if (!file || observationCapabilities === null) {
+    return Promise.resolve();
+  }
+  const allowed = observationCapabilities.upload.extensions.some(
+    (extension) => file.name.toLowerCase().endsWith(extension),
+  );
+  if (!allowed) {
+    setObservationAlert("Choose a .docx, .md, .pdf, or .txt file.", "error", true);
+    return Promise.resolve();
+  }
+  if (file.size > observationCapabilities.upload.max_bytes) {
+    setObservationAlert("The selected file exceeds the 32 MiB limit.", "error", true);
+    return Promise.resolve();
+  }
+  return submitObservation(
+    `/upload?filename=${encodeURIComponent(file.name)}`,
+    file,
+  );
 }
 
 function factList(entries) {
@@ -202,9 +467,9 @@ function renderOverview(projection) {
   if (projection.refresh.status === "FAILED") {
     elements.sessionMessage.textContent = projection.refresh.message;
   } else if (projection.counts.record_count === 0) {
-    elements.sessionMessage.textContent = "This workspace has no records. Publish a CLI record into the workspace, then refresh.";
+    elements.sessionMessage.textContent = "This workspace has no records. Observe a document here, or publish a CLI record and refresh.";
   } else {
-    elements.sessionMessage.textContent = "This accepted snapshot is derived in memory. It cannot edit records or run workflows.";
+    elements.sessionMessage.textContent = "This accepted snapshot is derived in memory. Published records cannot be edited here.";
   }
   const counts = projection.counts;
   const facts = [
@@ -779,16 +1044,25 @@ async function refreshRecords() {
 async function start() {
   renderStateKey();
   elements.refreshButton.addEventListener("click", refreshRecords);
-  try {
-    await loadProjection();
-  } catch (error) {
+  elements.guidedButton.addEventListener("click", submitGuidedObservation);
+  elements.uploadButton.addEventListener("click", submitUploadedObservation);
+  elements.uploadInput.addEventListener("change", updateObservationControls);
+  const projectionStartup = loadProjection().catch(() => {
     elements.sessionState.replaceWith(status("FAILED"));
     elements.sessionState = document.querySelector("#session-overview .section-heading .status");
-    elements.sessionMessage.textContent = "The workbench projection is unavailable. Try again.";
-    announce("The workbench projection is unavailable.");
-  } finally {
-    elements.refreshButton.disabled = false;
-  }
+    elements.sessionMessage.textContent = "The workbench projection is unavailable. Use Refresh records to try again.";
+    announce("The workbench projection is unavailable. Use Refresh records.");
+  });
+  const observationStartup = readObservationJobs().catch(() => {
+    elements.observationState.replaceWith(status("FAILED"));
+    elements.observationState = document.querySelector("#observation-workflow .section-heading .status");
+    elements.observationMessage.textContent = "Observation controls are unavailable.";
+    setObservationAlert("Observation controls are unavailable. Restart the local Workbench and try again.", "error");
+    updateObservationControls();
+    announce("Observation controls are unavailable.");
+  });
+  await Promise.all([projectionStartup, observationStartup]);
+  elements.refreshButton.disabled = false;
 }
 
 start();
