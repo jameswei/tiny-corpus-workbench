@@ -4,6 +4,8 @@ import json
 import os
 import shutil
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -184,6 +186,45 @@ class WorkbenchWorkspaceTests(unittest.TestCase):
         self.assertEqual(state.refresh_status, "FAILED")
         self.assertEqual(state.projection.projection["records"], [])
         self.assertIn("extraction-observatory/bad", state.refresh_message)
+
+    def test_concurrent_refreshes_are_serialized(self) -> None:
+        state = WorkbenchState(self.workspace)
+        original = state._candidate_projection
+        entered = threading.Event()
+        release = threading.Event()
+        counter_lock = threading.Lock()
+        active = 0
+        maximum = 0
+
+        def blocked_candidate(roots):
+            nonlocal active, maximum
+            with counter_lock:
+                active += 1
+                maximum = max(maximum, active)
+            entered.set()
+            release.wait(2)
+            try:
+                return original(roots)
+            finally:
+                with counter_lock:
+                    active -= 1
+
+        with patch.object(
+            state, "_candidate_projection", side_effect=blocked_candidate
+        ):
+            first = threading.Thread(target=state.refresh)
+            second = threading.Thread(target=state.refresh)
+            first.start()
+            self.assertTrue(entered.wait(1))
+            second.start()
+            time.sleep(0.05)
+            self.assertEqual(maximum, 1)
+            release.set()
+            first.join(2)
+            second.join(2)
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(maximum, 1)
 
 
 if __name__ == "__main__":

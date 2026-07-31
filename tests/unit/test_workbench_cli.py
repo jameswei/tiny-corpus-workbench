@@ -95,12 +95,22 @@ class WorkbenchCliTests(unittest.TestCase):
         self.assertEqual(completed.stdout, "")
         self.assertTrue(completed.stderr.startswith("usage: corpus "))
 
-    def test_parser_exposes_only_workspace_port_and_browser_options(self) -> None:
+    def test_parser_exposes_workspace_models_port_and_browser_options(self) -> None:
         args = cli.parser().parse_args(
-            ["workbench", "--workspace", "/tmp/example", "--port", "9123", "--no-open"]
+            [
+                "workbench",
+                "--workspace",
+                "/tmp/example",
+                "--docling-artifacts",
+                "/tmp/models",
+                "--port",
+                "9123",
+                "--no-open",
+            ]
         )
         self.assertEqual(args.command, "workbench")
         self.assertEqual(args.workspace, Path("/tmp/example"))
+        self.assertEqual(args.docling_artifacts, Path("/tmp/models"))
         self.assertEqual(args.port, "9123")
         self.assertTrue(args.no_open)
         self.assertFalse(hasattr(args, "host"))
@@ -109,6 +119,9 @@ class WorkbenchCliTests(unittest.TestCase):
     def test_workspace_defaults_to_build_and_old_record_syntax_exits_two(self) -> None:
         args = cli.parser().parse_args(["workbench", "--no-open"])
         self.assertEqual(args.workspace, Path("build"))
+        self.assertEqual(
+            args.docling_artifacts, Path(".cache/docling/models")
+        )
         with redirect_stderr(io.StringIO()), self.assertRaisesRegex(SystemExit, "2"):
             cli.parser().parse_args(["workbench", str(self.published.root)])
 

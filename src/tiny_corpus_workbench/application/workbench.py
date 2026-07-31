@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import os
 import stat
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -143,10 +144,16 @@ class WorkbenchState:
 
     def __init__(self, workspace: str | os.PathLike[str]) -> None:
         self.workspace = validate_workspace(workspace)
-        self.projection = empty_projection()
+        self._lock = threading.RLock()
+        self._projection = empty_projection()
         self.refresh_status = "READY"
         self.refresh_message: str | None = None
         self.refresh()
+
+    @property
+    def projection(self) -> WorkbenchProjection:
+        with self._lock:
+            return self._projection
 
     def _candidate_projection(self, roots: list[Path]) -> WorkbenchProjection:
         if not roots:
@@ -167,32 +174,34 @@ class WorkbenchState:
     def refresh(self) -> RefreshResult:
         """Build a full candidate, then atomically replace the accepted snapshot."""
 
-        try:
-            validate_workspace(self.workspace)
-            roots = discover_workspace(self.workspace)
-            candidate = self._candidate_projection(roots)
-            payload = copy.deepcopy(candidate.projection)
-            payload["refresh"] = {"status": "READY", "message": None}
-            if len(canonical_json(payload)) > MAX_STRUCTURED_RESPONSE:
-                raise IntegrityError(
-                    "workbench projection exceeds the structured response limit"
-                )
-        except Exception as error:
-            self.refresh_status = "FAILED"
-            self.refresh_message = sanitize_message(error)
-            return RefreshResult(False, self.refresh_message)
-        self.projection = candidate
-        self.refresh_status = "READY"
-        self.refresh_message = None
-        return RefreshResult(True, None)
+        with self._lock:
+            try:
+                validate_workspace(self.workspace)
+                roots = discover_workspace(self.workspace)
+                candidate = self._candidate_projection(roots)
+                payload = copy.deepcopy(candidate.projection)
+                payload["refresh"] = {"status": "READY", "message": None}
+                if len(canonical_json(payload)) > MAX_STRUCTURED_RESPONSE:
+                    raise IntegrityError(
+                        "workbench projection exceeds the structured response limit"
+                    )
+            except Exception as error:
+                self.refresh_status = "FAILED"
+                self.refresh_message = sanitize_message(error)
+                return RefreshResult(False, self.refresh_message)
+            self._projection = candidate
+            self.refresh_status = "READY"
+            self.refresh_message = None
+            return RefreshResult(True, None)
 
     def projection_object(self) -> dict[str, object]:
-        value = copy.deepcopy(self.projection.projection)
-        value["refresh"] = {
-            "status": self.refresh_status,
-            "message": self.refresh_message,
-        }
-        return value
+        with self._lock:
+            value = copy.deepcopy(self._projection.projection)
+            value["refresh"] = {
+                "status": self.refresh_status,
+                "message": self.refresh_message,
+            }
+            return value
 
     def projection_bytes(self) -> bytes:
         return canonical_json(self.projection_object())

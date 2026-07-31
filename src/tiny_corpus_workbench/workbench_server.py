@@ -1,4 +1,4 @@
-"""Foreground loopback HTTP server for the read-only local Workbench."""
+"""Foreground loopback HTTP server for the local Workbench."""
 
 from __future__ import annotations
 
@@ -7,10 +7,32 @@ import webbrowser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib.resources import files
+from pathlib import Path
+from urllib.parse import unquote_to_bytes
 
 from tiny_corpus_workbench.canonical_json import canonical_json
-from tiny_corpus_workbench.application.workbench import WorkbenchState
-from tiny_corpus_workbench.domain import InputError, StableError
+from tiny_corpus_workbench.application.input_store import (
+    MAX_UPLOAD_BYTES,
+    SUPPORTED_EXTENSIONS,
+    store_uploaded_input,
+    validate_upload_filename,
+)
+from tiny_corpus_workbench.application.observation_jobs import (
+    JobInput,
+    ObservationBusyError,
+    ObservationJobManager,
+)
+from tiny_corpus_workbench.application.workbench import (
+    WorkbenchState,
+    validate_workspace,
+)
+from tiny_corpus_workbench.domain import (
+    InputError,
+    IntegrityError,
+    StableError,
+    sanitize_message,
+)
+from tiny_corpus_workbench.source import validate_source
 from tiny_corpus_workbench.workbench_projection import WorkbenchProjection
 from tiny_corpus_workbench.workbench_records import MAX_ARTIFACT_CONTENT
 
@@ -23,10 +45,14 @@ MAX_STRUCTURED_RESPONSE = 4 * 1024 * 1024
 KEY = re.compile(r"[0-9a-f]{64}\Z")
 
 ERRORS = {
-    "INVALID_REQUEST": (400, "request body must be empty"),
+    "INVALID_REQUEST": (400, "request is invalid"),
+    "INVALID_SOURCE": (400, "source is invalid or unsupported"),
     "NOT_FOUND": (404, "resource was not found"),
     "METHOD_NOT_ALLOWED": (405, "method is not allowed"),
+    "OBSERVATION_BUSY": (409, "one observation is already active"),
+    "WORKSPACE_UNAVAILABLE": (409, "workspace cannot accept the request"),
     "WORKSPACE_REFRESH_FAILED": (409, "workspace refresh failed"),
+    "UPLOAD_TOO_LARGE": (413, "upload exceeds the allowed limit"),
     "RESPONSE_TOO_LARGE": (413, "response exceeds the allowed limit"),
     "INTERNAL_ERROR": (500, "request could not be completed"),
 }
@@ -74,7 +100,13 @@ def serving_url(port: int) -> str:
 class WorkbenchApplication:
     """Routing over one transactionally refreshed workspace state."""
 
-    def __init__(self, state: WorkbenchState) -> None:
+    def __init__(
+        self,
+        state: WorkbenchState,
+        model_root: str | Path,
+        *,
+        jobs: ObservationJobManager | None = None,
+    ) -> None:
         self.state = state
         asset_root = files("tiny_corpus_workbench").joinpath("workbench_assets")
         self.static = {
@@ -97,12 +129,120 @@ class WorkbenchApplication:
         ]
         if any(len(value) > MAX_STRUCTURED_RESPONSE for value in structured):
             raise InputError("workbench response exceeds the allowed limit")
+        fixture = Path(__file__).resolve().parents[2] / "fixtures/golden/policy-memo.md"
+        identity = validate_source(fixture)
+        self.guided_source = fixture
+        self.guided_input = JobInput(
+            kind="GUIDED",
+            name=identity.name,
+            media_type=identity.media_type,
+            size=identity.size,
+            sha256=identity.sha256,
+        )
+        self.jobs = jobs or ObservationJobManager(state, model_root)
 
     @property
     def projection(self) -> WorkbenchProjection:
         return self.state.projection
 
-    def route(self, target: str, *, method: str = "GET", body: bytes = b"") -> Response:
+    def close(self) -> None:
+        self.jobs.shutdown()
+
+    def _jobs_response(self) -> Response:
+        job = self.jobs.snapshot()
+        return Response(
+            200,
+            "application/json; charset=utf-8",
+            canonical_json(
+                {
+                    "capabilities": {
+                        "guided": {
+                            "id": "policy-memo-md",
+                            "name": self.guided_input.name,
+                            "media_type": self.guided_input.media_type,
+                        },
+                        "upload": {
+                            "extensions": list(SUPPORTED_EXTENSIONS),
+                            "max_bytes": MAX_UPLOAD_BYTES,
+                        },
+                    },
+                    "job": None if job is None else job.to_dict(),
+                }
+            ),
+        )
+
+    def _submit(self, source: Path, input_value: JobInput) -> Response:
+        if self.jobs.is_busy():
+            return _error("OBSERVATION_BUSY")
+        try:
+            validate_workspace(self.state.workspace)
+        except InputError as error:
+            return _error("WORKSPACE_UNAVAILABLE", message=sanitize_message(error))
+        try:
+            job = self.jobs.accept(source, input_value)
+        except ObservationBusyError:
+            return _error("OBSERVATION_BUSY")
+        return Response(
+            202,
+            "application/json; charset=utf-8",
+            canonical_json({"job": job.to_dict()}),
+        )
+
+    def _upload(self, filename: str, body: bytes) -> Response:
+        if self.jobs.is_busy():
+            return _error("OBSERVATION_BUSY")
+        try:
+            validate_upload_filename(filename)
+        except InputError as error:
+            message = sanitize_message(error)
+            if message.startswith("unsupported media type"):
+                return _error("INVALID_SOURCE", message=message)
+            return _error("INVALID_REQUEST", message=message)
+        try:
+            stored = store_uploaded_input(self.state.workspace, filename, body)
+        except InputError as error:
+            code = (
+                "WORKSPACE_UNAVAILABLE"
+                if "workspace" in sanitize_message(error)
+                else "INVALID_SOURCE"
+            )
+            return _error(code, message=sanitize_message(error))
+        except (IntegrityError, OSError) as error:
+            return _error("WORKSPACE_UNAVAILABLE", message=sanitize_message(error))
+        return self._submit(
+            stored.path,
+            JobInput(
+                kind="UPLOAD",
+                name=stored.name,
+                media_type=stored.media_type,
+                size=stored.size,
+                sha256=stored.sha256,
+            ),
+        )
+
+    def route(
+        self,
+        target: str,
+        *,
+        method: str = "GET",
+        body: bytes = b"",
+        upload_filename: str | None = None,
+    ) -> Response:
+        path, separator, _ = target.partition("?")
+        if path == "/api/observation-jobs/upload" and separator:
+            target = path
+        if target == "/api/observation-jobs/guided":
+            if method != "POST":
+                return _error("METHOD_NOT_ALLOWED", allow="POST")
+            if body:
+                return _error("INVALID_REQUEST")
+            return self._submit(self.guided_source, self.guided_input)
+        if target == "/api/observation-jobs/upload":
+            if method != "POST":
+                return _error("METHOD_NOT_ALLOWED", allow="POST")
+            if upload_filename is None or not body:
+                return _error("INVALID_REQUEST")
+            return self._upload(upload_filename, body)
         if target == "/api/workbench/refresh":
             if method != "POST":
                 return _error("METHOD_NOT_ALLOWED", allow="POST")
@@ -126,9 +266,12 @@ class WorkbenchApplication:
                 "application/json; charset=utf-8",
                 self.state.projection_bytes(),
             )
+        if target == "/api/observation-jobs":
+            return self._jobs_response()
+        projection = self.projection
         for prefix, values in (
-            ("/api/records/", self.projection.details),
-            ("/api/artifacts/", self.projection.artifact_contents),
+            ("/api/records/", projection.details),
+            ("/api/artifacts/", projection.artifact_contents),
         ):
             if not target.startswith(prefix):
                 continue
@@ -139,9 +282,9 @@ class WorkbenchApplication:
                 return Response(
                     200,
                     "application/json; charset=utf-8",
-                    self.projection.detail_bytes(key),
+                    projection.detail_bytes(key),
                 )
-            body = self.projection.artifact_contents[key]
+            body = projection.artifact_contents[key]
             if len(body) > MAX_ARTIFACT_CONTENT:
                 return _error("RESPONSE_TOO_LARGE")
             return Response(200, "text/plain; charset=utf-8", body)
@@ -149,7 +292,7 @@ class WorkbenchApplication:
 
 
 class WorkbenchHandler(BaseHTTPRequestHandler):
-    """Sequential GET/HEAD handler for the trusted-local learning tool."""
+    """Sequential request handler for the trusted-local learning tool."""
 
     protocol_version = "HTTP/1.1"
     server_version = "tiny-corpus-workbench"
@@ -174,27 +317,93 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         )
 
     def do_GET(self) -> None:
-        self._send(self.application.route(self.path, method="GET"), head=False)
+        self._send(self._route(self.path, method="GET"), head=False)
 
     def do_HEAD(self) -> None:
-        self._send(self.application.route(self.path, method="HEAD"), head=True)
+        self._send(self._route(self.path, method="HEAD"), head=True)
 
     def do_POST(self) -> None:
-        if self.path == "/api/workbench/refresh":
-            lengths = self.headers.get_all("Content-Length", [])
-            transfers = self.headers.get_all("Transfer-Encoding", [])
-            if transfers or len(lengths) > 1 or (lengths and lengths[0] != "0"):
+        path, separator, query = self.path.partition("?")
+        lengths = self.headers.get_all("Content-Length", [])
+        transfers = self.headers.get_all("Transfer-Encoding", [])
+        if path in {"/api/workbench/refresh", "/api/observation-jobs/guided"}:
+            declared = (
+                _bounded_decimal(lengths[0], 0)
+                if len(lengths) == 1
+                and re.fullmatch(r"[0-9]+", lengths[0])
+                else None
+            )
+            if (
+                transfers
+                or len(lengths) > 1
+                or (lengths and not re.fullmatch(r"[0-9]+", lengths[0]))
+                or (lengths and declared != 0)
+                or separator
+            ):
                 self._send(_error("INVALID_REQUEST"), head=False)
                 return
+            self._send(
+                self._route(path, method=self.command),
+                head=False,
+            )
+            return
+        if path == "/api/observation-jobs/upload":
+            if (
+                transfers
+                or len(lengths) != 1
+                or not re.fullmatch(r"[0-9]+", lengths[0])
+            ):
+                self._send(_error("INVALID_REQUEST"), head=False)
+                return
+            length = _bounded_decimal(lengths[0], MAX_UPLOAD_BYTES)
+            if length is None:
+                self._send(_error("UPLOAD_TOO_LARGE"), head=False)
+                return
+            if length == 0:
+                self._send(_error("INVALID_REQUEST"), head=False)
+                return
+            if self.application.jobs.is_busy():
+                self._send(_error("OBSERVATION_BUSY"), head=False)
+                return
+            filename = _upload_filename(query) if separator else None
+            if filename is None:
+                self._send(_error("INVALID_REQUEST"), head=False)
+                return
+            body = self.rfile.read(length)
+            if len(body) != length:
+                self._send(_error("INVALID_REQUEST"), head=False)
+                return
+            self._send(
+                self._route(
+                    path,
+                    method=self.command,
+                    body=body,
+                    upload_filename=filename,
+                ),
+                head=False,
+            )
+            return
         self._send(
-            self.application.route(self.path, method=self.command),
+            self._route(self.path, method=self.command),
             head=False,
         )
 
-    do_PUT = do_POST
-    do_PATCH = do_POST
-    do_DELETE = do_POST
-    do_OPTIONS = do_POST
+    def _do_non_post(self) -> None:
+        self._send(
+            self._route(self.path, method=self.command),
+            head=False,
+        )
+
+    do_PUT = _do_non_post
+    do_PATCH = _do_non_post
+    do_DELETE = _do_non_post
+    do_OPTIONS = _do_non_post
+
+    def _route(self, target: str, **arguments: object) -> Response:
+        try:
+            return self.application.route(target, **arguments)
+        except Exception:
+            return _error("INTERNAL_ERROR")
 
     def _send(self, response: Response, *, head: bool) -> None:
         self.close_connection = True
@@ -212,13 +421,60 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
 class WorkbenchHTTPServer(HTTPServer):
     application: WorkbenchApplication
 
+    def server_close(self) -> None:
+        self.application.close()
+        super().server_close()
+
 
 def create_server(
-    state: WorkbenchState, port: int
+    state: WorkbenchState,
+    port: int,
+    model_root: str | Path = Path(".cache/docling/models"),
 ) -> WorkbenchHTTPServer:
     server = WorkbenchHTTPServer((HOST, validate_port(port)), WorkbenchHandler)
-    server.application = WorkbenchApplication(state)
+    try:
+        server.application = WorkbenchApplication(state, model_root)
+    except Exception:
+        HTTPServer.server_close(server)
+        raise
     return server
+
+
+def _upload_filename(query: str) -> str | None:
+    """Decode exactly one strict UTF-8 filename query field."""
+
+    if not query or "&" in query or query.count("=") != 1:
+        return None
+    try:
+        query.encode("ascii", errors="strict")
+    except UnicodeEncodeError:
+        return None
+    raw_name, raw_value = query.split("=", 1)
+    if not raw_name or not raw_value:
+        return None
+    for raw in (raw_name, raw_value):
+        if re.search(r"%(?![0-9A-Fa-f]{2})", raw):
+            return None
+    try:
+        name = unquote_to_bytes(raw_name).decode("utf-8", errors="strict")
+        value = unquote_to_bytes(raw_value).decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        return None
+    if name != "filename" or not value:
+        return None
+    return value
+
+
+def _bounded_decimal(value: str, maximum: int) -> int | None:
+    """Parse decimal framing without converting an unbounded digit string."""
+
+    normalized = value.lstrip("0") or "0"
+    limit = str(maximum)
+    if len(normalized) > len(limit) or (
+        len(normalized) == len(limit) and normalized > limit
+    ):
+        return None
+    return int(normalized)
 
 
 def open_browser(url: str) -> str | None:
