@@ -25,6 +25,7 @@ const COMPARISON_METRICS = [
 const elements = {
   announcer: document.getElementById("announcer"),
   guidedButton: document.getElementById("observe-guided"),
+  lifecycleGuidedButton: document.getElementById("start-lifecycle"),
   uploadButton: document.getElementById("observe-upload"),
   uploadInput: document.getElementById("observation-file"),
   observationState: document.getElementById("observation-state"),
@@ -45,6 +46,10 @@ const elements = {
   sessionMessage: document.getElementById("session-message"),
   sessionFacts: document.getElementById("session-facts"),
   stateKey: document.getElementById("state-key"),
+  lifecycleState: document.getElementById("lifecycle-state"),
+  lifecycleMessage: document.getElementById("lifecycle-message"),
+  lifecycleAlert: document.getElementById("lifecycle-alert"),
+  lifecycleContent: document.getElementById("lifecycle-content"),
 };
 let currentProjection = null;
 let selectedRecordKey = null;
@@ -60,6 +65,14 @@ let announcedActiveJobId = null;
 let announcedActiveStage = null;
 let observedProgressJobId = null;
 let lastObservedStageIndex = -1;
+let actionToken = null;
+let selectedRecord = null;
+let selectedDetail = null;
+let lifecycleMutationInFlight = false;
+const proposalsByDiagnosis = new Map();
+const dispatchedDraftKeys = new Set();
+const completedDraftKeys = new Set();
+const ACTION_TOKEN_REJECTED = Symbol("ACTION_TOKEN_REJECTED");
 
 const stateHelp = {
   MATCH: "The admitted target is present and its recorded relationship matches.",
@@ -156,10 +169,14 @@ function setObservationAlert(message, tone = "warning", focus = false) {
 }
 
 function updateObservationControls() {
-  const active = isActiveJob(latestObservationJob);
+  const active = isActiveJob(latestObservationJob) || lifecycleMutationInFlight;
   const hasCapabilities = observationCapabilities !== null;
   const hasFile = elements.uploadInput.files && elements.uploadInput.files.length === 1;
-  elements.guidedButton.disabled = active || !hasCapabilities;
+  const guided = hasCapabilities && Array.isArray(observationCapabilities.guided)
+    ? observationCapabilities.guided
+    : [];
+  elements.guidedButton.disabled = active || !guided.some((item) => item.id === "policy-memo-md");
+  elements.lifecycleGuidedButton.disabled = active || !guided.some((item) => item.id === "whitespace-cleanup-md");
   elements.uploadButton.disabled = active || !hasCapabilities || !hasFile;
 }
 
@@ -411,6 +428,7 @@ async function pollObservationJob() {
 async function submitObservation(target, body) {
   stopObservationPolling();
   elements.guidedButton.disabled = true;
+  elements.lifecycleGuidedButton.disabled = true;
   elements.uploadButton.disabled = true;
   setObservationAlert("");
   announce("Submitting an observation.");
@@ -440,8 +458,8 @@ async function submitObservation(target, body) {
   }
 }
 
-function submitGuidedObservation() {
-  return submitObservation("/guided");
+function submitGuidedObservation(guidedId = "policy-memo-md") {
+  return submitObservation(`/guided/${guidedId}`);
 }
 
 function submitUploadedObservation() {
@@ -464,6 +482,322 @@ function submitUploadedObservation() {
     `/upload?filename=${encodeURIComponent(file.name)}`,
     file,
   );
+}
+
+function setLifecycleAlert(message, tone = "warning", focus = false) {
+  elements.lifecycleAlert.hidden = !message;
+  elements.lifecycleAlert.className = tone === "error" ? "notice error" : "notice";
+  elements.lifecycleAlert.textContent = message || "";
+  if (message && focus) {
+    elements.lifecycleAlert.focus();
+  }
+}
+
+function setLifecycleMutationState(inFlight) {
+  lifecycleMutationInFlight = inFlight;
+  updateObservationControls();
+  for (const button of elements.recordList.querySelectorAll("button")) {
+    button.disabled = inFlight;
+  }
+  for (const container of [elements.recordContent, elements.lifecycleContent]) {
+    for (const button of container.querySelectorAll(".lifecycle-mutation-button")) {
+      button.disabled = inFlight || actionToken === null;
+    }
+  }
+  renderDocumentLifecycle();
+}
+
+async function fetchActionToken() {
+  try {
+    const response = await fetch(`${API_ROOT}/lifecycle/action-token`, {
+      credentials: "same-origin",
+      headers: {"Accept": "application/json"},
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}.`);
+    }
+    const payload = await response.json();
+    if (typeof payload.action_token !== "string" || payload.action_token.length === 0) {
+      throw new Error("The lifecycle action token is invalid.");
+    }
+    actionToken = payload.action_token;
+    renderDocumentLifecycle();
+    return true;
+  } catch (error) {
+    actionToken = null;
+    setLifecycleAlert(
+      "Lifecycle controls are unavailable. Observation and record refresh remain available.",
+      "error",
+    );
+    renderDocumentLifecycle();
+    return false;
+  }
+}
+
+async function lifecyclePost(target) {
+  if (actionToken === null || lifecycleMutationInFlight) {
+    return null;
+  }
+  setLifecycleAlert("");
+  setLifecycleMutationState(true);
+  try {
+    const response = await fetch(`${API_ROOT}/lifecycle${target}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Accept": "application/json",
+        "X-TCW-Action-Token": actionToken,
+      },
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      if (response.status === 403 && payload.code === "ACTION_TOKEN_INVALID") {
+        actionToken = null;
+        const refreshed = await fetchActionToken();
+        if (refreshed) {
+          setLifecycleAlert(
+            "The lifecycle action token changed. It was refreshed; choose the action again.",
+            "error",
+            true,
+          );
+        }
+        announce("The lifecycle action token was rejected. No action was replayed.");
+        return ACTION_TOKEN_REJECTED;
+      }
+      throw new Error(`${payload.code}: ${payload.message}`);
+    }
+    return payload;
+  } catch (error) {
+    setLifecycleAlert(error.message, "error", true);
+    announce("Lifecycle action failed. No action was retried.");
+    return null;
+  } finally {
+    setLifecycleMutationState(false);
+  }
+}
+
+function lifecycleButton(label, handler, className = "primary-button") {
+  const button = node("button", label, `${className} lifecycle-mutation-button`);
+  button.type = "button";
+  button.disabled = lifecycleMutationInFlight || actionToken === null;
+  button.addEventListener("click", handler);
+  return button;
+}
+
+function diagnosticActionAvailable(record, detail) {
+  if (record.origin !== "TOP_LEVEL") {
+    return false;
+  }
+  if (detail.kind === "OBSERVATION") {
+    return detail.artifacts.some(
+      (artifact) => artifact.role === "docling-document-json",
+    );
+  }
+  return detail.kind === "REFINEMENT" && detail.view.decision === "APPROVED";
+}
+
+async function diagnoseSelected(record) {
+  const originKey = record.record_key;
+  announce("Diagnosing the selected document.");
+  const payload = await lifecyclePost(`/diagnoses/${originKey}`);
+  if (payload === null || payload === ACTION_TOKEN_REJECTED) {
+    return;
+  }
+  if (payload.refresh.status === "FAILED") {
+    setLifecycleAlert(
+      `The diagnosis was published, but the workspace did not accept the refreshed view. Use Refresh records later. ${payload.refresh.message || ""}`.trim(),
+      "warning",
+      true,
+    );
+    announce("Diagnosis published; workspace refresh failed.");
+    return;
+  }
+  if (selectedRecordKey !== originKey) {
+    announce("Diagnosis published for its originating document context.");
+    return;
+  }
+  selectedRecordKey = payload.publication.record_key;
+  if (await loadProjection()) {
+    announce("Diagnosis published and selected.");
+  }
+}
+
+async function createProposal(diagnosisRecordKey, findingId) {
+  announce("Creating a refinement proposal.");
+  const payload = await lifecyclePost(`/proposals/${diagnosisRecordKey}/${findingId}`);
+  if (payload === null || payload === ACTION_TOKEN_REJECTED) {
+    return;
+  }
+  const proposal = payload.draft;
+  if (proposal.diagnosis_record_key !== diagnosisRecordKey) {
+    setLifecycleAlert("The proposal response did not match its diagnosis context.", "error", true);
+    return;
+  }
+  proposalsByDiagnosis.set(proposal.diagnosis_record_key, proposal);
+  dispatchedDraftKeys.delete(proposal.draft_key);
+  completedDraftKeys.delete(proposal.draft_key);
+  if (selectedRecordKey === diagnosisRecordKey) {
+    renderDocumentLifecycle();
+  }
+  announce("Refinement proposal ready for review.");
+}
+
+async function resolveProposal(proposal, decision) {
+  const draftKey = proposal.draft_key;
+  const originKey = proposal.diagnosis_record_key;
+  if (dispatchedDraftKeys.has(draftKey) || completedDraftKeys.has(draftKey)) {
+    return;
+  }
+  dispatchedDraftKeys.add(draftKey);
+  renderDocumentLifecycle();
+  announce(`${decision === "approve" ? "Approving" : "Rejecting"} the proposal.`);
+  const payload = await lifecyclePost(`/proposals/${draftKey}/${decision}`);
+  if (payload === ACTION_TOKEN_REJECTED) {
+    dispatchedDraftKeys.delete(draftKey);
+    renderDocumentLifecycle();
+    return;
+  }
+  if (payload === null) {
+    renderDocumentLifecycle();
+    return;
+  }
+  completedDraftKeys.add(draftKey);
+  if (payload.refresh.status === "FAILED") {
+    setLifecycleAlert(
+      `The ${payload.publication.decision.toLowerCase()} decision was published, but the workspace did not accept the refreshed view. Use Refresh records later. ${payload.refresh.message || ""}`.trim(),
+      "warning",
+      true,
+    );
+    renderDocumentLifecycle();
+    announce("Decision published; workspace refresh failed.");
+    return;
+  }
+  if (selectedRecordKey !== originKey) {
+    announce("Decision published for its originating diagnosis context.");
+    return;
+  }
+  selectedRecordKey = payload.publication.record_key;
+  if (await loadProjection()) {
+    announce(`${displayName(payload.publication.decision)} refinement published and selected.`);
+  }
+}
+
+function editValue(value) {
+  if (typeof value === "string") {
+    return node("pre", value, "proposal-text");
+  }
+  const facts = [];
+  if (value && typeof value === "object") {
+    for (const key of ["content_layer", "body_index", "furniture_index", "parent"]) {
+      if (Object.hasOwn(value, key)) {
+        const displayed = key === "parent" && value[key] && typeof value[key] === "object"
+          ? value[key].$ref
+          : value[key];
+        facts.push([displayName(key), displayed, key === "parent"]);
+      }
+    }
+  }
+  return factList(facts);
+}
+
+function renderProposal(proposal) {
+  const wrapper = node("div", undefined, "proposal-view");
+  wrapper.append(node("h3", displayName(proposal.refiner.name)));
+  wrapper.append(factList([
+    ["Refiner ID", proposal.refiner.refiner_id, true],
+    ["Refiner version", proposal.refiner.version],
+    ["Finding", `${displayName(proposal.finding.summary)} (${proposal.finding.rule_id})`],
+    ["Draft ID", proposal.draft_id, true],
+    ["Affected references", proposal.affected_refs.join(", "), true],
+  ]));
+  const edits = section("Proposed edits", "Review literal before and after evidence. No markup is executed.");
+  proposal.edits.forEach((edit, index) => {
+    const card = node("article", undefined, "card subsection proposal-edit");
+    card.append(node("h4", `Edit ${index + 1}`));
+    card.append(node("p", `Target: ${JSON.stringify(edit.target)}`, "mono"));
+    const comparison = node("div", undefined, "proposal-comparison");
+    const before = node("div");
+    before.append(node("h5", "Before"), editValue(edit.before));
+    const after = node("div");
+    after.append(node("h5", "After"), editValue(edit.after));
+    comparison.append(before, after);
+    card.append(comparison);
+    edits.append(card);
+  });
+  wrapper.append(edits);
+
+  const details = node("details", undefined, "technical-details");
+  details.append(node("summary", "Continue with the CLI"));
+  const paths = proposal.cli_continuation;
+  details.append(factList([
+    ["Proposal path", paths.proposal_path, true],
+    ["Diagnosis path", paths.diagnosis_path, true],
+    ["Base path", paths.base_path, true],
+    ["Output root", paths.output_root_path, true],
+  ]));
+  details.append(node(
+    "pre",
+    `corpus resolve-refinement ${paths.proposal_path} --diagnosis ${paths.diagnosis_path} --base ${paths.base_path} --output-root ${paths.output_root_path} --approve|--reject`,
+    "evidence",
+  ));
+  wrapper.append(details);
+
+  const alreadyDispatched = dispatchedDraftKeys.has(proposal.draft_key);
+  const completed = completedDraftKeys.has(proposal.draft_key);
+  const actions = node("div", undefined, "lifecycle-actions");
+  const approve = lifecycleButton("Approve proposal", () => resolveProposal(proposal, "approve"));
+  const reject = lifecycleButton("Reject proposal", () => resolveProposal(proposal, "reject"), "secondary-button");
+  approve.disabled = approve.disabled || alreadyDispatched || completed;
+  reject.disabled = reject.disabled || alreadyDispatched || completed;
+  actions.append(approve, reject);
+  wrapper.append(actions);
+  if (completed) {
+    wrapper.append(node("p", "This displayed proposal has a completed decision. Create proposal again to make another explicit decision.", "help"));
+  } else if (alreadyDispatched) {
+    wrapper.append(node("p", "This decision was already dispatched. It cannot be sent again from this proposal view.", "help"));
+  }
+  return wrapper;
+}
+
+function renderDocumentLifecycle() {
+  elements.lifecycleState.replaceWith(status(
+    lifecycleMutationInFlight ? "RUNNING" : actionToken === null ? "NOT_AVAILABLE" : "AVAILABLE",
+  ));
+  elements.lifecycleState = document.querySelector("#document-lifecycle .section-heading .status");
+  clear(elements.lifecycleContent);
+  if (actionToken === null) {
+    elements.lifecycleMessage.textContent = "Lifecycle actions need a same-UI action token. Observation and refresh still work.";
+    return;
+  }
+  if (selectedRecord === null || selectedDetail === null) {
+    elements.lifecycleMessage.textContent = "Select a top-level observation, diagnosis, or refinement to continue.";
+    return;
+  }
+  if (selectedDetail.kind === "DIAGNOSIS") {
+    const proposal = proposalsByDiagnosis.get(selectedRecord.record_key);
+    elements.lifecycleMessage.textContent = proposal
+      ? "Review the proposal for this diagnosis context."
+      : "Inspect a finding and create an available deterministic proposal.";
+    if (proposal) {
+      elements.lifecycleContent.append(renderProposal(proposal));
+    }
+    return;
+  }
+  if (diagnosticActionAvailable(selectedRecord, selectedDetail)) {
+    elements.lifecycleMessage.textContent = selectedDetail.kind === "REFINEMENT"
+      ? "This approved prepared revision can continue through diagnosis."
+      : "This canonical document was verified during workspace admission and can be diagnosed.";
+    const label = selectedDetail.kind === "REFINEMENT" ? "Diagnose prepared revision" : "Diagnose document";
+    elements.lifecycleContent.append(lifecycleButton(label, () => diagnoseSelected(selectedRecord)));
+    return;
+  }
+  if (selectedDetail.kind === "OBSERVATION") {
+    elements.lifecycleMessage.textContent = "Diagnosis unavailable · canonical document is not available";
+  } else if (selectedDetail.kind === "REFINEMENT" && selectedDetail.view.decision === "REJECTED") {
+    elements.lifecycleMessage.textContent = "This rejected decision has no prepared revision and cannot continue.";
+  } else {
+    elements.lifecycleMessage.textContent = "Lifecycle actions are unavailable for this record.";
+  }
 }
 
 function factList(entries) {
@@ -584,7 +918,11 @@ function renderOverview(projection) {
 }
 
 function recordLabel(record) {
-  return `${displayName(record.status)} ${displayName(record.kind)} ${shortHash(record.primary_identity.value)}`;
+  return `${displayName(record.status)} ${displayName(record.kind)} ${shortHash(record.primary_identity.value)} context ${recordContext(record)}`;
+}
+
+function recordContext(record) {
+  return `${record.record_key.slice(0, 6)}…${record.record_key.slice(-4)}`;
 }
 
 function renderNavigation(projection, generation) {
@@ -595,15 +933,19 @@ function renderNavigation(projection, generation) {
     elements.recordList.append(node("p", "No records are available.", "empty"));
     elements.recordView.hidden = true;
     selectedRecordKey = null;
+    selectedRecord = null;
+    selectedDetail = null;
+    renderDocumentLifecycle();
     detailRequestGeneration += 1;
     return true;
   }
   for (const record of projection.records) {
     const button = node("button", undefined, "record-button");
     button.type = "button";
+    button.disabled = lifecycleMutationInFlight;
     button.dataset.recordKey = record.record_key;
     button.append(node("strong", displayName(record.kind)));
-    button.append(node("small", `${displayName(record.status)} · ${shortHash(record.primary_identity.value)}`));
+    button.append(node("small", `${displayName(record.status)} · ${shortHash(record.primary_identity.value)} · Context ${recordContext(record)}`));
     button.setAttribute("aria-label", `Open ${recordLabel(record)}`);
     button.addEventListener("click", () => selectRecord(record));
     elements.recordList.append(button);
@@ -659,6 +1001,7 @@ function renderObservation(detail) {
   const value = detail.view;
   const fragment = document.createDocumentFragment();
   fragment.append(renderSource(value.source));
+  fragment.append(node("p", "Verified during workspace admission.", "verification-note"));
 
   const extractors = section("Extractor comparison", "Extractor results remain separate. A comparison can be incomplete.");
   extractors.append(factList([
@@ -722,7 +1065,7 @@ function renderDiagnosis(detail) {
   }
   for (const finding of value.findings) {
     const card = node("article", undefined, "card subsection");
-    const heading = node("h4", `${finding.rule_id} · ${displayName(finding.summary)}`);
+    const heading = node("h4", `${displayName(finding.summary)} · ${finding.rule_id}`);
     heading.append(" ", status(finding.severity));
     card.append(heading);
     card.append(factList([
@@ -732,6 +1075,29 @@ function renderDiagnosis(detail) {
     ]));
     card.append(node("h5", "Evidence"));
     card.append(jsonText(finding.evidence));
+    if (finding.refiner === null) {
+      card.append(node("p", "Diagnosis only · No supported deterministic refiner", "capability-note"));
+    } else {
+      card.append(node("h5", displayName(finding.refiner.name)));
+      card.append(node(
+        "p",
+        `${finding.refiner.refiner_id} · version ${finding.refiner.version}`,
+        "mono",
+      ));
+      if (finding.proposal_action.status === "AVAILABLE") {
+        card.append(node("p", "Refiner available", "capability-note"));
+        card.append(lifecycleButton(
+          "Create proposal",
+          () => createProposal(detail.record_key, finding.finding_id),
+        ));
+      } else if (finding.proposal_action.reason === "SUBJECT_NOT_ACTIONABLE") {
+        card.append(node(
+          "p",
+          "Proposal unavailable · diagnosis subject is not actionable in this workspace",
+          "capability-note",
+        ));
+      }
+    }
     findings.append(card);
   }
   fragment.append(findings);
@@ -1006,7 +1372,14 @@ function renderArtifacts(detail) {
 }
 
 async function loadRecord(record, generation = projectionGeneration) {
+  const selectionChanged = selectedRecordKey !== record.record_key;
   selectedRecordKey = record.record_key;
+  selectedRecord = record;
+  selectedDetail = null;
+  if (selectionChanged && actionToken !== null) {
+    setLifecycleAlert("");
+  }
+  renderDocumentLifecycle();
   const requestGeneration = ++detailRequestGeneration;
   for (const button of elements.recordList.querySelectorAll("button")) {
     button.setAttribute("aria-current", String(button.dataset.recordKey === record.record_key));
@@ -1037,6 +1410,8 @@ async function loadRecord(record, generation = projectionGeneration) {
       return false;
     }
     renderRecordSummary(record, detail);
+    selectedRecord = record;
+    selectedDetail = detail;
     clear(elements.recordContent);
     elements.recordContent.append(renderRelationships(detail));
     if (detail.kind === "OBSERVATION") {
@@ -1049,6 +1424,7 @@ async function loadRecord(record, generation = projectionGeneration) {
       elements.recordContent.append(renderCorpus(detail));
     }
     elements.recordContent.append(renderArtifacts(detail));
+    renderDocumentLifecycle();
     elements.recordHeading.focus();
     announce(`${recordLabel(record)} loaded.`);
     return true;
@@ -1061,6 +1437,8 @@ async function loadRecord(record, generation = projectionGeneration) {
       return false;
     }
     clear(elements.recordContent);
+    selectedDetail = null;
+    renderDocumentLifecycle();
     elements.recordContent.append(node("p", "The record details are unavailable.", "error"));
     elements.recordHeading.focus();
     announce("Record details could not be loaded.");
@@ -1141,7 +1519,11 @@ async function refreshRecords() {
 async function start() {
   renderStateKey();
   elements.refreshButton.addEventListener("click", refreshRecords);
-  elements.guidedButton.addEventListener("click", submitGuidedObservation);
+  elements.guidedButton.addEventListener("click", () => submitGuidedObservation());
+  elements.lifecycleGuidedButton.addEventListener(
+    "click",
+    () => submitGuidedObservation("whitespace-cleanup-md"),
+  );
   elements.uploadButton.addEventListener("click", submitUploadedObservation);
   elements.uploadInput.addEventListener("change", updateObservationControls);
   const projectionStartup = loadProjection().catch(() => {
@@ -1158,7 +1540,8 @@ async function start() {
     updateObservationControls();
     announce("Observation controls are unavailable.");
   });
-  await Promise.all([projectionStartup, observationStartup]);
+  const tokenStartup = fetchActionToken();
+  await Promise.all([projectionStartup, observationStartup, tokenStartup]);
   elements.refreshButton.disabled = false;
 }
 

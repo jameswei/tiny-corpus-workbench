@@ -48,6 +48,11 @@
             <button id="observe-guided" class="primary-button" type="button" disabled>Observe policy memo</button>
           </div>
           <div class="action-card">
+            <h3>Guided lifecycle</h3>
+            <p>Start with a model-free document that has whitespace findings.</p>
+            <button id="start-lifecycle" class="primary-button" type="button" disabled>Start whitespace lifecycle</button>
+          </div>
+          <div class="action-card">
             <h3>Upload one document</h3>
             <label for="observation-file">Choose a .docx, .md, .pdf, or .txt file</label>
             <input id="observation-file" type="file" accept=".docx,.md,.pdf,.txt" aria-describedby="upload-help">
@@ -58,6 +63,19 @@
         <div id="observation-alert" class="notice" role="alert" tabindex="-1" hidden></div>
         <dl id="observation-source" class="facts" aria-label="Observation source metadata"></dl>
         <dl id="observation-progress" class="facts" aria-label="Observation job status"></dl>
+      </section>
+
+      <section id="document-lifecycle" class="panel" aria-labelledby="lifecycle-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Prepare</p>
+            <h2 id="lifecycle-heading">Document lifecycle</h2>
+          </div>
+          <span id="lifecycle-state" class="status status-neutral">Loading</span>
+        </div>
+        <p id="lifecycle-message">Loading lifecycle controls.</p>
+        <div id="lifecycle-alert" class="notice" role="alert" tabindex="-1" hidden></div>
+        <div id="lifecycle-content"></div>
       </section>
 
       <section id="session-overview" class="panel" aria-labelledby="overview-heading">
