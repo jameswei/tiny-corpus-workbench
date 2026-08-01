@@ -55,11 +55,18 @@ class ObservationJobHttpTests(unittest.TestCase):
             payload,
             {
                 "capabilities": {
-                    "guided": {
-                        "id": "policy-memo-md",
-                        "name": "policy-memo.md",
-                        "media_type": "text/markdown",
-                    },
+                    "guided": [
+                        {
+                            "id": "policy-memo-md",
+                            "name": "policy-memo.md",
+                            "media_type": "text/markdown",
+                        },
+                        {
+                            "id": "whitespace-cleanup-md",
+                            "name": "whitespace-cleanup.md",
+                            "media_type": "text/markdown",
+                        },
+                    ],
                     "upload": {
                         "extensions": [".docx", ".md", ".pdf", ".txt"],
                         "max_bytes": 33554432,
@@ -72,7 +79,7 @@ class ObservationJobHttpTests(unittest.TestCase):
     def test_methods_and_strict_upload_query_contract(self) -> None:
         recognized = (
             "/api/observation-jobs",
-            "/api/observation-jobs/guided",
+            "/api/observation-jobs/guided/policy-memo-md",
             "/api/observation-jobs/upload?filename=x.md",
         )
         for target in recognized:
@@ -243,7 +250,7 @@ class ObservationJobHttpTests(unittest.TestCase):
 
     def test_guided_body_contract_and_model_free_service_path(self) -> None:
         invalid = self.harness.request(
-            "/api/observation-jobs/guided",
+            "/api/observation-jobs/guided/policy-memo-md",
             method="POST",
             headers=[
                 ("Host", self.harness.authority),
@@ -253,7 +260,7 @@ class ObservationJobHttpTests(unittest.TestCase):
         )
         self.assertEqual(invalid.status, 400)
         accepted = self.harness.request(
-            "/api/observation-jobs/guided",
+            "/api/observation-jobs/guided/policy-memo-md",
             method="POST",
             headers=[
                 ("Host", self.harness.authority),
@@ -268,13 +275,40 @@ class ObservationJobHttpTests(unittest.TestCase):
         self.assertEqual(terminal["observation"]["status"], "SUCCESS")
         self.assertFalse((self.workspace / "inputs").exists())
 
+    def test_guided_ids_are_exact_and_singular_route_is_removed(self) -> None:
+        application = self.harness.server.application
+        with patch.object(application, "_submit", wraps=application._submit) as submit:
+            unknown = self.harness.request(
+                "/api/observation-jobs/guided/not-known",
+                method="POST",
+                headers=[("Host", self.harness.authority), ("Content-Length", "0")],
+            )
+            removed = self.harness.request(
+                "/api/observation-jobs/guided",
+                method="POST",
+                headers=[("Host", self.harness.authority), ("Content-Length", "0")],
+            )
+        self.assertEqual(unknown.status, 404)
+        self.assertEqual(removed.status, 404)
+        submit.assert_not_called()
+
+        accepted = self.harness.request(
+            "/api/observation-jobs/guided/whitespace-cleanup-md",
+            method="POST",
+            headers=[("Host", self.harness.authority), ("Content-Length", "0")],
+        )
+        self.assertEqual(accepted.status, 202)
+        terminal = self.wait_for_terminal()
+        self.assertEqual(terminal["input"]["name"], "whitespace-cleanup.md")
+        self.assertEqual(terminal["state"], "COMPLETED")
+
     def test_unavailable_workspace_returns_stable_conflict(self) -> None:
         moved = self.workspace.with_name("moved-workspace")
         self.workspace.rename(moved)
         self.workspace.write_text("not a directory", "utf-8")
         try:
             response = self.harness.request(
-                "/api/observation-jobs/guided",
+                "/api/observation-jobs/guided/policy-memo-md",
                 method="POST",
                 headers=[
                     ("Host", self.harness.authority),
@@ -301,7 +335,7 @@ class ObservationJobHttpTests(unittest.TestCase):
             self.harness.server.application.jobs, "_observe", side_effect=blocked
         ):
             accepted = self.harness.request(
-                "/api/observation-jobs/guided",
+                "/api/observation-jobs/guided/policy-memo-md",
                 method="POST",
                 headers=[
                     ("Host", self.harness.authority),

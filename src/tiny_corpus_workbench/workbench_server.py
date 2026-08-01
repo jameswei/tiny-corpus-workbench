@@ -3,19 +3,30 @@
 from __future__ import annotations
 
 import re
+import secrets
 import webbrowser
 from dataclasses import dataclass
+from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib.resources import files
 from pathlib import Path
 from urllib.parse import unquote_to_bytes
 
-from tiny_corpus_workbench.canonical_json import canonical_json
 from tiny_corpus_workbench.application.input_store import (
     MAX_UPLOAD_BYTES,
     SUPPORTED_EXTENSIONS,
     store_uploaded_input,
     validate_upload_filename,
+)
+from tiny_corpus_workbench.application.lifecycle import (
+    ActionNotAvailableError,
+    LifecycleBusyError,
+    LifecycleNotFoundError,
+    ResponseTooLargeError,
+    WorkbenchLifecycleService,
+)
+from tiny_corpus_workbench.application.mutation_coordinator import (
+    MutationCoordinator,
 )
 from tiny_corpus_workbench.application.observation_jobs import (
     JobInput,
@@ -24,8 +35,10 @@ from tiny_corpus_workbench.application.observation_jobs import (
 )
 from tiny_corpus_workbench.application.workbench import (
     WorkbenchState,
+    WorkspaceStaleError,
     validate_workspace,
 )
+from tiny_corpus_workbench.canonical_json import canonical_json
 from tiny_corpus_workbench.domain import (
     InputError,
     IntegrityError,
@@ -45,11 +58,15 @@ MAX_STRUCTURED_RESPONSE = 4 * 1024 * 1024
 KEY = re.compile(r"[0-9a-f]{64}\Z")
 
 ERRORS = {
+    "ACTION_TOKEN_INVALID": (403, "lifecycle action token is missing or invalid"),
     "INVALID_REQUEST": (400, "request is invalid"),
     "INVALID_SOURCE": (400, "source is invalid or unsupported"),
     "NOT_FOUND": (404, "resource was not found"),
     "METHOD_NOT_ALLOWED": (405, "method is not allowed"),
     "OBSERVATION_BUSY": (409, "one observation is already active"),
+    "LIFECYCLE_BUSY": (409, "background observation is active"),
+    "ACTION_NOT_AVAILABLE": (409, "lifecycle action is not available"),
+    "WORKSPACE_STALE": (409, "accepted workspace state is stale"),
     "WORKSPACE_UNAVAILABLE": (409, "workspace cannot accept the request"),
     "WORKSPACE_REFRESH_FAILED": (409, "workspace refresh failed"),
     "UPLOAD_TOO_LARGE": (413, "upload exceeds the allowed limit"),
@@ -129,17 +146,33 @@ class WorkbenchApplication:
         ]
         if any(len(value) > MAX_STRUCTURED_RESPONSE for value in structured):
             raise InputError("workbench response exceeds the allowed limit")
-        fixture = Path(__file__).resolve().parents[2] / "fixtures/golden/policy-memo.md"
-        identity = validate_source(fixture)
-        self.guided_source = fixture
-        self.guided_input = JobInput(
-            kind="GUIDED",
-            name=identity.name,
-            media_type=identity.media_type,
-            size=identity.size,
-            sha256=identity.sha256,
+        repository = Path(__file__).resolve().parents[2]
+        guided_paths = (
+            ("policy-memo-md", repository / "fixtures/golden/policy-memo.md"),
+            (
+                "whitespace-cleanup-md",
+                repository / "fixtures/refinement/whitespace-cleanup.md",
+            ),
         )
-        self.jobs = jobs or ObservationJobManager(state, model_root)
+        self.guided: dict[str, tuple[Path, JobInput]] = {}
+        for guided_id, fixture in guided_paths:
+            identity = validate_source(fixture)
+            self.guided[guided_id] = (
+                fixture,
+                JobInput(
+                    kind="GUIDED",
+                    name=identity.name,
+                    media_type=identity.media_type,
+                    size=identity.size,
+                    sha256=identity.sha256,
+                ),
+            )
+        coordinator = jobs.coordinator if jobs is not None else MutationCoordinator()
+        self.jobs = jobs or ObservationJobManager(
+            state, model_root, coordinator=coordinator
+        )
+        self.lifecycle = WorkbenchLifecycleService(state, coordinator)
+        self.action_token = secrets.token_urlsafe(32)
 
     @property
     def projection(self) -> WorkbenchProjection:
@@ -156,11 +189,14 @@ class WorkbenchApplication:
             canonical_json(
                 {
                     "capabilities": {
-                        "guided": {
-                            "id": "policy-memo-md",
-                            "name": self.guided_input.name,
-                            "media_type": self.guided_input.media_type,
-                        },
+                        "guided": [
+                            {
+                                "id": guided_id,
+                                "name": input_value.name,
+                                "media_type": input_value.media_type,
+                            }
+                            for guided_id, (_, input_value) in self.guided.items()
+                        ],
                         "upload": {
                             "extensions": list(SUPPORTED_EXTENSIONS),
                             "max_bytes": MAX_UPLOAD_BYTES,
@@ -227,16 +263,40 @@ class WorkbenchApplication:
         method: str = "GET",
         body: bytes = b"",
         upload_filename: str | None = None,
+        action_tokens: tuple[str, ...] = (),
     ) -> Response:
         path, separator, _ = target.partition("?")
         if path == "/api/observation-jobs/upload" and separator:
             target = path
-        if target == "/api/observation-jobs/guided":
+        guided_match = re.fullmatch(r"/api/observation-jobs/guided/([^/]+)", target)
+        if guided_match is not None:
+            guided = self.guided.get(guided_match.group(1))
+            if guided is None:
+                return _error("NOT_FOUND")
             if method != "POST":
                 return _error("METHOD_NOT_ALLOWED", allow="POST")
             if body:
                 return _error("INVALID_REQUEST")
-            return self._submit(self.guided_source, self.guided_input)
+            return self._submit(*guided)
+        if target == "/api/observation-jobs/guided":
+            return _error("NOT_FOUND")
+        lifecycle_action = _lifecycle_action(target)
+        if lifecycle_action is not None:
+            if method != "POST":
+                return _error("METHOD_NOT_ALLOWED", allow="POST")
+            if body:
+                return _error("INVALID_REQUEST")
+            if not self._valid_action_token(action_tokens):
+                return _error("ACTION_TOKEN_INVALID")
+            return self._run_lifecycle(lifecycle_action)
+        if (
+            path == "/api/lifecycle"
+            or (
+                path.startswith("/api/lifecycle/")
+                and target != "/api/lifecycle/action-token"
+            )
+        ):
+            return _error("NOT_FOUND")
         if target == "/api/observation-jobs/upload":
             if method != "POST":
                 return _error("METHOD_NOT_ALLOWED", allow="POST")
@@ -257,6 +317,13 @@ class WorkbenchApplication:
             )
         if method not in {"GET", "HEAD"}:
             return _error("METHOD_NOT_ALLOWED", allow="GET, HEAD")
+        if target == "/api/lifecycle/action-token":
+            return Response(
+                200,
+                "application/json; charset=utf-8",
+                canonical_json({"action_token": self.action_token}),
+                (("Cache-Control", "no-store"),),
+            )
         if target in self.static:
             content_type, body = self.static[target]
             return Response(200, content_type, body)
@@ -290,6 +357,43 @@ class WorkbenchApplication:
             return Response(200, "text/plain; charset=utf-8", body)
         return _error("NOT_FOUND")
 
+    def _valid_action_token(self, values: tuple[str, ...]) -> bool:
+        if len(values) != 1:
+            return False
+        try:
+            candidate = values[0].encode("ascii", errors="strict")
+        except UnicodeEncodeError:
+            return False
+        return secrets.compare_digest(candidate, self.action_token.encode("ascii"))
+
+    def _run_lifecycle(self, action: tuple[str, ...]) -> Response:
+        try:
+            operation, *arguments = action
+            if operation == "diagnose":
+                value = self.lifecycle.diagnose(arguments[0])
+            elif operation == "proposal":
+                value = self.lifecycle.create_proposal(arguments[0], arguments[1])
+            elif operation == "approve":
+                value = self.lifecycle.approve(arguments[0])
+            else:
+                value = self.lifecycle.reject(arguments[0])
+            body = canonical_json(value)
+            if len(body) > MAX_STRUCTURED_RESPONSE:
+                return _error("RESPONSE_TOO_LARGE")
+            return Response(200, "application/json; charset=utf-8", body)
+        except LifecycleBusyError as error:
+            return _error("LIFECYCLE_BUSY", message=sanitize_message(error))
+        except ActionNotAvailableError as error:
+            return _error("ACTION_NOT_AVAILABLE", message=sanitize_message(error))
+        except LifecycleNotFoundError as error:
+            return _error("NOT_FOUND", message=sanitize_message(error))
+        except WorkspaceStaleError as error:
+            return _error("WORKSPACE_STALE", message=sanitize_message(error))
+        except ResponseTooLargeError as error:
+            return _error("RESPONSE_TOO_LARGE", message=sanitize_message(error))
+        except Exception:
+            return _error("INTERNAL_ERROR")
+
 
 class WorkbenchHandler(BaseHTTPRequestHandler):
     """Sequential request handler for the trusted-local learning tool."""
@@ -311,10 +415,14 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         message: str | None = None,
         explain: str | None = None,
     ) -> None:
-        self._send(
-            _error("METHOD_NOT_ALLOWED", allow="GET, HEAD"),
-            head=self.command == "HEAD",
-        )
+        unsupported = f"Unsupported method ({self.command!r})"
+        if code == HTTPStatus.NOT_IMPLEMENTED and message == unsupported:
+            self._send(
+                self._route(self.path, method=self.command),
+                head=self.command == "HEAD",
+            )
+            return
+        super().send_error(code, message, explain)
 
     def do_GET(self) -> None:
         self._send(self._route(self.path, method="GET"), head=False)
@@ -326,7 +434,18 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         path, separator, query = self.path.partition("?")
         lengths = self.headers.get_all("Content-Length", [])
         transfers = self.headers.get_all("Transfer-Encoding", [])
-        if path in {"/api/workbench/refresh", "/api/observation-jobs/guided"}:
+        guided_match = re.fullmatch(
+            r"/api/observation-jobs/guided/([^/]+)", path
+        )
+        empty_body_route = (
+            path == "/api/workbench/refresh"
+            or (
+                guided_match is not None
+                and guided_match.group(1) in self.application.guided
+            )
+            or _lifecycle_action(self.path) is not None
+        )
+        if empty_body_route:
             declared = (
                 _bounded_decimal(lengths[0], 0)
                 if len(lengths) == 1
@@ -343,7 +462,13 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 self._send(_error("INVALID_REQUEST"), head=False)
                 return
             self._send(
-                self._route(path, method=self.command),
+                self._route(
+                    path,
+                    method=self.command,
+                    action_tokens=tuple(
+                        self.headers.get_all("X-TCW-Action-Token", [])
+                    ),
+                ),
                 head=False,
             )
             return
@@ -475,6 +600,41 @@ def _bounded_decimal(value: str, maximum: int) -> int | None:
     ):
         return None
     return int(normalized)
+
+
+def _lifecycle_action(target: str) -> tuple[str, ...] | None:
+    """Return one exact lifecycle action for a query-free canonical route."""
+
+    if "?" in target:
+        return None
+    patterns = (
+        (
+            re.fullmatch(r"/api/lifecycle/diagnoses/([0-9a-f]{64})", target),
+            "diagnose",
+        ),
+        (
+            re.fullmatch(
+                r"/api/lifecycle/proposals/([0-9a-f]{64})/([0-9a-f]{64})",
+                target,
+            ),
+            "proposal",
+        ),
+        (
+            re.fullmatch(
+                r"/api/lifecycle/proposals/([0-9a-f]{64})/(approve|reject)",
+                target,
+            ),
+            "resolution",
+        ),
+    )
+    for match, operation in patterns:
+        if match is None:
+            continue
+        groups = match.groups()
+        if operation == "resolution":
+            return (groups[1], groups[0])
+        return (operation, *groups)
+    return None
 
 
 def open_browser(url: str) -> str | None:

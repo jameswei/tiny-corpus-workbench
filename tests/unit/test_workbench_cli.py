@@ -1,20 +1,29 @@
 from __future__ import annotations
 
 import argparse
+import _thread
+import http.client
 import importlib.metadata
 import io
+import json
 import shutil
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
 from tiny_corpus_workbench import cli
-from tiny_corpus_workbench.workbench_server import validate_port
+from tiny_corpus_workbench.application.lifecycle import WorkbenchLifecycleService
+from tiny_corpus_workbench.workbench_server import (
+    WorkbenchApplication,
+    validate_port,
+)
 from tests.unit.workbench_server_test_support import available_port
 from tests.unit.workbench_test_support import PublishedObservation
 
@@ -219,6 +228,134 @@ class WorkbenchCliTests(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), f"http://127.0.0.1:{port}/\n")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             probe.bind(("127.0.0.1", port))
+
+    def test_sigint_waits_for_synchronous_lifecycle_handler_before_close(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary) / "workspace"
+            copied = (
+                workspace
+                / "extraction-observatory"
+                / "observation"
+                / self.published.root.name
+            )
+            copied.parent.mkdir(parents=True)
+            shutil.copytree(self.published.root, copied)
+            port = available_port()
+            entered = threading.Event()
+            release = threading.Event()
+            completed = threading.Event()
+            closed_after_completion: list[bool] = []
+            interrupt_ready: list[bool] = []
+            response_status: list[int] = []
+            original_close = WorkbenchApplication.close
+
+            def slow_diagnose(_service, _key):
+                entered.set()
+                release.wait(5)
+                completed.set()
+                return {
+                    "publication": {
+                        "kind": "DIAGNOSIS",
+                        "run_id": "completed-before-shutdown",
+                        "record_key": None,
+                    },
+                    "refresh": {"status": "FAILED", "message": "test"},
+                }
+
+            def checked_close(application):
+                closed_after_completion.append(completed.is_set())
+                return original_close(application)
+
+            def request_lifecycle() -> None:
+                deadline = time.monotonic() + 5
+                while True:
+                    connection = http.client.HTTPConnection(
+                        "127.0.0.1", port, timeout=5
+                    )
+                    try:
+                        connection.request("GET", "/api/workbench")
+                        projection_response = connection.getresponse()
+                        projection = json.loads(projection_response.read())
+                        key = projection["records"][0]["record_key"]
+                        connection.close()
+
+                        connection = http.client.HTTPConnection(
+                            "127.0.0.1", port, timeout=5
+                        )
+                        connection.request("GET", "/api/lifecycle/action-token")
+                        token_response = connection.getresponse()
+                        token = json.loads(token_response.read())["action_token"]
+                        connection.close()
+
+                        connection = http.client.HTTPConnection(
+                            "127.0.0.1", port, timeout=5
+                        )
+                        connection.request(
+                            "POST",
+                            f"/api/lifecycle/diagnoses/{key}",
+                            headers={
+                                "Content-Length": "0",
+                                "X-TCW-Action-Token": token,
+                            },
+                        )
+                        response = connection.getresponse()
+                        response.read()
+                        response_status.append(response.status)
+                        connection.close()
+                        return
+                    except ConnectionRefusedError:
+                        connection.close()
+                        if time.monotonic() >= deadline:
+                            raise
+                        time.sleep(0.01)
+
+            client = threading.Thread(target=request_lifecycle, daemon=False)
+
+            def interrupt_and_release() -> None:
+                interrupt_ready.append(entered.wait(5))
+                _thread.interrupt_main()
+                time.sleep(0.1)
+                release.set()
+
+            interrupter = threading.Thread(
+                target=interrupt_and_release, daemon=False
+            )
+            client.start()
+            interrupter.start()
+            with (
+                patch.object(
+                    WorkbenchLifecycleService,
+                    "diagnose",
+                    new=slow_diagnose,
+                ),
+                patch.object(
+                    WorkbenchApplication,
+                    "close",
+                    new=checked_close,
+                ),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
+                code = cli.main(
+                    [
+                        "workbench",
+                        "--workspace",
+                        str(workspace),
+                        "--port",
+                        str(port),
+                        "--no-open",
+                    ]
+                )
+            client.join(5)
+            interrupter.join(5)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(interrupt_ready, [True])
+        self.assertEqual(response_status, [200])
+        self.assertTrue(completed.is_set())
+        self.assertEqual(closed_after_completion, [True])
 
     def test_missing_workspace_is_created_and_starts_empty(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

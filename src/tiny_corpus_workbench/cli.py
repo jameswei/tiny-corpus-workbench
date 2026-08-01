@@ -5,6 +5,7 @@ import importlib
 import importlib.metadata
 import json
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,42 @@ def _verification_callable(name: str) -> Any:
             "bundled verification/schema runtime is unavailable or incompatible"
         )
     return function
+
+
+def _serve_workbench(server: Any) -> None:
+    """Keep SIGINT on the CLI thread while the sequential server finishes work."""
+
+    failures: list[BaseException] = []
+    finished = threading.Event()
+
+    def serve() -> None:
+        try:
+            server.serve_forever()
+        except BaseException as error:
+            failures.append(error)
+        finally:
+            finished.set()
+
+    worker = threading.Thread(
+        target=serve,
+        name="workbench-http-server",
+        daemon=False,
+    )
+    try:
+        worker.start()
+        while not finished.wait(0.1):
+            pass
+    except KeyboardInterrupt:
+        if worker.ident is not None:
+            while not finished.is_set():
+                try:
+                    server.shutdown()
+                except KeyboardInterrupt:
+                    continue
+    if worker.ident is not None:
+        worker.join()
+    if failures:
+        raise failures[0]
 
 
 def _diagnosis_callable(module_name: str, name: str) -> Any:
@@ -212,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
                     warning = open_browser(url)
                     if warning is not None:
                         print(warning, file=sys.stderr, flush=True)
-                server.serve_forever()
+                _serve_workbench(server)
             except KeyboardInterrupt:
                 pass
             return int(ExitCode.SUCCESS)
