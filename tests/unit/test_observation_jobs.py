@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import json
+import queue
 import tempfile
 import threading
 import time
 import unittest
 from dataclasses import FrozenInstanceError
 from pathlib import Path
+from unittest.mock import patch
 
 from tiny_corpus_workbench.application.observation import OBSERVATION_STAGES
 from tiny_corpus_workbench.application.observation_jobs import (
     JobInput,
     ObservationBusyError,
     ObservationJobManager,
+)
+from tiny_corpus_workbench.application.mutation_coordinator import (
+    MutationCoordinator,
 )
 from tiny_corpus_workbench.application.workbench import RefreshResult
 from tiny_corpus_workbench.domain import InputError
@@ -27,6 +32,21 @@ def wait_for_terminal(manager: ObservationJobManager):
             return job
         time.sleep(0.01)
     raise AssertionError("job did not reach a terminal state")
+
+
+class DelayedReleaseCoordinator(MutationCoordinator):
+    """Hold final release before the coordinator's synchronized finalizer."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.release_entered = threading.Event()
+        self.allow_release = threading.Event()
+
+    def _release(self, owner, finalize=None) -> None:
+        self.release_entered.set()
+        if not self.allow_release.wait(5):
+            raise AssertionError("release was not allowed")
+        super()._release(owner, finalize)
 
 
 class FakeState:
@@ -276,6 +296,73 @@ class ObservationJobTests(unittest.TestCase):
         self.assertNotEqual(first.job_id, second.job_id)
         wait_for_terminal(manager)
 
+    def test_queued_observation_owns_shared_mutation_until_terminal(self) -> None:
+        state = FakeState(self.workspace)
+        started = threading.Event()
+        release = threading.Event()
+        coordinator = MutationCoordinator()
+
+        def observe(source, output, models, progress):
+            started.set()
+            release.wait(5)
+            return self.publisher(state)(source, output, models, progress)
+
+        manager = ObservationJobManager(
+            state,
+            self.workspace / "models",
+            observe_service=observe,
+            coordinator=coordinator,
+        )
+        self.managers.append(manager)
+        manager.accept(self.source, self.input)
+        self.assertEqual(coordinator.owner, "OBSERVATION")
+        self.assertTrue(started.wait(2))
+        release.set()
+        wait_for_terminal(manager)
+        self.assertIsNone(coordinator.owner)
+
+    def test_terminal_snapshot_is_published_with_release_for_all_outcomes(
+        self,
+    ) -> None:
+        cases = ("completed", "failed", "refresh-failed")
+        for label in cases:
+            with self.subTest(label=label):
+                workspace = self.workspace / label
+                workspace.mkdir()
+                state = FakeState(
+                    workspace, refresh_succeeds=label != "refresh-failed"
+                )
+                coordinator = DelayedReleaseCoordinator()
+
+                if label == "failed":
+                    def observe(source, output, models, progress):
+                        raise InputError("stable failure")
+                else:
+                    observe = self.publisher(state)
+
+                manager = ObservationJobManager(
+                    state,
+                    workspace / "models",
+                    observe_service=observe,
+                    coordinator=coordinator,
+                )
+                self.managers.append(manager)
+                manager.accept(self.source, self.input)
+                self.assertTrue(coordinator.release_entered.wait(2))
+
+                before_release = manager.snapshot()
+                self.assertNotIn(before_release.state, {"COMPLETED", "FAILED"})
+                self.assertEqual(coordinator.owner, "OBSERVATION")
+
+                coordinator.allow_release.set()
+                terminal = wait_for_terminal(manager)
+                expected_state = "FAILED" if label == "failed" else "COMPLETED"
+                self.assertEqual(terminal.state, expected_state)
+                if label == "refresh-failed":
+                    self.assertEqual(terminal.refresh.status, "FAILED")
+                with coordinator.acquire("LIFECYCLE"):
+                    self.assertEqual(coordinator.owner, "LIFECYCLE")
+
     def test_prepublication_failure_has_sanitized_typed_error(self) -> None:
         state = FakeState(self.workspace)
 
@@ -290,6 +377,38 @@ class ObservationJobTests(unittest.TestCase):
         self.assertIsNone(terminal.refresh)
         self.assertEqual(terminal.error.code, "OBSERVATION_INPUT_FAILED")
         self.assertEqual(terminal.error.message, "invalid source")
+        self.assertIsNone(manager.coordinator.owner)
+
+    def test_failed_queue_acceptance_releases_shared_mutation(self) -> None:
+        state = FakeState(self.workspace)
+        manager = self.manager(state, self.publisher(state))
+        with (
+            patch.object(manager._queue, "put_nowait", side_effect=queue.Full),
+            self.assertRaises(queue.Full),
+        ):
+            manager.accept(self.source, self.input)
+        self.assertIsNone(manager.coordinator.owner)
+        self.assertIsNone(manager.snapshot())
+
+    def test_failed_job_construction_releases_shared_mutation(self) -> None:
+        state = FakeState(self.workspace)
+        manager = self.manager(state, self.publisher(state))
+        with (
+            patch(
+                "tiny_corpus_workbench.application.observation_jobs.uuid.uuid4",
+                side_effect=RuntimeError("uuid unavailable"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "uuid unavailable"),
+        ):
+            manager.accept(self.source, self.input)
+        self.assertIsNone(manager.coordinator.owner)
+        self.assertIsNone(manager.snapshot())
+
+        with manager.coordinator.acquire("LIFECYCLE"):
+            self.assertEqual(manager.coordinator.owner, "LIFECYCLE")
+        accepted = manager.accept(self.source, self.input)
+        self.assertEqual(accepted.state, "QUEUED")
+        self.assertEqual(wait_for_terminal(manager).state, "COMPLETED")
 
     def test_failed_record_is_completed_and_refresh_failure_retains_projection(
         self,
@@ -327,6 +446,7 @@ class ObservationJobTests(unittest.TestCase):
         closing.join(5)
         self.assertFalse(closing.is_alive())
         self.assertEqual(manager.snapshot().state, "COMPLETED")
+        self.assertIsNone(manager.coordinator.owner)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,10 @@ from tiny_corpus_workbench.canonical_json import canonical_json, edge_key, sessi
 from tiny_corpus_workbench.diagnosis_rules import RULESET, RULESET_PARAMETER_HASH
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.application.diagnosis import verify_diagnosis
-from tiny_corpus_workbench.application.refinement import verify_refinement
+from tiny_corpus_workbench.application.refinement import (
+    supported_refiner,
+    verify_refinement,
+)
 from tiny_corpus_workbench.workbench_records import (
     MAX_STRUCTURED_RESPONSE,
     AdmittedRecord,
@@ -554,20 +557,47 @@ def _observation_detail(record: AdmittedRecord) -> dict[str, Any]:
     }
 
 
+def _actionable_diagnosis_subject(
+    records: AdmittedRecords, edge: dict[str, Any]
+) -> bool:
+    key = edge.get("target_record_key")
+    if edge["state"] != "MATCH" or key not in records.explicit_keys:
+        return False
+    target = records.records[key]
+    if target.kind == "OBSERVATION":
+        _, artifacts = target.descriptors()
+        return any(
+            artifact["role"] == "docling-document-json"
+            for artifact in artifacts
+        )
+    return target.kind == "REFINEMENT" and target.status == "APPROVED"
+
+
 def _diagnosis_detail(
-    record: AdmittedRecord, edges: list[dict[str, Any]]
+    records: AdmittedRecords,
+    record: AdmittedRecord,
+    edges: list[dict[str, Any]],
 ) -> dict[str, Any]:
     manifest = record.manifest
     findings = _artifact_json(record, "diagnostic-findings")
     state = edges[0]["state"]
-    return {
-        "source": _compact_source(manifest["source"]),
-        "subject_state": "MATCH" if state == "MATCH" else "NOT_CHECKED",
-        "derivation_state": "MATCH" if state == "MATCH" else "NOT_CHECKED",
-        "finding_total": manifest["summary"]["total"],
-        "findings": sorted(
-            (
-                {
+    subject_actionable = (
+        record.record_key in records.explicit_keys
+        and len(edges) == 1
+        and _actionable_diagnosis_subject(records, edges[0])
+    )
+    enriched = []
+    for finding in findings["findings"]:
+        refiner = supported_refiner(finding["rule_id"])
+        if refiner is None:
+            action = {"status": "UNAVAILABLE", "reason": "NO_SUPPORTED_REFINER"}
+        elif subject_actionable:
+            action = {"status": "AVAILABLE", "reason": None}
+        else:
+            action = {"status": "UNAVAILABLE", "reason": "SUBJECT_NOT_ACTIONABLE"}
+        enriched.append(
+            {
+                **{
                     key: copy.deepcopy(finding[key])
                     for key in (
                         "finding_id",
@@ -578,11 +608,17 @@ def _diagnosis_detail(
                         "document_refs",
                         "evidence",
                     )
-                }
-                for finding in findings["findings"]
-            ),
-            key=lambda value: value["finding_id"],
-        ),
+                },
+                "refiner": refiner,
+                "proposal_action": action,
+            }
+        )
+    return {
+        "source": _compact_source(manifest["source"]),
+        "subject_state": "MATCH" if state == "MATCH" else "NOT_CHECKED",
+        "derivation_state": "MATCH" if state == "MATCH" else "NOT_CHECKED",
+        "finding_total": manifest["summary"]["total"],
+        "findings": sorted(enriched, key=lambda value: value["finding_id"]),
     }
 
 
@@ -781,7 +817,7 @@ def _detail(
     if record.kind == "OBSERVATION":
         kind_detail = _observation_detail(record)
     elif record.kind == "DIAGNOSIS":
-        kind_detail = _diagnosis_detail(record, edges)
+        kind_detail = _diagnosis_detail(records, record, edges)
     elif record.kind == "REFINEMENT":
         kind_detail = _refinement_detail(record, edges)
     else:
