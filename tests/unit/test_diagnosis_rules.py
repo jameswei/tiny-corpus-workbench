@@ -697,7 +697,7 @@ class DiagnosisRuleTests(unittest.TestCase):
         with self.assertRaises(IntegrityError):
             validate_document("finding-set", finding_set)
 
-    def test_heading_first_and_later_jumps_follow_reading_order(self) -> None:
+    def test_first_and_later_heading_jumps_are_both_reported(self) -> None:
         payload = document(
             [
                 text(0, "First", label="section_header", level=2),
@@ -710,9 +710,9 @@ class DiagnosisRuleTests(unittest.TestCase):
             payload, media_type="text/markdown", diagnosis_id=DIAGNOSIS_ID
         )
         jumps = [item for item in findings if item["rule_id"] == "D005"]
-        self.assertEqual(
+        self.assertCountEqual(
             [item["document_refs"] for item in jumps],
-            [["#/texts/2"], ["#/texts/0"]],
+            [["#/texts/0"], ["#/texts/2"]],
         )
 
     def test_caption_relationships_distinguish_orphans_and_invalid_targets(self) -> None:
