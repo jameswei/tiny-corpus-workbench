@@ -1,8 +1,9 @@
 # Local Visual Workbench
 
-The Local Visual Workbench can run one observation and show verified records in
-one local workspace. Published records stay immutable. The Workbench uses the
-same observation, verification, and evidence contracts as the CLI.
+The Local Visual Workbench guides one document from observation through an
+explicit refinement decision. It shows verified records in one local
+workspace. Published records stay immutable. The Workbench and CLI use the
+same application services, verification rules, and evidence records.
 
 The workbench is local software. It is not a hosted service. It binds only to
 `127.0.0.1`, keeps one accepted projection in memory, and writes no session
@@ -39,11 +40,15 @@ Use `--port PORT` to select an unused port from 1024 through 65535. Omit
 Use `--docling-artifacts MODEL_DIRECTORY` to select local Docling models for
 PDF observation. The default is `.cache/docling/models`.
 
-## Observe a document
+## Start a document
 
 Select **Observe policy memo** for the guided model-free path. The Workbench
 publishes a new observation, refreshes the complete workspace, and selects the
 new record.
+
+Select **Start whitespace lifecycle** for a model-free document with a
+supported whitespace finding. This action publishes and selects only the
+observation. Continue the lifecycle in the **Document lifecycle** area.
 
 You can also select one `.docx`, `.md`, `.pdf`, or `.txt` file. The limit is
 32 MiB. The Workbench derives the format from the filename and content. It
@@ -79,6 +84,47 @@ partial success. If automatic refresh rejects the complete candidate, the new
 record stays on disk and the previous browser projection stays visible. Fix the
 candidate, then use manual refresh.
 
+The Workbench can diagnose an observation only when admission verified its
+canonical Docling document. A partial observation remains diagnosable when the
+Docling canonical artifact is available. A failed or MarkItDown-only
+observation remains inspectable but cannot continue.
+
+## Complete the browser lifecycle
+
+Select an eligible observation, then select **Diagnose document**. Admission
+verifies the complete workspace before the action becomes available. The new
+diagnosis lists every finding and its evidence.
+
+Three diagnosis rules have deterministic refiners:
+
+| Finding | Refiner |
+| --- | --- |
+| D007 repeated page margin text | R002 repeated boilerplate removal |
+| D009 normalizable whitespace | R001 whitespace normalization |
+| D010 possible line-end hyphenation | R003 deterministic dehyphenation |
+
+Select **Create proposal** for a supported, actionable finding. The browser
+shows the named finding, refiner, affected references, and readable edits. It
+does not ask you to edit JSON.
+
+Select **Approve proposal** or **Reject proposal**. This click supplies the
+human decision. Approval publishes one immutable prepared revision with
+transformation, lineage, derivation, and reversal evidence. Rejection publishes
+the decision without a prepared revision.
+
+An approved refinement can be the subject of **Diagnose prepared revision**.
+A rejected refinement cannot continue because it has no prepared revision.
+
+Each displayed proposal belongs to its diagnosis. You can browse other records
+while a proposal waits for a decision. The page restores a proposal only when
+you return to its diagnosis during the same page process. A reload or server
+restart does not discover drafts or restore proposal panels.
+
+The Workbench disables record navigation only while a lifecycle request is in
+progress. It does not retry a diagnosis, proposal, approval, or rejection. If
+the action token changes after a restart, the page fetches a new token and asks
+you to select the action again.
+
 ## Use the workspace
 
 The default workspace is `build/`. Use a different workspace when necessary:
@@ -108,6 +154,11 @@ Startup and each manual refresh verify the complete candidate before accepting
 it. A failed refresh keeps the previous session, record details, and captured
 artifact bytes visible. Fix or remove the invalid candidate, then refresh
 again. A successful refresh clears the error and replaces the snapshot.
+
+Workbench proposals use `WORKSPACE/refinement-drafts/` in the current source.
+These proposal files remain after approval or rejection. They are not
+workspace records, and the Workbench does not discover them as records. This
+location is current behavior, not a cross-version storage promise.
 
 ## Inspect the evidence
 
@@ -143,9 +194,14 @@ GET or HEAD /api/workbench
 GET or HEAD /api/records/{record_key}
 GET or HEAD /api/artifacts/{artifact_key}
 GET or HEAD /api/observation-jobs
+GET or HEAD /api/lifecycle/action-token
 POST /api/workbench/refresh
-POST /api/observation-jobs/guided
+POST /api/observation-jobs/guided/{guided_id}
 POST /api/observation-jobs/upload?filename=NAME
+POST /api/lifecycle/diagnoses/{subject_record_key}
+POST /api/lifecycle/proposals/{diagnosis_record_key}/{finding_id}
+POST /api/lifecycle/proposals/{draft_key}/approve
+POST /api/lifecycle/proposals/{draft_key}/reject
 ```
 
 The JSON routes are an internal interface for the bundled UI. They are not a
@@ -153,27 +209,29 @@ public interface. Artifact responses come from bytes captured during
 admission. Disk changes do not alter those bytes until a successful refresh.
 Opaque artifact keys never expose backing filesystem paths.
 
-The refresh operation accepts an empty request body and runs synchronously.
-Observation submissions return an accepted in-memory job. The bundled UI polls
-only while that job is queued or running. The server bounds upload bodies
-before it reads them. The bundled UI uses text-only DOM construction and makes
-no remote requests.
+The refresh and lifecycle operations accept empty request bodies and run
+synchronously. Observation submissions return an accepted in-memory job. The
+bundled UI polls only while that job is queued or running. Observation and
+lifecycle publication do not overlap. The server bounds upload bodies before
+it reads them. The bundled UI uses text-only DOM construction and makes no
+remote requests.
 
-The service is loopback-only, but other local processes can reach a loopback
-port. An unrelated webpage can trigger a request without reading its response.
-Do not treat the Workbench as an access-control or authentication boundary.
-Stop the server when you finish.
+Lifecycle changes require a process-local action token that the bundled page
+keeps only in memory. The token blocks ordinary cross-origin forms, but other
+local processes can fetch it. It is not authentication or access control. Stop
+the server when you finish.
 
 ## Integrity and authority limits
 
-The Workbench can run observation. It cannot run diagnosis, refinement, or
-corpus workflows. Use the existing CLI commands for those operations.
+Diagnosis still does not authorize mutation. A token-bearing browser click
+supplies an explicit decision to the refinement service. Only
+`refinement-manifest.json.decision` is persisted decision authority. Proposal,
+HTTP, UI, token, and transformation states are not authority.
 
-Diagnosis still does not authorize mutation. The Workbench cannot decide or
-apply a proposal. It derives `APPROVED` or `REJECTED` only from `refinement-manifest.json.decision`;
-it does not treat proposal state,
-transformation state, or the derived report as authority. An approved, fully
-verified refinement remains the only supported path to a successor revision.
+The proposal panel includes expandable CLI continuation details. They contain
+the exact proposal, diagnosis, base, and output-root paths for the unchanged
+`corpus resolve-refinement` command. This optional path does not change the
+browser decision model. Corpus execution remains a CLI workflow.
 
 Local hashes detect changes during admission under the trusted-local model.
 They do not prove authorship or authenticity. The interface does not show
@@ -181,6 +239,7 @@ source or prepared document passages unless you explicitly retrieve an
 admitted plain-text artifact.
 
 See the [README](../README.md) for the complete CLI path, the
-[v0.7 lesson](../learning/v0.7-web-observation-workflow.md) for browser
-observation, and the [v0.6 lesson](../learning/v0.6-shared-workbench-workspace.md)
-for manual workspace refresh.
+[v0.8 lesson](../learning/v0.8-interactive-document-lifecycle.md) for the
+browser lifecycle, and the
+[v0.6 lesson](../learning/v0.6-shared-workbench-workspace.md) for manual
+workspace refresh.

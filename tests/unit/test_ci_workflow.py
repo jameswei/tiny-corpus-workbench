@@ -12,10 +12,10 @@ FAST_MODULES = {
     "tests.integration.test_v05_workflows",
     "tests.integration.test_workbench_integration",
     "tests.integration.test_workbench_observation_journey",
+    "tests.integration.test_workbench_lifecycle_journey",
 }
 MAIN_SMOKE_MODULES = {
-    "tests.integration.test_v05_workflows",
-    "tests.integration.test_web_observation_smoke",
+    "tests.integration.test_web_lifecycle_smoke",
 }
 FULL_MODULES = {
     "tests.compatibility.test_extractor_compatibility",
@@ -82,6 +82,9 @@ class CIWorkflowTests(unittest.TestCase):
         self.assertNotIn("unittest discover", self.full)
         self.assertNotIn("tests.integration.test_v05_workflows", self.full)
         self.assertNotIn("tests.integration.test_workbench_integration", self.full)
+        self.assertNotIn(
+            "tests.integration.test_workbench_lifecycle_journey", self.full
+        )
         for tool in FAST_TOOLS:
             with self.subTest(tool=tool):
                 self.assertNotIn(tool, self.full)
