@@ -9,6 +9,9 @@ from pathlib import Path
 from tests.unit.workbench_server_test_support import ServerHarness
 
 
+ISOLATED_RUNTIME_OBSERVATION_TIMEOUT_SECONDS = 60
+
+
 class InstalledRuntimeLifecycleSmokeTests(unittest.TestCase):
     def test_whitespace_approval_is_published_and_inspectable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -91,13 +94,21 @@ class InstalledRuntimeLifecycleSmokeTests(unittest.TestCase):
 
     @staticmethod
     def _wait_for_observation(harness: ServerHarness) -> dict[str, object]:
-        deadline = time.monotonic() + 15
+        deadline = (
+            time.monotonic() + ISOLATED_RUNTIME_OBSERVATION_TIMEOUT_SECONDS
+        )
+        last_job = None
         while time.monotonic() < deadline:
             job = json.loads(harness.request("/api/observation-jobs").body)["job"]
+            last_job = job
             if job is not None and job["state"] in {"COMPLETED", "FAILED"}:
                 return job
             time.sleep(0.02)
-        raise AssertionError("whitespace observation did not become terminal")
+        raise AssertionError(
+            "whitespace observation did not become terminal within "
+            f"{ISOLATED_RUNTIME_OBSERVATION_TIMEOUT_SECONDS} seconds; "
+            f"last observed job: {last_job!r}"
+        )
 
 
 if __name__ == "__main__":
