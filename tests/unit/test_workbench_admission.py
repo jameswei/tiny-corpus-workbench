@@ -39,6 +39,11 @@ class WorkbenchAdmissionTests(unittest.TestCase):
         self.assertEqual(record.kind, "OBSERVATION")
         self.assertTrue(record.top_level)
         self.assertEqual(record.status, "SUCCESS")
+        metadata = record.backing.root.stat()
+        self.assertEqual(
+            (record.backing.device, record.backing.inode),
+            (metadata.st_dev, metadata.st_ino),
+        )
 
     def test_each_record_is_captured_once_for_the_workbench(self) -> None:
         with patch.object(
