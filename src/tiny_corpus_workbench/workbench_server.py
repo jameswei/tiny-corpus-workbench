@@ -439,10 +439,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         )
         empty_body_route = (
             path == "/api/workbench/refresh"
-            or (
-                guided_match is not None
-                and guided_match.group(1) in self.application.guided
-            )
+            or guided_match is not None
             or _lifecycle_action(self.path) is not None
         )
         if empty_body_route:

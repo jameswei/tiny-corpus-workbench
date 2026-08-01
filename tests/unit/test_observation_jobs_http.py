@@ -283,12 +283,31 @@ class ObservationJobHttpTests(unittest.TestCase):
                 method="POST",
                 headers=[("Host", self.harness.authority), ("Content-Length", "0")],
             )
+            unknown_with_query = self.harness.request(
+                "/api/observation-jobs/guided/not-known?extra=value",
+                method="POST",
+                headers=[("Host", self.harness.authority), ("Content-Length", "0")],
+            )
+            unknown_with_body = self.harness.request(
+                "/api/observation-jobs/guided/not-known",
+                method="POST",
+                headers=[("Host", self.harness.authority), ("Content-Length", "1")],
+                body=b"x",
+            )
             removed = self.harness.request(
                 "/api/observation-jobs/guided",
                 method="POST",
                 headers=[("Host", self.harness.authority), ("Content-Length", "0")],
             )
         self.assertEqual(unknown.status, 404)
+        self.assertEqual(unknown_with_query.status, 400)
+        self.assertEqual(
+            json.loads(unknown_with_query.body)["code"], "INVALID_REQUEST"
+        )
+        self.assertEqual(unknown_with_body.status, 400)
+        self.assertEqual(
+            json.loads(unknown_with_body.body)["code"], "INVALID_REQUEST"
+        )
         self.assertEqual(removed.status, 404)
         submit.assert_not_called()
 
