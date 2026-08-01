@@ -19,6 +19,9 @@ The v0.6 through v0.8 sequence deliberately splits the next Workbench
 direction into bounded, independently useful increments. It is not one large
 Webapp implementation milestone.
 
+The current learning curriculum follows lifecycle topics rather than one
+lesson for each product milestone.
+
 ## Milestone overview
 
 | Version | Milestone | Primary outcome |

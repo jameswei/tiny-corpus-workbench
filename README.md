@@ -83,10 +83,12 @@ service.
 | [v0.5.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.5.0) | Local Visual Workbench |
 | [v0.6.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.6.0) | Shared Workbench Workspace |
 | [v0.7.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.7.0) | Web Observation Workflow |
+| [v0.8.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.8.0) | Interactive Document Lifecycle |
 
-This checkout prepares [v0.8.0](docs/releases/v0.8.0.md), **Interactive
-Document Lifecycle**. The `v0.8.0` tag and GitHub Release are not claimed here.
-GitHub Releases owns publication state.
+This checkout identifies version `0.8.1`. It keeps the v0.8 product behavior
+and organizes the learning curriculum by lifecycle topic. Use
+[GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases)
+for current publication availability.
 
 ## One-time setup
 
@@ -239,14 +241,11 @@ Start with the project-authored CC0 fixtures before using private documents.
 The [learning hub](learning/README.md) provides lessons for the complete
 lifecycle:
 
-1. [observe extraction](learning/v0.1-extraction-observatory.md)
-2. [diagnose evidence](learning/v0.2-evidence-based-diagnosis.md)
-3. [control revisions](learning/v0.3-controlled-revisions.md)
-4. [compare an explicit corpus](learning/v0.4-corpus-inspection-comparison.md)
-5. [explore records in the Local Visual Workbench](learning/v0.5-local-visual-workbench.md)
-6. [refresh a shared Workbench workspace](learning/v0.6-shared-workbench-workspace.md)
-7. [observe a document in the browser](learning/v0.7-web-observation-workflow.md)
-8. [complete a document lifecycle in the browser](learning/v0.8-interactive-document-lifecycle.md)
+1. [observe extraction](learning/observe-extraction.md)
+2. [diagnose with evidence](learning/diagnose-with-evidence.md)
+3. [control a document revision](learning/control-document-revision.md)
+4. [inspect an explicit corpus](learning/inspect-a-corpus.md)
+5. [complete the document lifecycle](learning/complete-document-lifecycle.md)
 
 Use the deeper guides for exact behavior:
 
