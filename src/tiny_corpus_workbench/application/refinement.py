@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,20 @@ def draft_refinement(
     return _domain_callable("draft_refinement")(
         diagnosis_root, finding_id, base_root, output
     )
+
+
+def supported_refiner(rule_id: str) -> dict[str, str] | None:
+    """Return one current domain refiner capability without duplicating its catalog."""
+
+    try:
+        from tiny_corpus_workbench.v03 import REFINERS
+
+        value = REFINERS.get(rule_id)
+    except Exception as error:
+        raise RuntimeContractError(
+            "bundled refinement catalog is unavailable or incompatible"
+        ) from error
+    return copy.deepcopy(value) if value is not None else None
 
 
 def resolve_refinement(
@@ -103,6 +118,7 @@ __all__ = [
     "draft_refinement",
     "published_refinement_line",
     "resolve_refinement",
+    "supported_refiner",
     "verify_refinement",
     "verify_refinement_command",
 ]

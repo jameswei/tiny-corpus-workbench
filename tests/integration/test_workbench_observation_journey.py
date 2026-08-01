@@ -65,7 +65,7 @@ class WorkbenchObservationJourneyTests(unittest.TestCase):
         self.assertIn("markitdown-markdown", artifact_roles)
 
     def test_guided_and_uploaded_markdown_publish_refresh_and_select(self) -> None:
-        guided = self.submit("/api/observation-jobs/guided")
+        guided = self.submit("/api/observation-jobs/guided/policy-memo-md")
         self.assertEqual(guided.status, 202)
         guided_job = self.wait_for_terminal()
         self.assertEqual(guided_job["state"], "COMPLETED")
@@ -102,7 +102,7 @@ class WorkbenchObservationJourneyTests(unittest.TestCase):
             "refresh",
             return_value=RefreshResult(False, "candidate records are invalid"),
         ):
-            accepted = self.submit("/api/observation-jobs/guided")
+            accepted = self.submit("/api/observation-jobs/guided/policy-memo-md")
             self.assertEqual(accepted.status, 202)
             terminal = self.wait_for_terminal()
 

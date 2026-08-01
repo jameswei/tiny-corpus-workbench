@@ -16,8 +16,9 @@ raw source
 ```
 
 The project makes each step inspectable. It preserves raw evidence, separates
-findings from authority, and records reversible changes. Corpus reports and the
-Local Visual Workbench help you inspect the same evidence at different scales.
+findings from authority, and records reversible changes. The Local Visual
+Workbench guides one document through this lifecycle without JSON editing.
+Corpus reports help you inspect the same evidence at a larger scale.
 
 Visit the [project website](https://lifeplayer.space/tiny-corpus-workbench/) for
 a concise overview.
@@ -57,13 +58,19 @@ The `corpus` CLI provides every lifecycle command and verification command:
 | Verify a corpus | `corpus verify-corpus` |
 | Open a shared local workspace | `corpus workbench` |
 
-The Local Visual Workbench is the bundled browser interface. It can observe
-the guided policy memo or one uploaded `.docx`, `.md`, `.pdf`, or `.txt` file.
-Published records stay immutable. The Workbench binds only to `127.0.0.1` and
-discovers records in one fixed-layout workspace. Automatic and manual refresh
-accept only a complete verified snapshot. Its loopback HTTP routes are an
-internal bridge for the bundled HTML, CSS, and JavaScript. They are not a
-public API. The project provides no hosted document-processing service.
+The Local Visual Workbench is the bundled browser interface. It can observe a
+guided example or one uploaded `.docx`, `.md`, `.pdf`, or `.txt` file. It shows
+workspace verification, diagnoses eligible documents, previews supported
+proposals, and records an explicit approval or rejection. Approved refinements
+remain immutable and expose revision and reversal evidence. The optional CLI
+can continue the same record workflow.
+
+The Workbench binds only to `127.0.0.1` and trusts the local user and local
+processes. A process-local action token helps the bundled interface reject
+ordinary cross-origin form submissions; it is not authentication. Internal
+loopback routes and draft locations are current implementation details, not
+public compatibility contracts. The project provides no hosted processing
+service.
 
 ## Released milestones
 
@@ -76,6 +83,10 @@ public API. The project provides no hosted document-processing service.
 | [v0.5.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.5.0) | Local Visual Workbench |
 | [v0.6.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.6.0) | Shared Workbench Workspace |
 | [v0.7.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.7.0) | Web Observation Workflow |
+
+This checkout prepares [v0.8.0](docs/releases/v0.8.0.md), **Interactive
+Document Lifecycle**. The `v0.8.0` tag and GitHub Release are not claimed here.
+GitHub Releases owns publication state.
 
 ## One-time setup
 
@@ -155,8 +166,13 @@ corpus workbench --no-open
 
 Open the printed local address. Stop the server with `Ctrl-C`.
 
-In the browser, select **Observe policy memo** for the model-free guided path.
-You can also select one supported local document up to 32 MiB. The browser
+In the browser, select **Start whitespace lifecycle** for the complete
+model-free path. Inspect the verified observation, diagnose it, create the
+D009 whitespace proposal, and choose **Approve proposal** or **Reject
+proposal**. The browser shows named findings, the R001 refiner, and a readable
+preview. It does not require proposal JSON editing.
+
+You can also observe one supported local document up to 32 MiB. The browser
 shows source metadata but does not display or serve the uploaded original.
 
 ## Records and their roles
@@ -230,6 +246,7 @@ lifecycle:
 5. [explore records in the Local Visual Workbench](learning/v0.5-local-visual-workbench.md)
 6. [refresh a shared Workbench workspace](learning/v0.6-shared-workbench-workspace.md)
 7. [observe a document in the browser](learning/v0.7-web-observation-workflow.md)
+8. [complete a document lifecycle in the browser](learning/v0.8-interactive-document-lifecycle.md)
 
 Use the deeper guides for exact behavior:
 

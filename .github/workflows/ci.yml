@@ -34,6 +34,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Node.js for bundled UI tests
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.1"
+
       - name: Set up uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
@@ -56,7 +61,9 @@ jobs:
           fi
 
       - name: Run unit tests
-        run: uv run --frozen --group test python -m unittest discover -s tests/unit -v
+        run: |
+          node --version
+          uv run --frozen --group test python -m unittest discover -s tests/unit -v
 
       - name: Run model-free workflow and workbench integrations
         run: >-
@@ -64,6 +71,7 @@ jobs:
           tests.integration.test_v05_workflows
           tests.integration.test_workbench_integration
           tests.integration.test_workbench_observation_journey
+          tests.integration.test_workbench_lifecycle_journey
 
       - name: Validate bundled workbench UI assets
         run: >-
@@ -187,11 +195,10 @@ jobs:
       - name: Verify installed CLI
         run: uv run --frozen corpus --version
 
-      - name: Run model-free lifecycle and guided Web observation smoke
+      - name: Run installed-runtime whitespace lifecycle smoke
         run: >-
           uv run --frozen python -m unittest -v
-          tests.integration.test_v05_workflows
-          tests.integration.test_web_observation_smoke
+          tests.integration.test_web_lifecycle_smoke
 
       - name: Check post-smoke working tree
         run: |

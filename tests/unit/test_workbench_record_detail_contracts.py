@@ -26,6 +26,8 @@ FINDING_FIELDS = {
     "severity",
     "document_refs",
     "evidence",
+    "refiner",
+    "proposal_action",
 }
 FORBIDDEN = {
     "schema_version",

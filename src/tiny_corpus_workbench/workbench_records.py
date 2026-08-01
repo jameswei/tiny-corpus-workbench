@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
@@ -75,6 +76,8 @@ ALLOWED_MEDIA = {"application/json", "text/markdown"}
 @dataclass(frozen=True)
 class Backing:
     root: Path
+    device: int | None = None
+    inode: int | None = None
     containing_corpus_key: str | None = None
     member_id: str | None = None
     descriptor_path: str | None = None
@@ -212,6 +215,8 @@ def _safe_path(root: Path, relative: object) -> Path:
 @dataclass(frozen=True)
 class _AdmissionCapture:
     canonical_root: str
+    root_device: int
+    root_inode: int
     manifest_name: str
     manifest: dict[str, Any]
     manifest_bytes: bytes
@@ -249,8 +254,11 @@ def _record_manifest(root: Path) -> tuple[str, str]:
 def _capture_record(root: Path, kind: str, name: str) -> _AdmissionCapture:
     try:
         canonical_root = root.resolve(strict=True)
+        root_metadata = canonical_root.stat()
     except OSError as error:
         raise IntegrityError("record root is unavailable") from error
+    if not stat.S_ISDIR(root_metadata.st_mode):
+        raise IntegrityError("record root is unavailable")
     if ROOTS[name][0] != kind:
         raise IntegrityError("record kind changed during admission")
 
@@ -289,6 +297,8 @@ def _capture_record(root: Path, kind: str, name: str) -> _AdmissionCapture:
         )
     return _AdmissionCapture(
         canonical_root=os.fspath(canonical_root),
+        root_device=root_metadata.st_dev,
+        root_inode=root_metadata.st_ino,
         manifest_name=name,
         manifest=manifest,
         manifest_bytes=raw,
@@ -396,6 +406,16 @@ def admit_record(
     capture = _capture_record(root, kind, name)
     _verify_intrinsic(kind, root)
     canonical_root = Path(capture.canonical_root)
+    try:
+        after = canonical_root.stat()
+    except OSError as error:
+        raise IntegrityError("record root changed during admission") from error
+    if (
+        not stat.S_ISDIR(after.st_mode)
+        or after.st_dev != capture.root_device
+        or after.st_ino != capture.root_inode
+    ):
+        raise IntegrityError("record root changed during admission")
     before = capture.manifest_bytes
     manifest = capture.manifest
     _, schema, _ = ROOTS[name]
@@ -409,10 +429,17 @@ def admit_record(
     listed = _listed_descriptors(kind, manifest)
     captured = dict(capture.listed)
     canonical_backing = (
-        Backing(root=canonical_root, top_level=True)
+        Backing(
+            root=canonical_root,
+            device=capture.root_device,
+            inode=capture.root_inode,
+            top_level=True,
+        )
         if backing is None
         else Backing(
             root=canonical_root,
+            device=capture.root_device,
+            inode=capture.root_inode,
             containing_corpus_key=backing.containing_corpus_key,
             member_id=backing.member_id,
             descriptor_path=backing.descriptor_path,

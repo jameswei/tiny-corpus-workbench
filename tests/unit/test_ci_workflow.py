@@ -12,10 +12,10 @@ FAST_MODULES = {
     "tests.integration.test_v05_workflows",
     "tests.integration.test_workbench_integration",
     "tests.integration.test_workbench_observation_journey",
+    "tests.integration.test_workbench_lifecycle_journey",
 }
 MAIN_SMOKE_MODULES = {
-    "tests.integration.test_v05_workflows",
-    "tests.integration.test_web_observation_smoke",
+    "tests.integration.test_web_lifecycle_smoke",
 }
 FULL_MODULES = {
     "tests.compatibility.test_extractor_compatibility",
@@ -33,6 +33,10 @@ FAST_TOOLS = {
     "tools/verify_corpus_specs.py",
     "tools/verify_checkout_portability.py",
 }
+SETUP_NODE = (
+    "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0"
+)
+NODE_VERSION = 'node-version: "24.18.1"'
 
 
 def _job(workflow: str, name: str) -> str:
@@ -46,6 +50,15 @@ def _job(workflow: str, name: str) -> str:
 
 def _explicit_test_modules(job: str) -> set[str]:
     return set(re.findall(r"\btests\.(?:compatibility|integration)\.[a-z0-9_]+\b", job))
+
+
+def _step(job: str, name: str) -> str:
+    marker = f"      - name: {name}\n"
+    start = job.index(marker)
+    remainder = job[start + len(marker) :]
+    next_step = re.search(r"(?m)^      - name: ", remainder)
+    end = start + len(marker) + next_step.start() if next_step else len(job)
+    return job[start:end]
 
 
 class CIWorkflowTests(unittest.TestCase):
@@ -77,11 +90,39 @@ class CIWorkflowTests(unittest.TestCase):
         self.assertEqual(self.fast.count("tools/verify_checkout_portability.py"), 1)
         self.assertIn("python -m compileall -q src tests tools", self.fast)
 
+    def test_fast_pins_node_and_requires_it_before_dynamic_ui_tests(self) -> None:
+        setup_step = _step(self.fast, "Set up Node.js for bundled UI tests")
+        unit_step = _step(self.fast, "Run unit tests")
+
+        expected_setup = (
+            f"        uses: {SETUP_NODE}\n"
+            "        with:\n"
+            f"          {NODE_VERSION}\n"
+        )
+        self.assertIn(expected_setup, setup_step)
+        self.assertEqual(setup_step.count(SETUP_NODE), 1)
+        self.assertEqual(setup_step.count(NODE_VERSION), 1)
+        self.assertEqual(self.fast.count(SETUP_NODE), 1)
+        self.assertEqual(self.fast.count(NODE_VERSION), 1)
+        self.assertLess(self.fast.index(setup_step), self.fast.index(unit_step))
+        self.assertIn("node --version", unit_step)
+        self.assertLess(
+            unit_step.index("node --version"),
+            unit_step.index("unittest discover -s tests/unit -v"),
+        )
+        for other_job in (self.full, self.main):
+            self.assertNotIn("actions/setup-node@", other_job)
+            self.assertNotIn(NODE_VERSION, other_job)
+            self.assertNotIn("node --version", other_job)
+
     def test_full_runs_only_model_dependent_test_modules(self) -> None:
         self.assertEqual(_explicit_test_modules(self.full), FULL_MODULES)
         self.assertNotIn("unittest discover", self.full)
         self.assertNotIn("tests.integration.test_v05_workflows", self.full)
         self.assertNotIn("tests.integration.test_workbench_integration", self.full)
+        self.assertNotIn(
+            "tests.integration.test_workbench_lifecycle_journey", self.full
+        )
         for tool in FAST_TOOLS:
             with self.subTest(tool=tool):
                 self.assertNotIn(tool, self.full)

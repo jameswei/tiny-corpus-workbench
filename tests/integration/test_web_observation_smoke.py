@@ -15,7 +15,7 @@ class GuidedWebObservationSmokeTests(unittest.TestCase):
             harness = ServerHarness(workspace=Path(directory) / "workspace")
             try:
                 accepted = harness.request(
-                    "/api/observation-jobs/guided",
+                    "/api/observation-jobs/guided/policy-memo-md",
                     method="POST",
                     headers=[
                         ("Host", harness.authority),

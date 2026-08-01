@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Callable
 
 from tiny_corpus_workbench.application.observation import observe
+from tiny_corpus_workbench.application.mutation_coordinator import (
+    MutationBusyError,
+    MutationCoordinator,
+    MutationLease,
+)
 from tiny_corpus_workbench.application.workbench import WorkbenchState
 from tiny_corpus_workbench.domain import (
     InputError,
@@ -81,12 +86,16 @@ class ObservationJobManager:
         model_root: str | os.PathLike[str],
         *,
         observe_service: ObserveCallable = observe,
+        coordinator: MutationCoordinator | None = None,
     ) -> None:
         self.state = state
         self.model_root = Path(model_root)
         self._observe = observe_service
+        self.coordinator = coordinator or MutationCoordinator()
         self._lock = threading.Lock()
-        self._queue: queue.Queue[tuple[ObservationJob, Path] | None] = queue.Queue(
+        self._queue: queue.Queue[
+            tuple[ObservationJob, Path, MutationLease] | None
+        ] = queue.Queue(
             maxsize=1
         )
         self._latest: ObservationJob | None = None
@@ -119,18 +128,28 @@ class ObservationJobManager:
                 "RUNNING",
             }:
                 raise ObservationBusyError("one observation is already active")
-            job = ObservationJob(
-                job_id=uuid.uuid4().hex,
-                state="QUEUED",
-                stage=None,
-                input=input_value,
-                observation=None,
-                refresh=None,
-                error=None,
-            )
-            self._queue.put_nowait((job, source))
-            self._latest = job
-            return job
+            try:
+                lease = self.coordinator.acquire("OBSERVATION")
+            except MutationBusyError as error:
+                raise ObservationBusyError(
+                    "one lifecycle mutation is already active"
+                ) from error
+            try:
+                job = ObservationJob(
+                    job_id=uuid.uuid4().hex,
+                    state="QUEUED",
+                    stage=None,
+                    input=input_value,
+                    observation=None,
+                    refresh=None,
+                    error=None,
+                )
+                self._queue.put_nowait((job, source, lease))
+                self._latest = job
+                return job
+            except Exception:
+                lease.release()
+                raise
 
     def shutdown(self) -> None:
         with self._lock:
@@ -169,12 +188,17 @@ class ObservationJobManager:
             try:
                 if work is None:
                     return
-                job, source = work
-                self._execute(job, source)
+                job, source, lease = work
+                try:
+                    self._execute(job, source, lease)
+                finally:
+                    lease.release()
             finally:
                 self._queue.task_done()
 
-    def _execute(self, job: ObservationJob, source: Path) -> None:
+    def _execute(
+        self, job: ObservationJob, source: Path, lease: MutationLease
+    ) -> None:
         published: Path | None = None
         try:
             def progress(stage: str) -> None:
@@ -201,7 +225,8 @@ class ObservationJobManager:
             )
             refreshed = self.state.refresh()
             if not refreshed.succeeded:
-                self._replace(
+                self._finish(
+                    lease,
                     job.job_id,
                     state="COMPLETED",
                     stage=None,
@@ -214,7 +239,8 @@ class ObservationJobManager:
                 raise IntegrityError(
                     "published observation is absent from the refreshed workspace"
                 )
-            self._replace(
+            self._finish(
+                lease,
                 job.job_id,
                 state="COMPLETED",
                 stage=None,
@@ -227,14 +253,16 @@ class ObservationJobManager:
             )
         except Exception as error:
             if published is not None:
-                self._replace(
+                self._finish(
+                    lease,
                     job.job_id,
                     state="COMPLETED",
                     stage=None,
                     refresh=JobRefresh("FAILED", sanitize_message(error)),
                 )
                 return
-            self._replace(
+            self._finish(
+                lease,
                 job.job_id,
                 state="FAILED",
                 stage=None,
@@ -242,6 +270,16 @@ class ObservationJobManager:
                 refresh=None,
                 error=self._job_error(error),
             )
+
+    def _finish(
+        self,
+        lease: MutationLease,
+        job_id: str,
+        **changes: object,
+    ) -> None:
+        """Release mutation and publish terminal state as one synchronized step."""
+
+        lease.release(lambda: self._replace(job_id, **changes))
 
     def _record_key(self, observation_id: str, run_id: str) -> str | None:
         projection = self.state.projection

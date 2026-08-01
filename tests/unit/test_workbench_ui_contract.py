@@ -72,7 +72,7 @@ class WorkbenchUIContractTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, script)
         self.assertIn(
-            "return `${displayName(record.status)} ${displayName(record.kind)}",
+            "return `${displayName(record.status)} ${displayName(record.kind)} ${shortHash(record.primary_identity.value)} context ${recordContext(record)}`",
             script,
         )
 
@@ -126,6 +126,39 @@ class WorkbenchUIContractTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, script)
 
+    def test_lifecycle_surface_and_local_transport_contract_are_visible(self) -> None:
+        html = (ASSETS / "index.html").read_text("utf-8")
+        script = (ASSETS / "workbench.js").read_text("utf-8")
+        for marker in (
+            'id="document-lifecycle"',
+            'id="lifecycle-heading">Document lifecycle',
+            'id="start-lifecycle"',
+            ">Start whitespace lifecycle<",
+            'id="lifecycle-alert" class="notice" role="alert" tabindex="-1"',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, html)
+        for marker in (
+            'submitObservation(`/guided/${guidedId}`)',
+            'fetch(`${API_ROOT}/lifecycle/action-token`',
+            '"X-TCW-Action-Token": actionToken',
+            "const proposalsByDiagnosis = new Map();",
+            "proposalsByDiagnosis.get(selectedRecord.record_key)",
+            "proposal.diagnosis_record_key",
+            "resolveProposal(proposal, \"approve\")",
+            "The lifecycle action token changed. It was refreshed; choose the action again.",
+            "Verified during workspace admission.",
+            "Diagnosis unavailable · canonical document is not available",
+            "No supported deterministic refiner",
+            "diagnosis subject is not actionable in this workspace",
+            "Continue with the CLI",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, script)
+        for forbidden in ("localStorage", "sessionStorage", "innerHTML", "activeProposal"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, script)
+
     def test_observation_polling_uses_one_fixed_terminal_aware_interval(self) -> None:
         script = (ASSETS / "workbench.js").read_text("utf-8")
         self.assertIn("const OBSERVATION_POLL_INTERVAL_MS = 300;", script)
@@ -161,10 +194,12 @@ function fakeElement(id = "") {
     disabled: false,
     files: [],
     hidden: false,
+    listeners: {},
     textContent: "",
     firstChild: null,
     append(...values) { this.appended.push(...values); },
-    addEventListener() {},
+    addEventListener(type, handler) { this.listeners[type] = handler; },
+    click() { return this.listeners.click && this.listeners.click(); },
     focus() {},
     querySelectorAll() { return []; },
     removeChild() { this.firstChild = null; },
@@ -174,12 +209,13 @@ function fakeElement(id = "") {
 }
 
 const ids = [
-  "announcer", "observe-guided", "observe-upload", "observation-file",
+  "announcer", "observe-guided", "start-lifecycle", "observe-upload", "observation-file",
   "observation-state", "observation-message", "observation-alert",
   "observation-source", "observation-progress", "refresh-records",
   "record-count", "record-list", "record-view", "record-heading", "record-kind",
   "record-state", "record-summary", "record-content", "session-state",
-  "session-message", "session-facts", "state-key",
+  "session-message", "session-facts", "state-key", "lifecycle-state",
+  "lifecycle-message", "lifecycle-alert", "lifecycle-content",
 ];
 const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
 global.Node = class {};
@@ -187,7 +223,9 @@ global.document = {
   createDocumentFragment: () => fakeElement(),
   createElement: () => fakeElement(),
   getElementById: (id) => registry[id],
-  querySelector: () => registry["observation-state"],
+  querySelector: (selector) => selector.startsWith("#document-lifecycle")
+    ? registry["lifecycle-state"]
+    : registry["observation-state"],
 };
 
 let source = fs.readFileSync(process.argv[1], "utf8");
@@ -321,12 +359,13 @@ function fakeElement(id = "") {
 }
 
 const ids = [
-  "announcer", "observe-guided", "observe-upload", "observation-file",
+  "announcer", "observe-guided", "start-lifecycle", "observe-upload", "observation-file",
   "observation-state", "observation-message", "observation-alert",
   "observation-source", "observation-progress", "refresh-records",
   "record-count", "record-list", "record-view", "record-heading", "record-kind",
   "record-state", "record-summary", "record-content", "session-state",
-  "session-message", "session-facts", "state-key",
+  "session-message", "session-facts", "state-key", "lifecycle-state",
+  "lifecycle-message", "lifecycle-alert", "lifecycle-content",
 ];
 const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
 global.Node = class {};
@@ -336,7 +375,9 @@ global.document = {
   getElementById: (id) => registry[id],
   querySelector: (selector) => selector.startsWith("#observation")
     ? registry["observation-state"]
-    : fakeElement(),
+    : selector.startsWith("#document-lifecycle")
+      ? registry["lifecycle-state"]
+      : fakeElement(),
 };
 
 let scheduled = [];
@@ -350,7 +391,10 @@ let source = fs.readFileSync(process.argv[1], "utf8");
 source = source.replace(/\nstart\(\);\s*$/, "");
 source += `
 const capabilities = {
-  guided: {id: "policy-memo-md", name: "policy-memo.md", media_type: "text/markdown"},
+  guided: [
+    {id: "policy-memo-md", name: "policy-memo.md", media_type: "text/markdown"},
+    {id: "whitespace-cleanup-md", name: "whitespace-cleanup.md", media_type: "text/markdown"},
+  ],
   upload: {extensions: [".docx", ".md", ".pdf", ".txt"], max_bytes: 33554432},
 };
 function input(kind = "GUIDED") {
@@ -636,12 +680,13 @@ function fakeElement(id = "") {
 }
 
 const ids = [
-  "announcer", "observe-guided", "observe-upload", "observation-file",
+  "announcer", "observe-guided", "start-lifecycle", "observe-upload", "observation-file",
   "observation-state", "observation-message", "observation-alert",
   "observation-source", "observation-progress", "refresh-records",
   "record-count", "record-list", "record-view", "record-heading", "record-kind",
   "record-state", "record-summary", "record-content", "session-state",
-  "session-message", "session-facts", "state-key",
+  "session-message", "session-facts", "state-key", "lifecycle-state",
+  "lifecycle-message", "lifecycle-alert", "lifecycle-content",
 ];
 const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
 global.Node = class {};
@@ -651,14 +696,19 @@ global.document = {
   getElementById: (id) => registry[id],
   querySelector: (selector) => selector.startsWith("#observation")
     ? registry["observation-state"]
-    : registry["session-state"],
+    : selector.startsWith("#document-lifecycle")
+      ? registry["lifecycle-state"]
+      : registry["session-state"],
 };
 
 let source = fs.readFileSync(process.argv[1], "utf8");
 source = source.replace(/\nstart\(\);\s*$/, "");
 source += `
 const capabilities = {
-  guided: {id: "policy-memo-md", name: "policy-memo.md", media_type: "text/markdown"},
+  guided: [
+    {id: "policy-memo-md", name: "policy-memo.md", media_type: "text/markdown"},
+    {id: "whitespace-cleanup-md", name: "whitespace-cleanup.md", media_type: "text/markdown"},
+  ],
   upload: {extensions: [".docx", ".md", ".pdf", ".txt"], max_bytes: 33554432},
 };
 
@@ -751,6 +801,256 @@ vm.runInThisContext(source, {filename: process.argv[1]});
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
 
+    def test_proposals_are_isolated_by_diagnosis_and_dispatch_once(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is unavailable for the lifecycle state test")
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+
+function fakeElement(id = "") {
+  return {
+    id,
+    appended: [],
+    attributes: {},
+    className: "",
+    dataset: {},
+    disabled: false,
+    hidden: false,
+    listeners: {},
+    textContent: "",
+    firstChild: null,
+    append(...values) { this.appended.push(...values); },
+    addEventListener(type, handler) { this.listeners[type] = handler; },
+    click() { return this.listeners.click && this.listeners.click(); },
+    focus() {},
+    querySelectorAll() { return []; },
+    removeChild() { this.firstChild = null; },
+    replaceWith() {},
+    setAttribute(name, value) { this.attributes[name] = value; },
+  };
+}
+
+const ids = [
+  "announcer", "observe-guided", "start-lifecycle", "observe-upload",
+  "observation-file", "observation-state", "observation-message",
+  "observation-alert", "observation-source", "observation-progress",
+  "refresh-records", "record-count", "record-list", "record-view",
+  "record-heading", "record-kind", "record-state", "record-summary",
+  "record-content", "session-state", "session-message", "session-facts",
+  "state-key", "lifecycle-state", "lifecycle-message", "lifecycle-alert",
+  "lifecycle-content",
+];
+const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
+const navButtons = [fakeElement("nav-a"), fakeElement("nav-b")];
+registry["record-list"].querySelectorAll = () => navButtons;
+global.Node = class {};
+global.document = {
+  createDocumentFragment: () => fakeElement(),
+  createElement: () => fakeElement(),
+  getElementById: (id) => registry[id],
+  querySelector: (selector) => selector.startsWith("#document-lifecycle")
+    ? registry["lifecycle-state"]
+    : fakeElement(),
+};
+
+let source = fs.readFileSync(process.argv[1], "utf8");
+source = source.replace(/\nstart\(\);\s*$/, "");
+source += `
+function proposal(diagnosis, key) {
+  return {
+    draft_key: key,
+    draft_id: "draft-" + key,
+    diagnosis_record_key: diagnosis,
+    base_record_key: "f".repeat(64),
+    finding: {finding_id: "1".repeat(64), rule_id: "D009", summary: "whitespace"},
+    refiner: {refiner_id: "R001", name: "Whitespace normalization", version: "1"},
+    affected_refs: ["#/texts/0"],
+    edits: [{target: {reference: "#/texts/0"}, before: "  before", after: "before"}],
+    cli_continuation: {
+      proposal_path: "/draft.json", diagnosis_path: "/diagnosis",
+      base_path: "/base", output_root_path: "/revisions",
+    },
+  };
+}
+
+(async () => {
+  const a = "a".repeat(64);
+  const b = "b".repeat(64);
+  const keyA = "1".repeat(64);
+  const keyB = "2".repeat(64);
+  actionToken = "token";
+  announce = () => {};
+  let displayed = null;
+  renderDocumentLifecycle = () => {
+    displayed = proposalsByDiagnosis.get(selectedRecordKey) || null;
+  };
+  const urls = [];
+  fetch = async (url) => {
+    urls.push(url);
+    if (url.endsWith("/" + a + "/" + "1".repeat(64))) {
+      return {ok: true, json: async () => ({draft: proposal(a, keyA)})};
+    }
+    if (url.endsWith("/" + b + "/" + "1".repeat(64))) {
+      return {ok: true, json: async () => ({draft: proposal(b, keyB)})};
+    }
+    if (url.endsWith("/" + keyA + "/approve")) {
+      return {ok: true, json: async () => ({
+        publication: {decision: "APPROVED", record_key: null},
+        refresh: {status: "FAILED", message: "candidate rejected"},
+      })};
+    }
+    throw new Error("unexpected URL " + url);
+  };
+
+  selectedRecordKey = a;
+  await createProposal(a, "1".repeat(64));
+  if (displayed === null || displayed.draft_key !== keyA) {
+    throw new Error("proposal A was not displayed in diagnosis A");
+  }
+  selectedRecordKey = b;
+  renderDocumentLifecycle();
+  if (displayed !== null) {
+    throw new Error("proposal A leaked into diagnosis B");
+  }
+  await createProposal(b, "1".repeat(64));
+  if (displayed === null || displayed.draft_key !== keyB) {
+    throw new Error("proposal B was not displayed in diagnosis B");
+  }
+  selectedRecordKey = a;
+  renderDocumentLifecycle();
+  if (displayed === null || displayed.draft_key !== keyA) {
+    throw new Error("returning to diagnosis A did not restore proposal A");
+  }
+
+  let release;
+  fetch = (url) => {
+    urls.push(url);
+    return new Promise((resolve) => {
+      release = () => resolve({ok: true, json: async () => ({draft: proposal(a, keyA)})});
+    });
+  };
+  const pending = createProposal(a, "1".repeat(64));
+  if (!navButtons.every((button) => button.disabled)) {
+    throw new Error("record navigation stayed enabled during a lifecycle POST");
+  }
+  selectedRecordKey = b;
+  release();
+  await pending;
+  if (navButtons.some((button) => button.disabled)) {
+    throw new Error("record navigation stayed disabled after the lifecycle POST");
+  }
+  if (displayed !== proposalsByDiagnosis.get(b)) {
+    throw new Error("the A response overwrote the selected B context");
+  }
+
+  registry["record-list"].appended = [];
+  selectRecord = (record) => {
+    selectedRecordKey = record.record_key;
+    displayed = proposalsByDiagnosis.get(selectedRecordKey) || null;
+    return Promise.resolve(true);
+  };
+  const equivalent = [a, b].map((record_key) => ({
+    record_key,
+    kind: "DIAGNOSIS",
+    status: "FINDINGS",
+    run_id: "same-run",
+    primary_identity: {name: "diagnosis_id", value: "same-identity"},
+    origin: "TOP_LEVEL",
+    artifact_count: 3,
+  }));
+  selectedRecordKey = a;
+  await renderNavigation({records: equivalent}, 0);
+  const renderedButtons = registry["record-list"].appended;
+  if (renderedButtons[0].appended[1].textContent === renderedButtons[1].appended[1].textContent) {
+    throw new Error("equivalent diagnosis navigation labels were identical");
+  }
+  if (renderedButtons[0].attributes["aria-label"] === renderedButtons[1].attributes["aria-label"]) {
+    throw new Error("equivalent diagnosis accessibility names were identical");
+  }
+  await renderedButtons[1].click();
+  if (selectedRecordKey !== b || displayed.draft_key !== keyB) {
+    throw new Error("diagnosis B navigation did not select and restore proposal B");
+  }
+  await renderedButtons[0].click();
+  if (selectedRecordKey !== a || displayed.draft_key !== keyA) {
+    throw new Error("returning through navigation did not restore proposal A");
+  }
+
+  fetch = async (url) => {
+    urls.push(url);
+    return {ok: true, json: async () => ({
+      publication: {decision: "APPROVED", record_key: null},
+      refresh: {status: "FAILED", message: "candidate rejected"},
+    })};
+  };
+  const explicitA = proposalsByDiagnosis.get(a);
+  const explicitB = proposalsByDiagnosis.get(b);
+  await resolveProposal(explicitA, "approve");
+  await resolveProposal(explicitA, "approve");
+  await resolveProposal(explicitB, "reject");
+  const resolutionUrls = urls.filter((url) => url.endsWith("/" + keyA + "/approve"));
+  if (resolutionUrls.length !== 1) {
+    throw new Error("a dispatched draft resolved more than once");
+  }
+  if (urls.filter((url) => url.endsWith("/" + keyB + "/reject")).length !== 1) {
+    throw new Error("diagnosis B did not resolve with proposal B's draft key");
+  }
+
+  const tokenKey = "3".repeat(64);
+  const tokenProposal = proposal(a, tokenKey);
+  actionToken = "stale";
+  let mutationAttempts = 0;
+  let tokenFetches = 0;
+  const rejectedUrls = [];
+  fetch = async (url) => {
+    if (url.endsWith("/lifecycle/action-token")) {
+      tokenFetches += 1;
+      return {ok: true, json: async () => ({action_token: "fresh"})};
+    }
+    mutationAttempts += 1;
+    rejectedUrls.push(url);
+    return {ok: false, status: 403, json: async () => ({
+      code: "ACTION_TOKEN_INVALID", message: "invalid token",
+    })};
+  };
+  await resolveProposal(tokenProposal, "approve");
+  if (
+    mutationAttempts !== 1
+    || tokenFetches !== 1
+    || actionToken !== "fresh"
+    || dispatchedDraftKeys.has(tokenKey)
+    || !rejectedUrls[0].endsWith("/" + tokenKey + "/approve")
+  ) {
+    throw new Error("token recovery replayed a mutation or failed to refresh the token");
+  }
+  fetch = async (url) => {
+    urls.push(url);
+    return {ok: true, json: async () => ({
+      publication: {decision: "APPROVED", record_key: null},
+      refresh: {status: "FAILED", message: "candidate rejected"},
+    })};
+  };
+  await resolveProposal(tokenProposal, "approve");
+  if (urls.filter((url) => url.endsWith("/" + tokenKey + "/approve")).length !== 1) {
+    throw new Error("the second explicit click did not use the same exact draft key");
+  }
+})().catch((error) => {
+  process.stderr.write(error.stack + "\\n");
+  process.exitCode = 1;
+});
+`;
+vm.runInThisContext(source, {filename: process.argv[1]});
+"""
+        completed = subprocess.run(
+            [node, "-e", harness, str(ASSETS / "workbench.js")],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def test_reordered_detail_responses_cannot_replace_active_selection(self) -> None:
         node = shutil.which("node")
         if node is None:
@@ -782,7 +1082,8 @@ const ids = [
   "announcer", "refresh-records", "record-count", "record-list", "record-view",
   "record-heading", "record-kind", "record-state", "record-summary",
   "record-content", "session-state", "session-message", "session-facts",
-  "state-key",
+  "state-key", "lifecycle-state", "lifecycle-message", "lifecycle-alert",
+  "lifecycle-content",
 ];
 const registry = Object.fromEntries(ids.map((id) => [id, fakeElement(id)]));
 global.Node = class {};
