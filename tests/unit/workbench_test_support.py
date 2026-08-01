@@ -167,7 +167,7 @@ class PublishedRefinements:
         finding_id = next(
             item["finding_id"]
             for item in findings["findings"]
-            if item["rule_id"] == "TCW-D009"
+            if item["rule_id"] == "D009"
         )
         self.applied = self._resolve(finding_id, "APPROVED", "applied")
         self.rejected = self._resolve(finding_id, "REJECTED", "rejected")
@@ -231,7 +231,7 @@ class PublishedChain:
         )
         self.observation = Path(observed["manifest"]).parent
         first_diagnosis = self._diagnose(self.observation, "diagnosis-1")
-        first_finding = self._finding(first_diagnosis, "TCW-D009")
+        first_finding = self._finding(first_diagnosis, "D009")
         self.first = self._resolve(
             first_diagnosis,
             self.observation,
@@ -239,7 +239,7 @@ class PublishedChain:
             "revision-1",
         )
         second_diagnosis = self._diagnose(self.first, "diagnosis-2")
-        second_finding = self._finding(second_diagnosis, "TCW-D010")
+        second_finding = self._finding(second_diagnosis, "D010")
         self.second = self._resolve(
             second_diagnosis,
             self.first,

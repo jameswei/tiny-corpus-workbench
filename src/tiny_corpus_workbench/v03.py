@@ -62,18 +62,18 @@ V03_RULES = CURRENT_RULES
 RULESET = CURRENT_RULESET
 RULESET_PARAMETER_HASH = CURRENT_RULESET_PARAMETER_HASH
 REFINERS = {
-    "TCW-D009": {
-        "refiner_id": "TCW-R001",
+    "D009": {
+        "refiner_id": "R001",
         "name": "WHITESPACE_NORMALIZATION",
         "version": "1",
     },
-    "TCW-D007": {
-        "refiner_id": "TCW-R002",
+    "D007": {
+        "refiner_id": "R002",
         "name": "REPEATED_BOILERPLATE_REMOVAL",
         "version": "1",
     },
-    "TCW-D010": {
-        "refiner_id": "TCW-R003",
+    "D010": {
+        "refiner_id": "R003",
         "name": "DETERMINISTIC_DEHYPHENATION",
         "version": "1",
     },
@@ -92,7 +92,7 @@ DIAGNOSIS_ARTIFACTS = {
 }
 V03_FINDING_METADATA = {
     rule_id: CURRENT_FINDING_METADATA[rule_id]
-    for rule_id in ("TCW-D009", "TCW-D010")
+    for rule_id in ("D009", "D010")
 }
 
 
@@ -582,7 +582,7 @@ def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
                 "normalized_text_sha256": _hash(normalized),
             }
             evidence.update({key: target[key] for key in ("row", "column") if key in target})
-            findings.append(_v3_finding(provisional_id, "TCW-D009", target, evidence))
+            findings.append(_v3_finding(provisional_id, "D009", target, evidence))
         matches = _hyphen_matches(value)
         if matches:
             repaired = _repair_hyphenation(value)
@@ -595,7 +595,7 @@ def make_finding_set(subject: dict[str, Any]) -> dict[str, Any]:
                 "repaired_text_sha256": _hash(repaired),
             }
             evidence.update({key: target[key] for key in ("row", "column") if key in target})
-            findings.append(_v3_finding(provisional_id, "TCW-D010", target, evidence))
+            findings.append(_v3_finding(provisional_id, "D010", target, evidence))
     findings = _canonicalize_findings(findings)
     ruleset = {**RULESET, "parameter_sha256": RULESET_PARAMETER_HASH}
     diagnosis_id = _diagnosis_identity(
@@ -832,7 +832,7 @@ def _proposal(
     if refiner is None:
         raise InputError("finding has no v0.5 refiner")
     edits = []
-    if finding["rule_id"] in {"TCW-D009", "TCW-D010"}:
+    if finding["rule_id"] in {"D009", "D010"}:
         target = _target(
             base["payload"], finding["document_refs"][0], finding["evidence"]
         )
@@ -841,12 +841,12 @@ def _proposal(
             raise IntegrityError("finding target is stale")
         after = (
             _normalize_whitespace(before)
-            if finding["rule_id"] == "TCW-D009"
+            if finding["rule_id"] == "D009"
             else _repair_hyphenation(before)
         )
         expected_hash = finding["evidence"][
             "normalized_text_sha256"
-            if finding["rule_id"] == "TCW-D009"
+            if finding["rule_id"] == "D009"
             else "repaired_text_sha256"
         ]
         if before == after or _hash(before) != finding["evidence"]["original_text_sha256"] or _hash(after) != expected_hash:

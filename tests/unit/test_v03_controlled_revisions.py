@@ -85,6 +85,28 @@ def docling_with_repeated_margins(source: Path, destination: Path, model_root: P
 
 
 class ControlledRevisionTests(unittest.TestCase):
+    def test_refiner_identifiers_and_rule_mappings_are_exact(self) -> None:
+        self.assertEqual(
+            v03_module.REFINERS,
+            {
+                "D009": {
+                    "refiner_id": "R001",
+                    "name": "WHITESPACE_NORMALIZATION",
+                    "version": "1",
+                },
+                "D007": {
+                    "refiner_id": "R002",
+                    "name": "REPEATED_BOILERPLATE_REMOVAL",
+                    "version": "1",
+                },
+                "D010": {
+                    "refiner_id": "R003",
+                    "name": "DETERMINISTIC_DEHYPHENATION",
+                    "version": "1",
+                },
+            },
+        )
+
     def invoke(self, *arguments: str) -> tuple[int, str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
@@ -349,13 +371,13 @@ class ControlledRevisionTests(unittest.TestCase):
         self.assertEqual(first, second)
         by_rule = {
             rule: [item for item in first["findings"] if item["rule_id"] == rule]
-            for rule in ("TCW-D009", "TCW-D010")
+            for rule in ("D009", "D010")
         }
-        self.assertEqual(len(by_rule["TCW-D009"]), 1)
-        self.assertEqual(len(by_rule["TCW-D010"]), 1)
+        self.assertEqual(len(by_rule["D009"]), 1)
+        self.assertEqual(len(by_rule["D010"]), 1)
         self.assertEqual(
-            by_rule["TCW-D009"][0]["evidence"]["code_point_offsets"],
-            sorted(by_rule["TCW-D009"][0]["evidence"]["code_point_offsets"]),
+            by_rule["D009"][0]["evidence"]["code_point_offsets"],
+            sorted(by_rule["D009"][0]["evidence"]["code_point_offsets"]),
         )
         self.assertEqual(
             _normalize_whitespace(" a\u00a0  b\r\n c "),
@@ -371,7 +393,7 @@ class ControlledRevisionTests(unittest.TestCase):
         finding = next(
             item
             for item in make_finding_set(subject)["findings"]
-            if item["rule_id"] == "TCW-D009"
+            if item["rule_id"] == "D009"
         )
         self.assertEqual(
             finding["evidence"]["code_point_offsets"],
@@ -389,8 +411,8 @@ class ControlledRevisionTests(unittest.TestCase):
                     item["rule_id"]
                     for item in make_finding_set(subject)["findings"]
                 ]
-                self.assertNotIn("TCW-D009", rules)
-                self.assertNotIn("TCW-D010", rules)
+                self.assertNotIn("D009", rules)
+                self.assertNotIn("D010", rules)
 
     def test_d010_boundaries_unicode_and_blank_lines(self) -> None:
         cases = {
@@ -416,7 +438,7 @@ class ControlledRevisionTests(unittest.TestCase):
                     item["rule_id"]
                     for item in make_finding_set(subject)["findings"]
                 }
-                self.assertEqual("TCW-D010" in rules, expected)
+                self.assertEqual("D010" in rules, expected)
 
     def test_d009_and_d010_cover_table_cells_with_coordinates(self) -> None:
         document = DoclingDocument(name="table-cells")
@@ -443,10 +465,10 @@ class ControlledRevisionTests(unittest.TestCase):
         findings = [
             item
             for item in make_finding_set(subject)["findings"]
-            if item["rule_id"] in {"TCW-D009", "TCW-D010"}
+            if item["rule_id"] in {"D009", "D010"}
             and item["document_refs"] == ["#/tables/0"]
         ]
-        self.assertEqual([item["rule_id"] for item in findings], ["TCW-D009", "TCW-D010"])
+        self.assertEqual([item["rule_id"] for item in findings], ["D009", "D010"])
         self.assertTrue(
             all(
                 item["evidence"]["row"] == 0
@@ -625,9 +647,9 @@ class ControlledRevisionTests(unittest.TestCase):
 
     def test_all_refiners_replay_forward_and_inverse_edits(self) -> None:
         cases = (
-            ("TCW-D009", docling_with_refinements, SOURCE),
-            ("TCW-D010", docling_with_refinements, SOURCE),
-            ("TCW-D007", docling_with_repeated_margins, PDF_SOURCE),
+            ("D009", docling_with_refinements, SOURCE),
+            ("D010", docling_with_refinements, SOURCE),
+            ("D007", docling_with_repeated_margins, PDF_SOURCE),
         )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -694,7 +716,7 @@ class ControlledRevisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
-                root / "base", "TCW-D009"
+                root / "base", "D009"
             )
             forged = self.copy_record(revision, root / "forged")
             proposal = json.loads(
@@ -796,7 +818,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding_id = next(
                 item["finding_id"]
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             rejected_draft = root / "rejected.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -871,7 +893,7 @@ class ControlledRevisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
-                root / "base", "TCW-D009"
+                root / "base", "D009"
             )
             for operation in (
                 "artifact-role",
@@ -943,7 +965,7 @@ class ControlledRevisionTests(unittest.TestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            _, _, revision = self.approve_rule(root / "base", "TCW-D009")
+            _, _, revision = self.approve_rule(root / "base", "D009")
 
             def assert_broken(record: Path) -> None:
                 result = verify_refinement(record)
@@ -973,7 +995,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 (
                     "refiner-descriptor",
                     {
-                        "refiner_id": "TCW-R001",
+                        "refiner_id": "R001",
                         "name": "DETERMINISTIC_DEHYPHENATION",
                         "version": "1",
                     },
@@ -981,7 +1003,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 (
                     "proposal-refiner",
                     {
-                        "refiner_id": "TCW-R003",
+                        "refiner_id": "R003",
                         "name": "DETERMINISTIC_DEHYPHENATION",
                         "version": "1",
                     },
@@ -1064,11 +1086,11 @@ class ControlledRevisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             _, _, text_revision = self.approve_rule(
-                root / "text-base", "TCW-D009"
+                root / "text-base", "D009"
             )
             _, _, membership_revision = self.approve_rule(
                 root / "membership-base",
-                "TCW-D007",
+                "D007",
                 converter=docling_with_repeated_margins,
                 source=PDF_SOURCE,
             )
@@ -1173,7 +1195,7 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
             finding = next(
-                item for item in findings["findings"] if item["rule_id"] == "TCW-D009"
+                item for item in findings["findings"] if item["rule_id"] == "D009"
             )
             draft = root / "rejected.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -1209,7 +1231,7 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
             finding = next(
-                item for item in findings["findings"] if item["rule_id"] == "TCW-D009"
+                item for item in findings["findings"] if item["rule_id"] == "D009"
             )
             draft = root / "approved.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -1247,7 +1269,7 @@ class ControlledRevisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
-                root / "base", "TCW-D009"
+                root / "base", "D009"
             )
             for operation in (
                 "manifest-hash",
@@ -1295,7 +1317,7 @@ class ControlledRevisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
-                root / "base", "TCW-D009"
+                root / "base", "D009"
             )
             manifest = json.loads(
                 (revision / "refinement-manifest.json").read_text("utf-8")
@@ -1316,7 +1338,7 @@ class ControlledRevisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
-                root / "base", "TCW-D009"
+                root / "base", "D009"
             )
             missing_diagnosis = verify_refinement(
                 revision, root / "missing-diagnosis", observation
@@ -1407,7 +1429,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding = next(
                 item
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             finding["evidence"]["original_text_sha256"] = "f" * 64
             findings["diagnosis_id"] = _diagnosis_identity(
@@ -1470,7 +1492,7 @@ class ControlledRevisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, first = self.approve_rule(
-                root / "base", "TCW-D009"
+                root / "base", "D009"
             )
             second_diagnosis = cli._diagnosis_callable("v03", "diagnose")(
                 first, root / "second-diagnosis"
@@ -1479,7 +1501,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 root / "second",
                 second_diagnosis,
                 first,
-                "TCW-D010",
+                "D010",
             )
             baseline = verify_refinement(second, second_diagnosis, first)
             self.assertEqual(baseline.artifact_integrity.status, "VERIFIED")
@@ -1526,7 +1548,7 @@ class ControlledRevisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             observation, diagnosis, revision = self.approve_rule(
-                root / "base", "TCW-D009"
+                root / "base", "D009"
             )
 
             cases = []
@@ -1607,7 +1629,7 @@ class ControlledRevisionTests(unittest.TestCase):
                 root / "second",
                 second_diagnosis,
                 revision,
-                "TCW-D010",
+                "D010",
             )
             unsupported_parent = self.copy_record(
                 revision, root / "unsupported-parent"
@@ -1680,7 +1702,7 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
             finding = next(
-                item for item in findings["findings"] if item["rule_id"] == "TCW-D009"
+                item for item in findings["findings"] if item["rule_id"] == "D009"
             )
             draft = root / "approved.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -1787,7 +1809,7 @@ class ControlledRevisionTests(unittest.TestCase):
             )
             findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
             whitespace = next(
-                item for item in findings["findings"] if item["rule_id"] == "TCW-D009"
+                item for item in findings["findings"] if item["rule_id"] == "D009"
             )
             draft = root / "whitespace-proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -1841,7 +1863,7 @@ class ControlledRevisionTests(unittest.TestCase):
             findings2 = json.loads((diagnosis2 / "findings.json").read_text("utf-8"))
             self.assertEqual(findings2["subject"]["kind"], "REVISION")
             dehyphenation = next(
-                item for item in findings2["findings"] if item["rule_id"] == "TCW-D010"
+                item for item in findings2["findings"] if item["rule_id"] == "D010"
             )
             rejected_draft = root / "rejected-proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -1986,25 +2008,25 @@ class ControlledRevisionTests(unittest.TestCase):
                 "6ae5cbdcd09b2a34c616a850957c8e5a4806a92574940475eec7af62aa6c2e2d"
             )
             findings_sha256 = (
-                "673b0186477f9532c59bad66e326e7df355708f7d08ad850aefe91ef12f360de"
+                "4cbbfebc681e222bae7f425e0df72239cf53a6123162090b95e346c5f97d93ef"
             )
             proposal_sha256 = (
-                "486aa027a33293db3c170358ed5a4f3bd0cde4f5d7e3a867c7fe2019204324ce"
+                "a871fb4b42b79db2236b5fe83b40f9b2f88167c9589da61f62686113e8d71615"
             )
             origin_id = (
                 "a3a83013f87635a1137c4409e69495da63f2ad0a725011292455bc99deecee62"
             )
             diagnosis_id = (
-                "c6f934520fe521ca0d8e2582e2ad870d95baddf38bd9d18bf211654cdf3c3c4c"
+                "e4cd828c7905d941f9eb9be88bf747c62ec2e45212a9bd5c5662e43d8e23668f"
             )
             finding_id = (
-                "621ed7d0ad23e8c9156d9a92491ad57b6cedc26ec4531727efdccbe464ec1ae7"
+                "f108ebb9d0097c0664f0a976d3cf9c928991296c2676ece2922fe6da7889789e"
             )
             draft_id = (
-                "7df12bcebe425ea83dcc3d51948a64e906fcd9e89310fd1a630d2b78ffabe6a1"
+                "288a97fa6df3de54641f5fe905dfce9dabd4c9fade7db825dd7cbe70944acd6c"
             )
             approved_revision_id = (
-                "a0c60a36a783607f6c3992cb56e01ce4db2e428e9526124d323999b1335cc2d7"
+                "2f99aecccbad245f96d885d432ef39450b8f92981b59cc0d8f7b1ba23eac2b4f"
             )
             self.assertEqual(
                 hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
@@ -2153,12 +2175,12 @@ class ControlledRevisionTests(unittest.TestCase):
                         "# Controlled Refinement\n\n"
                         "- Decision: `APPROVED`\n"
                         "- Draft ID: "
-                        "`7df12bcebe425ea83dcc3d51948a64e906fcd9e89310fd1a630d2b78ffabe6a1`\n"
+                        "`288a97fa6df3de54641f5fe905dfce9dabd4c9fade7db825dd7cbe70944acd6c`\n"
                         "- Finding: "
-                        "`621ed7d0ad23e8c9156d9a92491ad57b6cedc26ec4531727efdccbe464ec1ae7`\n"
-                        "- Refiner: `TCW-R001`\n"
+                        "`f108ebb9d0097c0664f0a976d3cf9c928991296c2676ece2922fe6da7889789e`\n"
+                        "- Refiner: `R001`\n"
                         "- Revision ID: "
-                        "`a0c60a36a783607f6c3992cb56e01ce4db2e428e9526124d323999b1335cc2d7`\n\n"
+                        "`2f99aecccbad245f96d885d432ef39450b8f92981b59cc0d8f7b1ba23eac2b4f`\n\n"
                         "The source, observation, diagnosis, base, and earlier "
                         "revisions remain unchanged.\n"
                     ).encode()
@@ -2171,10 +2193,10 @@ class ControlledRevisionTests(unittest.TestCase):
                         "# Controlled Refinement\n\n"
                         "- Decision: `REJECTED`\n"
                         "- Draft ID: "
-                        "`7df12bcebe425ea83dcc3d51948a64e906fcd9e89310fd1a630d2b78ffabe6a1`\n"
+                        "`288a97fa6df3de54641f5fe905dfce9dabd4c9fade7db825dd7cbe70944acd6c`\n"
                         "- Finding: "
-                        "`621ed7d0ad23e8c9156d9a92491ad57b6cedc26ec4531727efdccbe464ec1ae7`\n"
-                        "- Refiner: `TCW-R001`\n\n"
+                        "`f108ebb9d0097c0664f0a976d3cf9c928991296c2676ece2922fe6da7889789e`\n"
+                        "- Refiner: `R001`\n\n"
                         "The source, observation, diagnosis, base, and earlier "
                         "revisions remain unchanged.\n"
                     ).encode()
@@ -2227,7 +2249,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding_id = next(
                 item["finding_id"]
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             canonical = root / "canonical.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -2293,7 +2315,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding_id = next(
                 item["finding_id"]
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             proposal = root / "proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -2364,7 +2386,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding_id = next(
                 item["finding_id"]
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             proposal = root / "proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -2416,7 +2438,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding_id = next(
                 item["finding_id"]
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             proposal = root / "proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -2473,7 +2495,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding_id = next(
                 item["finding_id"]
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             proposal = root / "proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -2525,7 +2547,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding_id = next(
                 item["finding_id"]
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             proposal = root / "proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -2562,7 +2584,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding_id = next(
                 item["finding_id"]
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             proposal = root / "proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(
@@ -2633,7 +2655,7 @@ class ControlledRevisionTests(unittest.TestCase):
             finding_id = next(
                 item["finding_id"]
                 for item in findings["findings"]
-                if item["rule_id"] == "TCW-D009"
+                if item["rule_id"] == "D009"
             )
             proposal = root / "proposal.json"
             cli._diagnosis_callable("v03", "draft_refinement")(

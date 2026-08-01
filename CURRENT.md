@@ -5,7 +5,7 @@ review evidence, or publication state.
 
 ## Source state
 
-This checkout identifies package version `0.7.0`. The current product
+This checkout identifies package version `0.7.1`. The current product
 milestones cover:
 
 1. extraction observation;
@@ -21,9 +21,9 @@ For published versions and release availability, use
 
 ## Active work
 
-The current source is prepared for the v0.7 Web Observation Workflow release.
-This statement does not claim that a tag or GitHub Release exists. GitHub
-Releases owns publication state.
+The current source includes the v0.7.1 diagnostic and refinement identifier
+cleanup. This statement does not claim that a tag or GitHub Release exists.
+GitHub Releases owns publication state.
 
 ## Settled invariants
 

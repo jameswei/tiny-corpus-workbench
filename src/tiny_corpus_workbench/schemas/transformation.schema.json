@@ -61,7 +61,7 @@
           "additionalProperties": false,
           "required": ["refiner_id", "name", "version"],
           "properties": {
-            "refiner_id": {"const": "TCW-R001"},
+            "refiner_id": {"const": "R001"},
             "name": {"const": "WHITESPACE_NORMALIZATION"},
             "version": {"const": "1"}
           }
@@ -71,7 +71,7 @@
           "additionalProperties": false,
           "required": ["refiner_id", "name", "version"],
           "properties": {
-            "refiner_id": {"const": "TCW-R002"},
+            "refiner_id": {"const": "R002"},
             "name": {"const": "REPEATED_BOILERPLATE_REMOVAL"},
             "version": {"const": "1"}
           }
@@ -81,7 +81,7 @@
           "additionalProperties": false,
           "required": ["refiner_id", "name", "version"],
           "properties": {
-            "refiner_id": {"const": "TCW-R003"},
+            "refiner_id": {"const": "R003"},
             "name": {"const": "DETERMINISTIC_DEHYPHENATION"},
             "version": {"const": "1"}
           }

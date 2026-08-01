@@ -652,8 +652,8 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 finding = findings["findings"][0]
                 finding.update(
                     {
-                        "rule_id": "TCW-D006",
-                        **CURRENT_FINDING_METADATA["TCW-D006"],
+                        "rule_id": "D006",
+                        **CURRENT_FINDING_METADATA["D006"],
                         "document_refs": ["#/tables/0"],
                         "evidence": {
                             "relationship_kind": "invalid_declared_caption",
@@ -688,11 +688,11 @@ class DiagnosisWorkflowTests(unittest.TestCase):
                 ),
                 "d006-empty-declared-ref": (d006_empty_declared, True),
                 "d009-body-target": (
-                    change_ref("TCW-D009", "#/body"),
+                    change_ref("D009", "#/body"),
                     True,
                 ),
                 "d010-group-target": (
-                    change_ref("TCW-D010", "#/groups/0"),
+                    change_ref("D010", "#/groups/0"),
                     True,
                 ),
             }

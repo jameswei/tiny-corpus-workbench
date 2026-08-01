@@ -133,6 +133,81 @@ def rules(payload: dict, media_type: str = "text/markdown") -> list[str]:
 
 
 class DiagnosisRuleTests(unittest.TestCase):
+    def test_current_rule_identifiers_and_metadata_are_exact(self) -> None:
+        expected = [
+            ("D001", "EMPTY_DOCUMENT", "1", "ERROR", {}),
+            (
+                "D002",
+                "SUSPICIOUSLY_SHORT_DOCUMENT",
+                "1",
+                "INFO",
+                {"minimum": 1, "maximum": 199},
+            ),
+            ("D003", "REPLACEMENT_CHARACTER", "1", "ERROR", {"character": "U+FFFD"}),
+            (
+                "D004",
+                "DUPLICATE_TEXT_BLOCK",
+                "1",
+                "WARNING",
+                {"minimum_characters": 80},
+            ),
+            (
+                "D005",
+                "HEADING_LEVEL_JUMP",
+                "1",
+                "WARNING",
+                {"first_level": 1, "maximum_increase": 1},
+            ),
+            ("D006", "ORPHAN_CAPTION", "1", "WARNING", {}),
+            (
+                "D007",
+                "REPEATED_PAGE_MARGIN_TEXT",
+                "1",
+                "WARNING",
+                {
+                    "minimum_characters": 3,
+                    "maximum_characters": 200,
+                    "minimum_pages": 3,
+                    "top_maximum": 0.1,
+                    "bottom_minimum": 0.9,
+                },
+            ),
+            ("D008", "MISSING_PDF_PROVENANCE", "1", "WARNING", {}),
+            (
+                "D009",
+                "NORMALIZABLE_WHITESPACE",
+                "1",
+                "INFO",
+                {
+                    "line_endings": "LF",
+                    "horizontal_whitespace": "ASCII_SPACE",
+                    "preserve_internal_line_breaks": True,
+                },
+            ),
+            (
+                "D010",
+                "POSSIBLE_LINE_END_HYPHENATION",
+                "1",
+                "WARNING",
+                {
+                    "minimum_fragment_code_points": 2,
+                    "logical_line_breaks": 1,
+                    "right_initial": "lowercase",
+                },
+            ),
+        ]
+        actual = [
+            (
+                rule["rule_id"],
+                rule["name"],
+                rule["version"],
+                rule["severity"],
+                rule["parameters"],
+            )
+            for rule in CURRENT_RULESET["rules"]
+        ]
+        self.assertEqual(actual, expected)
+
     def test_compact_schema_defers_all_rule_contracts_to_domain_validation(
         self,
     ) -> None:
@@ -152,22 +227,22 @@ class DiagnosisRuleTests(unittest.TestCase):
 
         valid = [
             contract_finding(
-                "TCW-D001",
+                "D001",
                 ["#/body"],
                 {"non_whitespace_characters": 0},
             ),
             contract_finding(
-                "TCW-D002",
+                "D002",
                 ["#/body"],
                 {"non_whitespace_characters": 42},
             ),
             contract_finding(
-                "TCW-D003",
+                "D003",
                 ["#/texts/0"],
                 {"code_point_offsets": [1], "occurrence_count": 1},
             ),
             contract_finding(
-                "TCW-D003",
+                "D003",
                 ["#/tables/0"],
                 {
                     "code_point_offsets": [1],
@@ -177,7 +252,7 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D004",
+                "D004",
                 ["#/texts/0", "#/texts/1"],
                 {
                     "count": 2,
@@ -186,12 +261,12 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D005",
+                "D005",
                 ["#/texts/0"],
                 {"current_level": 2, "previous_level": 0},
             ),
             contract_finding(
-                "TCW-D005",
+                "D005",
                 ["#/texts/1"],
                 {
                     "current_level": 4,
@@ -200,12 +275,12 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D006",
+                "D006",
                 ["#/texts/0"],
                 {"relationship_kind": "orphan_caption"},
             ),
             contract_finding(
-                "TCW-D006",
+                "D006",
                 ["#/tables/0", "#/texts/1"],
                 {
                     "relationship_kind": "invalid_declared_caption",
@@ -213,7 +288,7 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D007",
+                "D007",
                 ["#/texts/0", "#/texts/1", "#/texts/2"],
                 {
                     "band": "top",
@@ -224,12 +299,12 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D008",
+                "D008",
                 ["#/pictures/0"],
                 {"content_layer": "body"},
             ),
             contract_finding(
-                "TCW-D009",
+                "D009",
                 ["#/texts/0"],
                 {
                     "code_point_offsets": [1],
@@ -239,7 +314,7 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D009",
+                "D009",
                 ["#/field_items/0"],
                 {
                     "code_point_offsets": [1],
@@ -249,7 +324,7 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D009",
+                "D009",
                 ["#/tables/0"],
                 {
                     "code_point_offsets": [1],
@@ -261,7 +336,7 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D010",
+                "D010",
                 ["#/texts/0"],
                 {
                     "hyphen_code_point_offsets": [1],
@@ -271,7 +346,7 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D010",
+                "D010",
                 ["#/field_items/0"],
                 {
                     "hyphen_code_point_offsets": [1],
@@ -281,7 +356,7 @@ class DiagnosisRuleTests(unittest.TestCase):
                 },
             ),
             contract_finding(
-                "TCW-D010",
+                "D010",
                 ["#/tables/0"],
                 {
                     "hyphen_code_point_offsets": [1],
@@ -332,7 +407,7 @@ class DiagnosisRuleTests(unittest.TestCase):
             }
         )
         empty_declared = contract_finding(
-            "TCW-D006",
+            "D006",
             ["#/tables/0"],
             {
                 "relationship_kind": "invalid_declared_caption",
@@ -344,13 +419,13 @@ class DiagnosisRuleTests(unittest.TestCase):
             validate_finding_contract(empty_declared)
 
         valid_evidence = {
-            "TCW-D009": {
+            "D009": {
                 "code_point_offsets": [1],
                 "occurrence_count": 1,
                 "original_text_sha256": "a" * 64,
                 "normalized_text_sha256": "b" * 64,
             },
-            "TCW-D010": {
+            "D010": {
                 "hyphen_code_point_offsets": [1],
                 "occurrence_count": 1,
                 "original_text_sha256": "c" * 64,
@@ -404,13 +479,13 @@ class DiagnosisRuleTests(unittest.TestCase):
 
     def test_d005_d007_d008_reference_prefix_and_cardinality_negatives(self) -> None:
         valid = {
-            "TCW-D005": {
-                "rule_id": "TCW-D005",
+            "D005": {
+                "rule_id": "D005",
                 "document_refs": ["#/texts/1"],
                 "evidence": {"current_level": 3, "previous_level": 0},
             },
-            "TCW-D007": {
-                "rule_id": "TCW-D007",
+            "D007": {
+                "rule_id": "D007",
                 "document_refs": ["#/texts/1", "#/texts/2", "#/texts/3"],
                 "evidence": {
                     "band": "top",
@@ -420,8 +495,8 @@ class DiagnosisRuleTests(unittest.TestCase):
                     "page_numbers": [1, 2, 3],
                 },
             },
-            "TCW-D008": {
-                "rule_id": "TCW-D008",
+            "D008": {
+                "rule_id": "D008",
                 "document_refs": ["#/pictures/0"],
                 "evidence": {"content_layer": "body"},
             },
@@ -432,24 +507,24 @@ class DiagnosisRuleTests(unittest.TestCase):
 
         negatives = []
         for rule_id, references in (
-            ("TCW-D005", ["#/tables/0"]),
-            ("TCW-D005", ["#/texts/0", "#/texts/1"]),
-            ("TCW-D007", ["#/tables/0"]),
-            ("TCW-D007", []),
-            ("TCW-D008", ["#/body"]),
-            ("TCW-D008", ["#/texts/0", "#/pictures/0"]),
+            ("D005", ["#/tables/0"]),
+            ("D005", ["#/texts/0", "#/texts/1"]),
+            ("D007", ["#/tables/0"]),
+            ("D007", []),
+            ("D008", ["#/body"]),
+            ("D008", ["#/texts/0", "#/pictures/0"]),
         ):
             finding = deepcopy(valid[rule_id])
             finding["document_refs"] = references
             negatives.append(finding)
-        d005_previous = deepcopy(valid["TCW-D005"])
+        d005_previous = deepcopy(valid["D005"])
         d005_previous["evidence"] = {
             "current_level": 4,
             "previous_level": 2,
             "previous_ref": "#/tables/0",
         }
         negatives.append(d005_previous)
-        d007_pages = deepcopy(valid["TCW-D007"])
+        d007_pages = deepcopy(valid["D007"])
         d007_pages["evidence"]["page_count"] = 2
         negatives.append(d007_pages)
 
@@ -464,28 +539,28 @@ class DiagnosisRuleTests(unittest.TestCase):
     def test_schema_valid_constructed_documents_cover_d001_d006_and_d008(self) -> None:
         empty = DoclingDocument(name="empty")
         empty_payload = empty.model_dump(mode="json", by_alias=True, exclude_none=True)
-        self.assertEqual(rules(empty_payload), ["TCW-D001"])
+        self.assertEqual(rules(empty_payload), ["D001"])
 
         orphan = DoclingDocument(name="orphan")
         orphan.add_text(DocItemLabel.CAPTION, "A caption without an owner")
         orphan_payload = orphan.model_dump(
             mode="json", by_alias=True, exclude_none=True
         )
-        self.assertIn("TCW-D006", rules(orphan_payload))
+        self.assertIn("D006", rules(orphan_payload))
 
         missing_provenance = DoclingDocument(name="missing-provenance")
         missing_provenance.add_text(DocItemLabel.TEXT, "x" * 200)
         pdf_payload = missing_provenance.model_dump(
             mode="json", by_alias=True, exclude_none=True
         )
-        self.assertEqual(rules(pdf_payload, "application/pdf"), ["TCW-D008"])
+        self.assertEqual(rules(pdf_payload, "application/pdf"), ["D008"])
 
     def test_empty_suppresses_short_and_short_boundaries_are_fixed(self) -> None:
-        self.assertEqual(rules(document()), ["TCW-D001"])
+        self.assertEqual(rules(document()), ["D001"])
         one = document([text(0, "x")])
-        self.assertEqual(rules(one), ["TCW-D002"])
+        self.assertEqual(rules(one), ["D002"])
         boundary = document([text(0, "x" * 199)])
-        self.assertEqual(rules(boundary), ["TCW-D002"])
+        self.assertEqual(rules(boundary), ["D002"])
         clear = document([text(0, "x" * 200)])
         self.assertEqual(rules(clear), [])
 
@@ -493,7 +568,7 @@ class DiagnosisRuleTests(unittest.TestCase):
         decomposed = "e\u0301"
         self.assertEqual(
             rules(document([text(0, decomposed * 199)])),
-            ["TCW-D002"],
+            ["D002"],
         )
         self.assertEqual(rules(document([text(0, decomposed * 200)])), [])
 
@@ -520,7 +595,7 @@ class DiagnosisRuleTests(unittest.TestCase):
             payload, media_type="text/markdown", diagnosis_id=DIAGNOSIS_ID
         )
         replacement = [
-            item for item in findings if item["rule_id"] == "TCW-D003"
+            item for item in findings if item["rule_id"] == "D003"
         ]
         self.assertEqual(len(replacement), 2)
         by_ref = {item["document_refs"][0]: item for item in replacement}
@@ -544,7 +619,7 @@ class DiagnosisRuleTests(unittest.TestCase):
             payload, media_type="text/markdown", diagnosis_id=DIAGNOSIS_ID
         )
         duplicate = [
-            item for item in findings if item["rule_id"] == "TCW-D004"
+            item for item in findings if item["rule_id"] == "D004"
         ]
         self.assertEqual(len(duplicate), 1)
         self.assertEqual(
@@ -560,7 +635,7 @@ class DiagnosisRuleTests(unittest.TestCase):
             diagnosis_id="0" * 64,
         )
         finding = next(
-            item for item in findings if item["rule_id"] == "TCW-D004"
+            item for item in findings if item["rule_id"] == "D004"
         )
         finding["document_refs"].reverse()
         subject = {
@@ -609,7 +684,7 @@ class DiagnosisRuleTests(unittest.TestCase):
                 "total": 1,
                 "by_severity": {"ERROR": 0, "WARNING": 1, "INFO": 0},
                 "by_rule": {
-                    rule["rule_id"]: int(rule["rule_id"] == "TCW-D004")
+                    rule["rule_id"]: int(rule["rule_id"] == "D004")
                     for rule in CURRENT_RULESET["rules"]
                 },
             },
@@ -622,7 +697,7 @@ class DiagnosisRuleTests(unittest.TestCase):
         with self.assertRaises(IntegrityError):
             validate_document("finding-set", finding_set)
 
-    def test_heading_first_and_later_jumps_follow_reading_order(self) -> None:
+    def test_first_and_later_heading_jumps_are_both_reported(self) -> None:
         payload = document(
             [
                 text(0, "First", label="section_header", level=2),
@@ -634,8 +709,8 @@ class DiagnosisRuleTests(unittest.TestCase):
         findings = analyze_document(
             payload, media_type="text/markdown", diagnosis_id=DIAGNOSIS_ID
         )
-        jumps = [item for item in findings if item["rule_id"] == "TCW-D005"]
-        self.assertEqual(
+        jumps = [item for item in findings if item["rule_id"] == "D005"]
+        self.assertCountEqual(
             [item["document_refs"] for item in jumps],
             [["#/texts/0"], ["#/texts/2"]],
         )
@@ -658,7 +733,7 @@ class DiagnosisRuleTests(unittest.TestCase):
             diagnosis_id=DIAGNOSIS_ID,
         )
         caption_findings = [
-            item for item in findings if item["rule_id"] == "TCW-D006"
+            item for item in findings if item["rule_id"] == "D006"
         ]
         self.assertEqual(len(caption_findings), 3)
         self.assertEqual(
@@ -688,7 +763,7 @@ class DiagnosisRuleTests(unittest.TestCase):
         invalid = [
             item
             for item in findings
-            if item["rule_id"] == "TCW-D006"
+            if item["rule_id"] == "D006"
             and item["evidence"]["relationship_kind"]
             == "invalid_declared_caption"
         ]
@@ -722,7 +797,7 @@ class DiagnosisRuleTests(unittest.TestCase):
         invalid = [
             item
             for item in findings
-            if item["rule_id"] == "TCW-D006"
+            if item["rule_id"] == "D006"
             and item["evidence"]["relationship_kind"]
             == "invalid_declared_caption"
         ]
@@ -754,7 +829,7 @@ class DiagnosisRuleTests(unittest.TestCase):
         valid_payload = valid.model_dump(
             mode="json", by_alias=True, exclude_none=True
         )
-        self.assertNotIn("TCW-D006", rules(valid_payload))
+        self.assertNotIn("D006", rules(valid_payload))
 
         absent = DoclingDocument(name="no-caption")
         absent.add_text(DocItemLabel.TEXT, "x" * 200)
@@ -764,7 +839,7 @@ class DiagnosisRuleTests(unittest.TestCase):
         absent_payload = absent.model_dump(
             mode="json", by_alias=True, exclude_none=True
         )
-        self.assertNotIn("TCW-D006", rules(absent_payload))
+        self.assertNotIn("D006", rules(absent_payload))
 
     def test_pdf_margin_group_uses_three_pages_and_excludes_furniture(self) -> None:
         pages = {
@@ -821,7 +896,7 @@ class DiagnosisRuleTests(unittest.TestCase):
         findings = analyze_document(
             payload, media_type="application/pdf", diagnosis_id=DIAGNOSIS_ID
         )
-        margin = [item for item in findings if item["rule_id"] == "TCW-D007"]
+        margin = [item for item in findings if item["rule_id"] == "D007"]
         self.assertEqual(len(margin), 1)
         self.assertEqual(margin[0]["evidence"]["page_numbers"], [1, 2, 3])
         self.assertEqual(margin[0]["evidence"]["band"], "top")
@@ -863,7 +938,7 @@ class DiagnosisRuleTests(unittest.TestCase):
                 for index, page in enumerate(range(1, page_count + 1))
             ]
             payload = document(items, pages=pages)
-            return "TCW-D007" in rules(payload, "application/pdf")
+            return "D007" in rules(payload, "application/pdf")
 
         cases = (
             ("xx", 3, 0.10, "TOPLEFT", False),
@@ -924,9 +999,9 @@ class DiagnosisRuleTests(unittest.TestCase):
                 }
             ],
         )
-        self.assertEqual(rules(payload).count("TCW-D008"), 0)
+        self.assertEqual(rules(payload).count("D008"), 0)
         self.assertEqual(
-            rules(payload, "application/pdf").count("TCW-D008"), 3
+            rules(payload, "application/pdf").count("D008"), 3
         )
 
     def test_pdf_items_with_provenance_are_not_d008_findings(self) -> None:
@@ -960,7 +1035,7 @@ class DiagnosisRuleTests(unittest.TestCase):
         payload = payload_document.model_dump(
             mode="json", by_alias=True, exclude_none=True
         )
-        self.assertNotIn("TCW-D008", rules(payload, "application/pdf"))
+        self.assertNotIn("D008", rules(payload, "application/pdf"))
 
     def test_finding_identity_and_order_are_stable(self) -> None:
         payload = document([text(0, "x\ufffd")])

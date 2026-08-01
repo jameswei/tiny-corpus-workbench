@@ -60,16 +60,16 @@
         "finding_id": {"$ref": "#/$defs/hash"},
         "rule_id": {
           "enum": [
-            "TCW-D001",
-            "TCW-D002",
-            "TCW-D003",
-            "TCW-D004",
-            "TCW-D005",
-            "TCW-D006",
-            "TCW-D007",
-            "TCW-D008",
-            "TCW-D009",
-            "TCW-D010"
+            "D001",
+            "D002",
+            "D003",
+            "D004",
+            "D005",
+            "D006",
+            "D007",
+            "D008",
+            "D009",
+            "D010"
           ]
         },
         "rule_version": {"type": "string", "minLength": 1},
@@ -112,7 +112,7 @@
           "additionalProperties": false,
           "required": ["refiner_id", "name", "version"],
           "properties": {
-            "refiner_id": {"const": "TCW-R001"},
+            "refiner_id": {"const": "R001"},
             "name": {"const": "WHITESPACE_NORMALIZATION"},
             "version": {"const": "1"}
           }
@@ -122,7 +122,7 @@
           "additionalProperties": false,
           "required": ["refiner_id", "name", "version"],
           "properties": {
-            "refiner_id": {"const": "TCW-R002"},
+            "refiner_id": {"const": "R002"},
             "name": {"const": "REPEATED_BOILERPLATE_REMOVAL"},
             "version": {"const": "1"}
           }
@@ -132,7 +132,7 @@
           "additionalProperties": false,
           "required": ["refiner_id", "name", "version"],
           "properties": {
-            "refiner_id": {"const": "TCW-R003"},
+            "refiner_id": {"const": "R003"},
             "name": {"const": "DETERMINISTIC_DEHYPHENATION"},
             "version": {"const": "1"}
           }

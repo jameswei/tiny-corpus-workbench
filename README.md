@@ -75,6 +75,7 @@ public API. The project provides no hosted document-processing service.
 | [v0.4.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.4.0) | Corpus Inspection and Comparison |
 | [v0.5.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.5.0) | Local Visual Workbench |
 | [v0.6.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.6.0) | Shared Workbench Workspace |
+| [v0.7.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.7.0) | Web Observation Workflow |
 
 ## One-time setup
 
