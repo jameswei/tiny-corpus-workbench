@@ -67,9 +67,9 @@ def generate_into(root: Path) -> dict:
 
     records = []
     for identifier, path, expected in (
-        ("short-note", short_note, ["TCW-D002"]),
-        ("structural-traps", structural, ["TCW-D003", "TCW-D004", "TCW-D005"]),
-        ("repeated-margin", repeated, ["TCW-D007"]),
+        ("short-note", short_note, ["D002"]),
+        ("structural-traps", structural, ["D003", "D004", "D005"]),
+        ("repeated-margin", repeated, ["D007"]),
     ):
         records.append(
             {

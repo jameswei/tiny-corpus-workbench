@@ -2,7 +2,7 @@
   "fixtures": [
     {
       "expected_rules": [
-        "TCW-D010"
+        "D010"
       ],
       "id": "line-end-hyphenation",
       "license": "CC0-1.0",
@@ -13,7 +13,7 @@
     },
     {
       "expected_rules": [
-        "TCW-D009"
+        "D009"
       ],
       "id": "whitespace-cleanup",
       "license": "CC0-1.0",

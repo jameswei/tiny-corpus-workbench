@@ -127,7 +127,7 @@ def _run_workflows(export: Path, runtime: Path, env: dict[str, str]) -> Path:
     finding_id = next(
         item["finding_id"]
         for item in finding_set["findings"]
-        if item["rule_id"] == "TCW-D009"
+        if item["rule_id"] == "D009"
     )
     proposal = runtime / "proposal.json"
     _json_line(

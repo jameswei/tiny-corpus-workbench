@@ -29,49 +29,49 @@ from tiny_corpus_workbench.verification import FORMAT_CHECKER
 SCHEMA_ROOT = Path(__file__).with_name("schemas")
 RULESET = [
     {
-        "rule_id": "TCW-D001",
+        "rule_id": "D001",
         "name": "EMPTY_DOCUMENT",
         "version": "1",
         "severity": "ERROR",
         "parameters": {},
     },
     {
-        "rule_id": "TCW-D002",
+        "rule_id": "D002",
         "name": "SUSPICIOUSLY_SHORT_DOCUMENT",
         "version": "1",
         "severity": "INFO",
         "parameters": {"minimum": 1, "maximum": 199},
     },
     {
-        "rule_id": "TCW-D003",
+        "rule_id": "D003",
         "name": "REPLACEMENT_CHARACTER",
         "version": "1",
         "severity": "ERROR",
         "parameters": {"character": "U+FFFD"},
     },
     {
-        "rule_id": "TCW-D004",
+        "rule_id": "D004",
         "name": "DUPLICATE_TEXT_BLOCK",
         "version": "1",
         "severity": "WARNING",
         "parameters": {"minimum_characters": 80},
     },
     {
-        "rule_id": "TCW-D005",
+        "rule_id": "D005",
         "name": "HEADING_LEVEL_JUMP",
         "version": "1",
         "severity": "WARNING",
         "parameters": {"first_level": 1, "maximum_increase": 1},
     },
     {
-        "rule_id": "TCW-D006",
+        "rule_id": "D006",
         "name": "ORPHAN_CAPTION",
         "version": "1",
         "severity": "WARNING",
         "parameters": {},
     },
     {
-        "rule_id": "TCW-D007",
+        "rule_id": "D007",
         "name": "REPEATED_PAGE_MARGIN_TEXT",
         "version": "1",
         "severity": "WARNING",
@@ -84,7 +84,7 @@ RULESET = [
         },
     },
     {
-        "rule_id": "TCW-D008",
+        "rule_id": "D008",
         "name": "MISSING_PDF_PROVENANCE",
         "version": "1",
         "severity": "WARNING",
@@ -111,7 +111,7 @@ RULESET_PARAMETER_HASH = hashlib.sha256(
 CURRENT_RULES = [
     *RULESET,
     {
-        "rule_id": "TCW-D009",
+        "rule_id": "D009",
         "name": "NORMALIZABLE_WHITESPACE",
         "version": "1",
         "severity": "INFO",
@@ -122,7 +122,7 @@ CURRENT_RULES = [
         },
     },
     {
-        "rule_id": "TCW-D010",
+        "rule_id": "D010",
         "name": "POSSIBLE_LINE_END_HYPHENATION",
         "version": "1",
         "severity": "WARNING",
@@ -212,21 +212,21 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
         )
 
     valid = False
-    if rule_id == "TCW-D001":
+    if rule_id == "D001":
         valid = (
             references == ["#/body"]
             and keys == {"non_whitespace_characters"}
             and type(evidence["non_whitespace_characters"]) is int
             and evidence["non_whitespace_characters"] == 0
         )
-    elif rule_id == "TCW-D002":
+    elif rule_id == "D002":
         valid = (
             references == ["#/body"]
             and keys == {"non_whitespace_characters"}
             and type(evidence["non_whitespace_characters"]) is int
             and 1 <= evidence["non_whitespace_characters"] <= 199
         )
-    elif rule_id == "TCW-D003":
+    elif rule_id == "D003":
         offsets = evidence.get("code_point_offsets")
         shared = (
             isinstance(offsets, list)
@@ -261,7 +261,7 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
                 and evidence["column"] >= 0
             )
         )
-    elif rule_id == "TCW-D004":
+    elif rule_id == "D004":
         valid = (
             keys
             == {"count", "normalized_character_count", "normalized_text_sha256"}
@@ -272,7 +272,7 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
             and evidence["normalized_character_count"] >= 80
             and is_hash(evidence["normalized_text_sha256"])
         )
-    elif rule_id == "TCW-D005":
+    elif rule_id == "D005":
         first_shape = keys == {"current_level", "previous_level"}
         later_shape = keys == {
             "current_level",
@@ -296,7 +296,7 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
                 )
             )
         )
-    elif rule_id == "TCW-D006":
+    elif rule_id == "D006":
         relationship = evidence.get("relationship_kind")
         if relationship == "orphan_caption":
             valid = (
@@ -330,7 +330,7 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
                 and owner_shape
                 and references == expected
             )
-    elif rule_id == "TCW-D007":
+    elif rule_id == "D007":
         pages = evidence.get("page_numbers")
         valid = (
             keys
@@ -353,7 +353,7 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
             and type(evidence["page_count"]) is int
             and evidence["page_count"] == len(pages)
         )
-    elif rule_id == "TCW-D008":
+    elif rule_id == "D008":
         valid = (
             keys == {"content_layer"}
             and references_match(
@@ -364,15 +364,15 @@ def validate_finding_contract(finding: dict[str, Any]) -> None:
             and isinstance(evidence["content_layer"], str)
             and bool(evidence["content_layer"])
         )
-    elif rule_id in {"TCW-D009", "TCW-D010"}:
+    elif rule_id in {"D009", "D010"}:
         offsets_name = (
             "code_point_offsets"
-            if rule_id == "TCW-D009"
+            if rule_id == "D009"
             else "hyphen_code_point_offsets"
         )
         result_hash_name = (
             "normalized_text_sha256"
-            if rule_id == "TCW-D009"
+            if rule_id == "D009"
             else "repaired_text_sha256"
         )
         required = {
@@ -664,7 +664,7 @@ def analyze_document(
         findings.append(
             _finding(
                 diagnosis_id,
-                "TCW-D001",
+                "D001",
                 ["#/body"],
                 {"non_whitespace_characters": 0},
             )
@@ -673,7 +673,7 @@ def analyze_document(
         findings.append(
             _finding(
                 diagnosis_id,
-                "TCW-D002",
+                "D002",
                 ["#/body"],
                 {"non_whitespace_characters": character_count},
             )
@@ -692,7 +692,7 @@ def analyze_document(
                 findings.append(
                     _finding(
                         diagnosis_id,
-                        "TCW-D003",
+                        "D003",
                         [item["self_ref"]],
                         {"code_point_offsets": offsets, "occurrence_count": len(offsets)},
                     )
@@ -710,7 +710,7 @@ def analyze_document(
             findings.append(
                 _finding(
                     diagnosis_id,
-                    "TCW-D003",
+                    "D003",
                     [table["self_ref"]],
                     {
                         "code_point_offsets": offsets,
@@ -733,7 +733,7 @@ def analyze_document(
             findings.append(
                 _finding(
                     diagnosis_id,
-                    "TCW-D004",
+                    "D004",
                     references,
                     {
                         "count": len(references),
@@ -754,7 +754,7 @@ def analyze_document(
             findings.append(
                 _finding(
                     diagnosis_id,
-                    "TCW-D005",
+                    "D005",
                     [item["self_ref"]],
                     {"current_level": level, "previous_level": 0},
                 )
@@ -763,7 +763,7 @@ def analyze_document(
             findings.append(
                 _finding(
                     diagnosis_id,
-                    "TCW-D005",
+                    "D005",
                     [item["self_ref"]],
                     {
                         "current_level": level,
@@ -796,7 +796,7 @@ def analyze_document(
                     findings.append(
                         _finding(
                             diagnosis_id,
-                            "TCW-D006",
+                            "D006",
                             references,
                             {
                                 "declared_ref": reference or "",
@@ -808,7 +808,7 @@ def analyze_document(
         findings.append(
             _finding(
                 diagnosis_id,
-                "TCW-D006",
+                "D006",
                 [reference],
                 {"relationship_kind": "orphan_caption"},
             )
@@ -849,7 +849,7 @@ def analyze_document(
                 findings.append(
                     _finding(
                         diagnosis_id,
-                        "TCW-D007",
+                        "D007",
                         group["refs"],
                         {
                             "band": band,
@@ -867,7 +867,7 @@ def analyze_document(
                     findings.append(
                         _finding(
                             diagnosis_id,
-                            "TCW-D008",
+                            "D008",
                             [item["self_ref"]],
                             {"content_layer": item.get("content_layer", "body")},
                         )

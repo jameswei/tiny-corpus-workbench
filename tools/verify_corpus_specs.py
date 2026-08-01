@@ -18,13 +18,13 @@ DIAGNOSIS_REGISTRY = ROOT / "fixtures/diagnosis/fixtures.json"
 REFINEMENT_REGISTRY = ROOT / "fixtures/refinement/fixtures.json"
 FORMATS = {"pdf", "docx", "md", "txt"}
 QUALITY_RULES = {
-    "TCW-D002",
-    "TCW-D003",
-    "TCW-D004",
-    "TCW-D005",
-    "TCW-D007",
-    "TCW-D009",
-    "TCW-D010",
+    "D002",
+    "D003",
+    "D004",
+    "D005",
+    "D007",
+    "D009",
+    "D010",
 }
 
 

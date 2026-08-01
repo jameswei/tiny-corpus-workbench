@@ -231,7 +231,7 @@ class FakeEvidence:
         published.mkdir(parents=True)
         finding = {
             "finding_id": HASH_B,
-            "rule_id": "TCW-D009",
+            "rule_id": "D009",
             "severity": "INFO",
             "document_refs": ["#/texts/0"],
             "evidence": {"source_excerpt": self.secret},
@@ -277,9 +277,9 @@ def _admitted_with_revisions(admitted: AdmittedCorpusSpec) -> AdmittedCorpusSpec
             },
             "chain_length": 2,
             "finding_id": HASH_B,
-            "finding_rule": "TCW-D009",
+            "finding_rule": "D009",
             "refiner": {
-                "refiner_id": "TCW-R001",
+                "refiner_id": "R001",
                 "name": "WHITESPACE_NORMALIZATION",
                 "version": "1",
             },

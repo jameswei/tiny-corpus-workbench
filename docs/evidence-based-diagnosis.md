@@ -105,16 +105,16 @@ Unicode whitespace, and removed outer whitespace. It preserves case.
 
 | Rule | Severity | Fixed condition |
 | --- | --- | --- |
-| `TCW-D001 EMPTY_DOCUMENT` | `ERROR` | Body has no non-whitespace text-item or table-cell content. |
-| `TCW-D002 SUSPICIOUSLY_SHORT_DOCUMENT` | `INFO` | Body has 1–199 non-whitespace characters. D001 suppresses this rule. |
-| `TCW-D003 REPLACEMENT_CHARACTER` | `ERROR` | U+FFFD occurs in a text item or table cell. |
-| `TCW-D004 DUPLICATE_TEXT_BLOCK` | `WARNING` | The same case-sensitive normalized body text or paragraph of at least 80 characters occurs twice. |
-| `TCW-D005 HEADING_LEVEL_JUMP` | `WARNING` | The first body heading is deeper than level 1, or a later heading increases by more than one level. |
-| `TCW-D006 ORPHAN_CAPTION` | `WARNING` | A caption has no valid incoming table or picture link, or a declared caption link is invalid. |
-| `TCW-D007 REPEATED_PAGE_MARGIN_TEXT` | `WARNING` | PDF body text of 3–200 characters repeats in the same outer 10% band on at least three pages. |
-| `TCW-D008 MISSING_PDF_PROVENANCE` | `WARNING` | A PDF text, table, or picture item has no provenance entry. |
-| `TCW-D009 NORMALIZABLE_WHITESPACE` | `INFO` | Eligible body text or a body table cell has normalizable line endings or horizontal whitespace. |
-| `TCW-D010 POSSIBLE_LINE_END_HYPHENATION` | `WARNING` | Eligible body text or a table cell has one deterministic lowercase line-end hyphenation candidate. |
+| `D001 EMPTY_DOCUMENT` | `ERROR` | Body has no non-whitespace text-item or table-cell content. |
+| `D002 SUSPICIOUSLY_SHORT_DOCUMENT` | `INFO` | Body has 1–199 non-whitespace characters. D001 suppresses this rule. |
+| `D003 REPLACEMENT_CHARACTER` | `ERROR` | U+FFFD occurs in a text item or table cell. |
+| `D004 DUPLICATE_TEXT_BLOCK` | `WARNING` | The same case-sensitive normalized body text or paragraph of at least 80 characters occurs twice. |
+| `D005 HEADING_LEVEL_JUMP` | `WARNING` | The first body heading is deeper than level 1, or a later heading increases by more than one level. |
+| `D006 ORPHAN_CAPTION` | `WARNING` | A caption has no valid incoming table or picture link, or a declared caption link is invalid. |
+| `D007 REPEATED_PAGE_MARGIN_TEXT` | `WARNING` | PDF body text of 3–200 characters repeats in the same outer 10% band on at least three pages. |
+| `D008 MISSING_PDF_PROVENANCE` | `WARNING` | A PDF text, table, or picture item has no provenance entry. |
+| `D009 NORMALIZABLE_WHITESPACE` | `INFO` | Eligible body text or a body table cell has normalizable line endings or horizontal whitespace. |
+| `D010 POSSIBLE_LINE_END_HYPHENATION` | `WARNING` | Eligible body text or a table cell has one deterministic lowercase line-end hyphenation candidate. |
 
 D007 converts boxes to a top-left origin and groups top and bottom occurrences
 separately. Furniture content is excluded. D006 does not report a table or

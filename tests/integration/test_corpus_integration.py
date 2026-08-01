@@ -128,7 +128,7 @@ class CorpusIntegrationTests(unittest.TestCase):
                     )
                     for item in summary["findings"]
                 },
-                {("TCW-D009", "txt", 3)},
+                {("D009", "txt", 3)},
             )
             self.assertEqual(len(summary["findings"]), 3)
             self.assertEqual(
@@ -153,13 +153,13 @@ class CorpusIntegrationTests(unittest.TestCase):
             self.assertEqual(
                 {item["rule_id"] for item in summary["findings"]},
                 {
-                    "TCW-D002",
-                    "TCW-D003",
-                    "TCW-D004",
-                    "TCW-D005",
-                    "TCW-D007",
-                    "TCW-D009",
-                    "TCW-D010",
+                    "D002",
+                    "D003",
+                    "D004",
+                    "D005",
+                    "D007",
+                    "D009",
+                    "D010",
                 },
             )
             self.assertEqual(
@@ -215,7 +215,7 @@ class CorpusIntegrationTests(unittest.TestCase):
             revision = _approve(
                 diagnosis_root=diagnosis_root,
                 base_root=observation,
-                rule_id="TCW-D009",
+                rule_id="D009",
                 root=root,
             )
             verified = verify_refinement(
@@ -252,7 +252,7 @@ class CorpusIntegrationTests(unittest.TestCase):
                     summary["revisions"][0]["refiner"]["refiner_id"],
                     summary["revisions"][0]["chain_length"],
                 ),
-                ("TCW-D009", "TCW-R001", 1),
+                ("D009", "R001", 1),
             )
             report = (published.directory / "report/index.html").read_text(
                 "utf-8"
@@ -309,14 +309,14 @@ class CorpusIntegrationTests(unittest.TestCase):
             revision1 = _approve(
                 diagnosis_root=diagnosis1,
                 base_root=observation,
-                rule_id="TCW-D009",
+                rule_id="D009",
                 root=root / "first",
             )
             diagnosis2 = diagnose(revision1, root / "diagnoses")
             revision2 = _approve(
                 diagnosis_root=diagnosis2,
                 base_root=revision1,
-                rule_id="TCW-D009",
+                rule_id="D009",
                 root=root / "second",
             )
             verified = verify_refinement(

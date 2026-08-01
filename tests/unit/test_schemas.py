@@ -59,6 +59,82 @@ def observation_documents() -> tuple[dict, dict]:
 
 
 class SchemaTests(unittest.TestCase):
+    def test_old_prefixed_identifiers_are_rejected_across_record_schemas(self) -> None:
+        old_rule_id = "TCW-" + "D009"
+        old_refiner_id = "TCW-" + "R001"
+
+        diagnosis = json.loads(
+            (SCHEMAS / "diagnosis-manifest.schema.json").read_text("utf-8")
+        )
+        diagnosis_rule = Draft202012Validator(diagnosis["$defs"]["rule"])
+        current_rule = {
+            "rule_id": "D009",
+            "name": "NORMALIZABLE_WHITESPACE",
+            "version": "1",
+            "severity": "INFO",
+            "parameters": {},
+        }
+        diagnosis_rule.validate(current_rule)
+        old_rule = deepcopy(current_rule)
+        old_rule["rule_id"] = old_rule_id
+        with self.assertRaises(ValidationError):
+            diagnosis_rule.validate(old_rule)
+
+        draft = json.loads(
+            (SCHEMAS / "refinement-draft.schema.json").read_text("utf-8")
+        )
+        proposal_finding = Draft202012Validator(
+            {"$ref": "#/$defs/finding", "$defs": draft["$defs"]}
+        )
+        finding = {
+            "finding_id": "a" * 64,
+            "rule_id": "D009",
+            "rule_version": "1",
+            "severity": "INFO",
+            "summary": "NORMALIZABLE_WHITESPACE",
+            "document_refs": ["#/texts/0"],
+            "evidence": {"changed": True},
+        }
+        proposal_finding.validate(finding)
+        old_finding = deepcopy(finding)
+        old_finding["rule_id"] = old_rule_id
+        with self.assertRaises(ValidationError):
+            proposal_finding.validate(old_finding)
+
+        current_refiner = {
+            "refiner_id": "R001",
+            "name": "WHITESPACE_NORMALIZATION",
+            "version": "1",
+        }
+        for schema_name in (
+            "refinement-draft",
+            "transformation",
+            "transformation-history",
+            "corpus-manifest",
+        ):
+            with self.subTest(schema=schema_name):
+                schema = json.loads(
+                    (SCHEMAS / f"{schema_name}.schema.json").read_text("utf-8")
+                )
+                refiner = Draft202012Validator(
+                    {"$ref": "#/$defs/refiner", "$defs": schema["$defs"]}
+                )
+                refiner.validate(current_refiner)
+                old_refiner = deepcopy(current_refiner)
+                old_refiner["refiner_id"] = old_refiner_id
+                with self.assertRaises(ValidationError):
+                    refiner.validate(old_refiner)
+
+        corpus = json.loads(
+            (SCHEMAS / "corpus-manifest.schema.json").read_text("utf-8")
+        )
+        finding_rule = Draft202012Validator(
+            corpus["$defs"]["revision"]["properties"]["finding_rule"]
+        )
+        finding_rule.validate("D009")
+        with self.assertRaises(ValidationError):
+            finding_rule.validate(old_rule_id)
+
     def test_all_schemas_are_valid_and_self_contained(self) -> None:
         paths = sorted(SCHEMAS.glob("*.schema.json"))
         self.assertEqual(len(paths), 11)
@@ -253,9 +329,9 @@ class SchemaTests(unittest.TestCase):
 
         refiner_validator = Draft202012Validator(draft["$defs"]["refiner"])
         refiners = (
-            ("TCW-R001", "WHITESPACE_NORMALIZATION"),
-            ("TCW-R002", "REPEATED_BOILERPLATE_REMOVAL"),
-            ("TCW-R003", "DETERMINISTIC_DEHYPHENATION"),
+            ("R001", "WHITESPACE_NORMALIZATION"),
+            ("R002", "REPEATED_BOILERPLATE_REMOVAL"),
+            ("R003", "DETERMINISTIC_DEHYPHENATION"),
         )
         for refiner_id, name in refiners:
             refiner_validator.validate(
@@ -264,7 +340,7 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             refiner_validator.validate(
                 {
-                    "refiner_id": "TCW-R001",
+                    "refiner_id": "R001",
                     "name": "DETERMINISTIC_DEHYPHENATION",
                     "version": "1",
                 }

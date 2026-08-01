@@ -121,9 +121,9 @@ captured proposal bytes without reserialization.
 
 | Finding | Refiner | Change |
 | --- | --- | --- |
-| `TCW-D009` | `TCW-R001 WHITESPACE_NORMALIZATION` | Normalizes line endings and horizontal whitespace. |
-| `TCW-D007` | `TCW-R002 REPEATED_BOILERPLATE_REMOVAL` | Moves repeated margin items from body to furniture. |
-| `TCW-D010` | `TCW-R003 DETERMINISTIC_DEHYPHENATION` | Removes one supported line-end hyphen and line break. |
+| `D009` | `R001 WHITESPACE_NORMALIZATION` | Normalizes line endings and horizontal whitespace. |
+| `D007` | `R002 REPEATED_BOILERPLATE_REMOVAL` | Moves repeated margin items from body to furniture. |
+| `D010` | `R003 DETERMINISTIC_DEHYPHENATION` | Removes one supported line-end hyphen and line break. |
 
 The refiners preserve `orig`, provenance, and stable references. Re-diagnose
 an approved revision before drafting its successor.

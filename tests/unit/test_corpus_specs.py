@@ -182,9 +182,9 @@ def _valid_manifest() -> dict:
                 },
                 "chain_length": 1,
                 "finding_id": HASH,
-                "finding_rule": "TCW-D009",
+                "finding_rule": "D009",
                 "refiner": {
-                    "refiner_id": "TCW-R001",
+                    "refiner_id": "R001",
                     "name": "WHITESPACE_NORMALIZATION",
                     "version": "1",
                 },
@@ -277,7 +277,7 @@ def _valid_summary() -> dict:
         ],
         "findings": [
             {
-                "rule_id": "TCW-D009",
+                "rule_id": "D009",
                 "severity": "INFO",
                 "family": "sample",
                 "format": "md",
@@ -289,8 +289,8 @@ def _valid_summary() -> dict:
             {
                 "family": "sample",
                 "format": "md",
-                "finding_rule": "TCW-D009",
-                "refiner_id": "TCW-R001",
+                "finding_rule": "D009",
+                "refiner_id": "R001",
                 "revision_count": 1,
             }
         ],
@@ -307,9 +307,9 @@ def _valid_summary() -> dict:
                 },
                 "chain_length": 1,
                 "finding_id": HASH,
-                "finding_rule": "TCW-D009",
+                "finding_rule": "D009",
                 "refiner": {
-                    "refiner_id": "TCW-R001",
+                    "refiner_id": "R001",
                     "name": "WHITESPACE_NORMALIZATION",
                     "version": "1",
                 },
@@ -925,7 +925,7 @@ class CorpusAdmissionTests(unittest.TestCase):
                     {
                         "revision_id": "a" * 64,
                         "finding_id": "d" * 64,
-                        "refiner": {"refiner_id": "TCW-R001"},
+                        "refiner": {"refiner_id": "R001"},
                         "affected_refs": ["#/texts/0"],
                         "prepared_document_sha256": "e" * 64,
                     }
@@ -940,7 +940,7 @@ class CorpusAdmissionTests(unittest.TestCase):
                         "findings": [
                             {
                                 "finding_id": "d" * 64,
-                                "rule_id": "TCW-D009",
+                                "rule_id": "D009",
                             }
                         ]
                     }
@@ -965,7 +965,7 @@ class CorpusAdmissionTests(unittest.TestCase):
                 admitted.members[0]["revisions"][0]["revision_id"], "a" * 64
             )
             self.assertEqual(
-                admitted.members[0]["revisions"][0]["finding_rule"], "TCW-D009"
+                admitted.members[0]["revisions"][0]["finding_rule"], "D009"
             )
             self.assertEqual(
                 admitted.members[0]["revisions"][0][

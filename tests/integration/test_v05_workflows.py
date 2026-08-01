@@ -22,7 +22,7 @@ class V05RefinementWorkflowTests(unittest.TestCase):
         output: Path,
         *,
         state: str,
-        rule_id: str = "TCW-D009",
+        rule_id: str = "D009",
     ) -> Path:
         findings = json.loads((diagnosis / "findings.json").read_text("utf-8"))
         finding_id = next(
@@ -101,7 +101,7 @@ class V05RefinementWorkflowTests(unittest.TestCase):
             )
             self.assertEqual(
                 sum(
-                    item["rule_id"] == "TCW-D009"
+                    item["rule_id"] == "D009"
                     for item in second_findings["findings"]
                 ),
                 1,
@@ -111,7 +111,7 @@ class V05RefinementWorkflowTests(unittest.TestCase):
                 first_revision,
                 root / "chained.json",
                 state="APPROVED",
-                rule_id="TCW-D009",
+                rule_id="D009",
             )
             second_revision = resolve_refinement(
                 chained_proposal,

@@ -83,12 +83,12 @@ def expected() -> dict[str, object]:
             descriptor(
                 HYPHENATION,
                 "line-end-hyphenation",
-                ["TCW-D010"],
+                ["D010"],
             ),
             descriptor(
                 WHITESPACE,
                 "whitespace-cleanup",
-                ["TCW-D009"],
+                ["D009"],
             ),
         ],
     }
