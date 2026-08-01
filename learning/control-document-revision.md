@@ -19,15 +19,22 @@ evidence. It never overwrites its base.
 
 ## Draft D009 with R001
 
-Observe and diagnose the whitespace fixture:
+Observe the whitespace fixture:
 
 ```bash
 corpus observe fixtures/refinement/whitespace-cleanup.md
+```
+
+Read the compact JSON output. Set `OBSERVATION_DIRECTORY` to the parent
+directory of its `manifest` path. Then diagnose the observation:
+
+```bash
 corpus diagnose OBSERVATION_DIRECTORY
 ```
 
-Set the two directory placeholders from the command outputs. Open
-`findings.json` and set `FINDING_ID` to its D009 finding ID.
+Read the diagnosis output. Set `DIAGNOSIS_DIRECTORY` to the parent directory
+of its `manifest` path. Open `findings.json`, choose the D009 finding, and set
+`FINDING_ID` to its finding ID.
 
 ```bash
 corpus draft-refinement DIAGNOSIS_DIRECTORY \
