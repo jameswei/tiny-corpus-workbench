@@ -1,75 +1,78 @@
-# Learning Materials
+# Learn the Document Lifecycle
 
-These lessons turn released milestones and the current source checkout into
-guided, hands-on study. They help you understand the design and experiment
-safely. The user guides describe current behavior.
+These five lessons teach one document-preparation lifecycle. The CLI and the
+Local Visual Workbench are two interfaces over the same application behavior.
+The lessons start with a raw source and end with an immutable prepared
+revision. They do not cover chunking, embeddings, retrieval, or generation.
 
-## Writing style
+## Set up once
 
-The lessons use
-[ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/)
-as a writing reference. The lessons use these practical rules:
+Use CPython 3.12 and run all commands from the repository root.
 
-- Use concise, plain, and accurate English.
-- Give each sentence and paragraph one main topic.
-- Use the active voice when the agent is known.
-- Use one instruction in each numbered step.
-- Keep procedural sentences at 20 words or fewer when practical.
-- Keep descriptive sentences at 25 words or fewer when practical.
-- Use one term for one meaning.
-- Define necessary project terms before you use them.
+```bash
+uv sync --frozen --python 3.12
+source .venv/bin/activate
+corpus --help
+```
 
-These lessons do not claim full ASD-STE100 conformance. Full conformance
-requires all applicable writing rules and controlled-dictionary checks.
+After activation, the lessons use `corpus ...` commands. Start with the
+project-authored fixtures before you use private documents.
+
+The main exercises in lessons 1, 2, and 3 are model-free. The guided path in
+lesson 5 is also model-free. PDF observation is an optional extension in
+lesson 1.
+
+Both committed corpus specifications contain PDF members. A `COMPLETE` run of
+either specification needs prefetched Docling models. Download them once while
+network access is available:
+
+```bash
+uv run docling-tools models download layout tableformer \
+  --output-dir .cache/docling/models
+```
+
+Corpus execution does not download models. Without the models, a committed
+corpus can still publish a valid `PARTIAL` record when other members produce
+usable evidence.
 
 ## Learning path
 
-| Milestone | Lesson | Status | Suggested time |
-| --- | --- | --- | --- |
-| v0.1 | [Extraction Observatory](v0.1-extraction-observatory.md) | Available | 60–90 minutes |
-| v0.2 | [Evidence-Based Diagnosis](v0.2-evidence-based-diagnosis.md) | Available | 45–60 minutes |
-| v0.3 | [Controlled Revisions](v0.3-controlled-revisions.md) | Available | 60 minutes |
-| v0.4 | [Corpus Inspection and Comparison](v0.4-corpus-inspection-comparison.md) | Available | 60–75 minutes |
-| v0.5 | [Local Visual Workbench](v0.5-local-visual-workbench.md) | Available | 30–45 minutes |
-| v0.6 | [Shared Workbench Workspace](v0.6-shared-workbench-workspace.md) | Available in current source | 30–45 minutes |
-| v0.7 | [Web Observation Workflow](v0.7-web-observation-workflow.md) | Available in current source | 20–30 minutes |
-| v0.8 | [Interactive Document Lifecycle](v0.8-interactive-document-lifecycle.md) | Available in current source | 30–45 minutes |
+| Topic | Lesson | Main result |
+| --- | --- | --- |
+| 1. Observe | [Observe extraction](observe-extraction.md) | Compare two extraction views and verify their evidence. |
+| 2. Diagnose | [Diagnose with evidence](diagnose-with-evidence.md) | Apply fixed rules without changing the document. |
+| 3. Decide | [Control a document revision](control-document-revision.md) | Approve or reject one reversible proposal. |
+| 4. Compare | [Inspect a corpus](inspect-a-corpus.md) | Aggregate explicit members in a source-text-free report. |
+| 5. Complete | [Complete the document lifecycle](complete-document-lifecycle.md) | Use the Workbench across observation, diagnosis, and decision. |
 
-## How to use a lesson
+## Shared terms
 
-1. Run the examples from the repository root.
-2. Use committed golden fixtures rather than private documents at first.
-3. Inspect the generated evidence before reading the implementation.
-4. Perform destructive experiments only on copied observation directories.
-5. Check your explanation against the lesson's knowledge questions.
+- A **raw source** is the document supplied for observation.
+- A **record** is an immutable published evidence directory.
+- The **canonical document** is lossless `DoclingDocument` JSON.
+- A **finding** records a rule result and cites document evidence.
+- A **proposal** describes one possible refinement before a decision.
+- A **revision** is the immutable prepared document from an approved proposal.
+- A **corpus** is an explicit list of sources and optional approved revisions.
+- A **workspace snapshot** is one accepted in-memory Workbench view of verified
+  records.
 
-Use these companion documents when you need more precision:
+## Study method
 
-- [Extraction Observatory user guide](../docs/extraction-observatory.md): commands,
-  artifacts, compatibility, and exit-code contract
-- [Evidence-Based Diagnosis guide](../docs/evidence-based-diagnosis.md): rules,
-  findings, verification states, and integrity limits
-- [Controlled Revisions guide](../docs/controlled-revisions.md): decisions,
-  refiners, revision lineage, and reversibility
-- [Corpus Inspection and Comparison guide](../docs/corpus-inspection-comparison.md):
-  corpus specifications, reports, verification, and privacy limits
-- [Local Visual Workbench guide](../docs/local-visual-workbench.md): explicit
-  workspace discovery, browser views, refresh behavior, API limits, and local
-  security
-- [v0.1 outcome and rationale](../docs/plans/v0.1-extraction-observatory.md):
-  historical extraction milestone and boundaries
-- [v0.2 outcome and rationale](../docs/plans/v0.2-evidence-based-diagnosis.md):
-  historical diagnosis milestone and boundaries
-- [v0.3 outcome and rationale](../docs/plans/v0.3-controlled-revisions.md):
-  historical controlled-revision milestone and boundaries
-- [v0.4 outcome and rationale](../docs/plans/v0.4-corpus-inspection-comparison.md):
-  historical corpus milestone and boundaries
-- [v0.5 outcome and rationale](../docs/plans/v0.5-local-visual-workbench.md):
-  final learning-first Local Visual Workbench design
-- [v0.6 outcome and rationale](../docs/plans/v0.6-shared-workbench-workspace.md):
-  historical shared-workspace milestone and boundaries
-- [v0.7 approved plan](../docs/plans/v0.7-web-observation-workflow.md):
-  browser observation workflow and boundaries
-- [v0.8 approved plan](../docs/plans/v0.8-interactive-document-lifecycle.md):
-  browser document lifecycle and boundaries
-- [Project roadmap](../docs/roadmap.md): milestone sequence and boundaries
+1. Run each exercise in order.
+2. Read the generated evidence before you read the implementation.
+3. Use temporary copies for integrity experiments.
+4. Answer the knowledge check before you read its answers.
+
+The lessons use concise, plain English. They use ASD-STE100 Simplified
+Technical English as a practical style reference, but they do not claim full
+conformance.
+
+For precise behavior, use the current guides:
+
+- [Extraction Observatory](../docs/extraction-observatory.md)
+- [Evidence-Based Diagnosis](../docs/evidence-based-diagnosis.md)
+- [Controlled Revisions](../docs/controlled-revisions.md)
+- [Corpus Inspection and Comparison](../docs/corpus-inspection-comparison.md)
+- [Local Visual Workbench](../docs/local-visual-workbench.md)
+- [Project roadmap](../docs/roadmap.md)

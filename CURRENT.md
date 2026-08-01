@@ -5,7 +5,7 @@ review evidence, or publication state.
 
 ## Source state
 
-This checkout identifies package version `0.8.0`. The current product
+This checkout identifies package version `0.8.1`. The current product
 milestones cover:
 
 1. extraction observation;
@@ -21,11 +21,12 @@ milestones cover:
 For published versions and release availability, use
 [GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases).
 
-## Active work
+## Current source
 
-The current source prepares the v0.8 Interactive Document Lifecycle. This
-statement does not claim that a tag or GitHub Release exists. GitHub Releases
-owns publication state.
+The current source keeps the v0.8 Interactive Document Lifecycle behavior and
+organizes its learning curriculum by lifecycle topic. For published versions
+and availability, use
+[GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases).
 
 ## Settled invariants
 

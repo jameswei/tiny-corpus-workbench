@@ -239,7 +239,5 @@ source or prepared document passages unless you explicitly retrieve an
 admitted plain-text artifact.
 
 See the [README](../README.md) for the complete CLI path, the
-[v0.8 lesson](../learning/v0.8-interactive-document-lifecycle.md) for the
-browser lifecycle, and the
-[v0.6 lesson](../learning/v0.6-shared-workbench-workspace.md) for manual
-workspace refresh.
+[complete lifecycle lesson](../learning/complete-document-lifecycle.md) for
+the browser lifecycle and manual workspace refresh.
