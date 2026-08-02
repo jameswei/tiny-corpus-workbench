@@ -18,7 +18,6 @@ FORBIDDEN_JS = (
     "document.write",
     "eval(",
     "new Function",
-    "localStorage",
     "sessionStorage",
     "indexedDB",
     "serviceWorker",
@@ -72,27 +71,34 @@ def validate(root: Path) -> list[str]:
     if ("div", "aria-live", "polite") not in parser.attributes:
         errors.append("missing polite aria-live region")
     for required in (
-        ("button", "id", "observe-guided"),
+        ("button", "id", "add-document"),
         ("input", "id", "observation-file"),
         ("input", "type", "file"),
         ("input", "accept", ".docx,.md,.pdf,.txt"),
-        ("button", "id", "observe-upload"),
-        ("div", "id", "observation-alert"),
-        ("div", "role", "alert"),
+        ("button", "id", "add-upload"),
+        ("section", "role", "dialog"),
+        ("section", "aria-modal", "true"),
     ):
         if required not in parser.attributes:
             errors.append(f"missing observation accessibility contract: {required}")
     for tag, name, value in parser.attributes:
-        if name in {"src", "href"} and not (
-            value.startswith("/") or value.startswith("#")
-        ):
+        if name == "src" and not value.startswith("/"):
             errors.append(f"non-local {tag} {name}: {value}")
+        if name == "href" and not (
+            value.startswith("/")
+            or value.startswith("#")
+            or value == "https://github.com/jameswei/tiny-corpus-workbench"
+        ):
+            errors.append(f"unapproved {tag} {name}: {value}")
         if name.startswith("on"):
             errors.append(f"inline event handler is forbidden: {name}")
     if "<script" in html and 'src="/assets/workbench.js"' not in html:
         errors.append("scripts must use only the bundled workbench.js")
 
-    for name, content in (("index.html", html), ("workbench.css", css), ("workbench.js", js)):
+    remote_checked_html = html.replace(
+        "https://github.com/jameswei/tiny-corpus-workbench", ""
+    )
+    for name, content in (("index.html", remote_checked_html), ("workbench.css", css), ("workbench.js", js)):
         if REMOTE.search(content):
             errors.append(f"{name} contains a remote or protocol-relative resource")
     for token in FORBIDDEN_JS:
@@ -103,6 +109,8 @@ def validate(root: Path) -> list[str]:
         "OBSERVATION_POLL_INTERVAL_MS",
         "handleObservationEnvelope",
         "encodeURIComponent(file.name)",
+        "localStorage.setItem",
+        "catalogParity",
         "document.createElement",
         ".textContent",
         "prefers-reduced-motion",
@@ -110,8 +118,11 @@ def validate(root: Path) -> list[str]:
         source = js if required != "prefers-reduced-motion" else css
         if required not in source:
             errors.append(f"missing required asset contract: {required}")
-    if re.search(r"fetch\s*\(\s*[^`'\"]", js):
+    dynamic_fetches = re.findall(r"fetch\s*\(\s*([^,\n]+)", js)
+    if any(target.strip() != "target" for target in dynamic_fetches):
         errors.append("fetch targets must be visibly rooted in a local literal")
+    if "function fetchJSON(target" not in js or "fetchJSON(`${API_ROOT}/" not in js:
+        errors.append("same-origin fetch wrapper or rooted callers are missing")
     if "href =" in js or "location" in js:
         errors.append("JavaScript navigation is forbidden")
     if "@import" in css:

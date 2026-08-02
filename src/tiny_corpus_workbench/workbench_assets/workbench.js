@@ -2,1547 +2,483 @@
 
 const API_ROOT = "/api";
 const OBSERVATION_POLL_INTERVAL_MS = 300;
-const OBSERVATION_STAGES = [
-  "PREPARING_SOURCE",
-  "EXTRACTING_DOCLING",
-  "EXTRACTING_MARKITDOWN",
-  "BUILDING_EVIDENCE",
-  "VERIFYING_AND_PUBLISHING",
-  "REFRESHING_WORKSPACE",
-];
-const COMPARISON_METRICS = [
-  "bytes",
-  "characters",
-  "non_whitespace_characters",
-  "lines",
-  "non_empty_lines",
-  "atx_headings",
-  "unordered_list_items",
-  "ordered_list_items",
-  "pipe_table_rows",
-  "visible_urls",
-];
-const elements = {
-  announcer: document.getElementById("announcer"),
-  guidedButton: document.getElementById("observe-guided"),
-  lifecycleGuidedButton: document.getElementById("start-lifecycle"),
-  uploadButton: document.getElementById("observe-upload"),
-  uploadInput: document.getElementById("observation-file"),
-  observationState: document.getElementById("observation-state"),
-  observationMessage: document.getElementById("observation-message"),
-  observationAlert: document.getElementById("observation-alert"),
-  observationSource: document.getElementById("observation-source"),
-  observationProgress: document.getElementById("observation-progress"),
-  refreshButton: document.getElementById("refresh-records"),
-  recordCount: document.getElementById("record-count"),
-  recordList: document.getElementById("record-list"),
-  recordView: document.getElementById("record-view"),
-  recordHeading: document.getElementById("record-heading"),
-  recordKind: document.getElementById("record-kind"),
-  recordState: document.getElementById("record-state"),
-  recordSummary: document.getElementById("record-summary"),
-  recordContent: document.getElementById("record-content"),
-  sessionState: document.getElementById("session-state"),
-  sessionMessage: document.getElementById("session-message"),
-  sessionFacts: document.getElementById("session-facts"),
-  stateKey: document.getElementById("state-key"),
-  lifecycleState: document.getElementById("lifecycle-state"),
-  lifecycleMessage: document.getElementById("lifecycle-message"),
-  lifecycleAlert: document.getElementById("lifecycle-alert"),
-  lifecycleContent: document.getElementById("lifecycle-content"),
-};
-let currentProjection = null;
-let selectedRecordKey = null;
-let projectionGeneration = 0;
-let projectionRequestGeneration = 0;
-let detailRequestGeneration = 0;
-let activeDetailPromise = Promise.resolve(true);
-let observationCapabilities = null;
-let latestObservationJob = null;
-let observationPollTimer = null;
-let handledTerminalJobId = null;
-let announcedActiveJobId = null;
-let announcedActiveStage = null;
-let observedProgressJobId = null;
-let lastObservedStageIndex = -1;
-let actionToken = null;
-let selectedRecord = null;
-let selectedDetail = null;
-let lifecycleMutationInFlight = false;
-const proposalsByDiagnosis = new Map();
-const dispatchedDraftKeys = new Set();
-const completedDraftKeys = new Set();
-const ACTION_TOKEN_REJECTED = Symbol("ACTION_TOKEN_REJECTED");
+const TOAST_DURATION_MS = 4000;
+const LOCALE_KEY = "tcw.workbench.locale";
+const RECONCILING_OBSERVATION = "RECONCILING";
+const STAGES = ["observe", "diagnose", "refine", "revision"];
 
-const stateHelp = {
-  MATCH: "The admitted target is present and its recorded relationship matches.",
-  MISSING: "The referenced record was not supplied. No absent record was opened.",
-  NOT_CHECKED: "The required related record was not available, so evaluation did not run.",
-  NOT_APPLICABLE: "This evaluation does not apply to the record state.",
-  VERIFIED: "Intrinsic artifact integrity passed during admission.",
+const catalogs = {
+  en: {
+    workspace: "Workspace", documents: "Documents", corpora: "Corpora", addDocument: "Add a document", skipToWorkspace: "Skip to workspace",
+    workspaceNavigation: "Workspace navigation", stagesLabel: "Document preparation stages", inspectorLabel: "Stage inspector", corpusShell: "Corpus inspection",
+    refreshWorkspace: "Refresh workspace", ruleReference: "Rule reference", switchLocale: "Switch to Simplified Chinese",
+    close: "Close", closeNotification: "Close notification", emptyTitle: "Your workspace is empty",
+    emptyBody: "Add a guided example or a supported local document to begin.", loadFailureTitle: "Workspace could not be loaded",
+    loadFailureBody: "No partial state was accepted and no files were changed. Refresh after you correct the workspace records.",
+    loading: "Loading the workspace…", contextDocument: "Document", contextCorpus: "Corpus", verifiedMembers: "Verified · {count} members",
+    observeQuestion: "What did extraction produce?", diagnoseQuestion: "What needs attention?", refineQuestion: "What change is proposed?",
+    revisionQuestion: "What was preserved?", currentStage: "Current stage", observe: "Observe", diagnose: "Diagnose", refine: "Refine", revision: "Revision",
+    shellGuidance: "This stage workspace is ready for the lifecycle content in the next checkpoint.", summary: "Summary", evidence: "Evidence", artifacts: "Artifacts",
+    inspectorSummary: "Stage guidance and status will appear here.", inspectorEvidence: "Verified supporting evidence will appear here.", inspectorArtifacts: "Published artifacts will appear here.",
+    noDocuments: "No documents", noCorpora: "No corpora", addIntro: "Choose one path. A new source is selected and Observe starts immediately.",
+    completePath: "Complete guided preparation", noFindingsPath: "Guided no-findings inspection", uploadTitle: "Upload one document",
+    uploadFormats: ".docx, .md, .pdf, or .txt up to 32 MiB", startObserve: "Start Observe", observing: "Observe started for {name}.",
+    reactivated: "This source already exists. Its document was selected; no new document or Observation was created.",
+    refreshStarted: "Refreshing the workspace.", refreshSuccess: "Workspace refreshed.", refreshNoChange: "Workspace is already up to date.",
+    refreshFailure: "Refresh failed. The last accepted workspace view was preserved.", observeFailure: "Observe could not start.",
+    observationBusy: "An Observation is already running. Wait for it to finish before adding another document.",
+    observationPublishedRefreshFailed: "The Observation was published, but the workspace could not refresh. The last accepted view was preserved. Use Refresh workspace; do not run Observe again.",
+    observationStatusUnknown: "The Observation status could not be confirmed. The Workbench will reconcile it; no action was replayed.",
+    observationWorkspaceReconciled: "The Observation outcome was lost after restart. The accepted workspace was reconciled; no action was replayed.",
+    ruleIntro: "A finding is evidence from a fixed condition. It is not a verdict or permission to change a document.",
+    credit: "An inspectable document-preparation project.", github: "GitHub Repository",
+    "rule.D001.name": "Empty document", "rule.D001.about": "The canonical document contains no content items.",
+    "rule.D002.name": "Suspiciously short document", "rule.D002.about": "The extracted text is within the fixed short-document range.",
+    "rule.D003.name": "Replacement character", "rule.D003.about": "Extracted text contains the Unicode replacement character.",
+    "rule.D004.name": "Duplicate text block", "rule.D004.about": "A sufficiently long text block occurs more than once.",
+    "rule.D005.name": "Heading level jump", "rule.D005.about": "A heading skips more than one level from the prior heading.",
+    "rule.D006.name": "Orphan caption", "rule.D006.about": "A caption has no supported nearby picture or table.",
+    "rule.D007.name": "Repeated page-margin text", "rule.D007.about": "The same bounded text occurs near page margins on enough pages.",
+    "rule.D008.name": "Missing PDF provenance", "rule.D008.about": "A PDF observation lacks the required extraction provenance.",
+    "rule.D009.name": "Normalizable whitespace", "rule.D009.about": "Text contains whitespace that differs from the fixed normalized form.",
+    "rule.D010.name": "Possible line-end hyphenation", "rule.D010.about": "A fixed line-end pattern may represent a split word.",
+    "refiner.R001": "Whitespace normalization", "refiner.R002": "Repeated boilerplate removal", "refiner.R003": "Deterministic dehyphenation"
+  },
+  "zh-CN": {
+    workspace: "工作区", documents: "文档", corpora: "语料库", addDocument: "添加文档", skipToWorkspace: "跳到工作区",
+    workspaceNavigation: "工作区导航", stagesLabel: "文档准备阶段", inspectorLabel: "阶段检查器", corpusShell: "语料库检查",
+    refreshWorkspace: "刷新工作区", ruleReference: "规则参考", switchLocale: "切换到英语",
+    close: "关闭", closeNotification: "关闭通知", emptyTitle: "工作区为空",
+    emptyBody: "添加引导示例或支持的本地文档以开始。", loadFailureTitle: "无法加载工作区",
+    loadFailureBody: "未接受任何部分状态，也未更改任何文件。修正工作区记录后请刷新。",
+    loading: "正在加载工作区…", contextDocument: "文档", contextCorpus: "语料库", verifiedMembers: "已验证 · {count} 个成员",
+    observeQuestion: "提取得到了什么？", diagnoseQuestion: "哪些内容需要注意？", refineQuestion: "建议进行什么更改？",
+    revisionQuestion: "保留了什么？", currentStage: "当前阶段", observe: "观察", diagnose: "诊断", refine: "改进", revision: "修订",
+    shellGuidance: "此阶段工作区已就绪；生命周期内容将在下一检查点加入。", summary: "摘要", evidence: "证据", artifacts: "产物",
+    inspectorSummary: "阶段指导和状态将在此显示。", inspectorEvidence: "已验证的支持证据将在此显示。", inspectorArtifacts: "已发布的产物将在此显示。",
+    noDocuments: "没有文档", noCorpora: "没有语料库", addIntro: "请选择一种路径。新来源会被选中，并立即开始观察。",
+    completePath: "完整引导式准备", noFindingsPath: "无发现引导式检查", uploadTitle: "上传一个文档",
+    uploadFormats: ".docx、.md、.pdf 或 .txt，最大 32 MiB", startObserve: "开始观察", observing: "已开始观察 {name}。",
+    reactivated: "此来源已存在。已选择其文档；未创建新文档或观察记录。",
+    refreshStarted: "正在刷新工作区。", refreshSuccess: "工作区已刷新。", refreshNoChange: "工作区已是最新状态。",
+    refreshFailure: "刷新失败。已保留上次接受的工作区视图。", observeFailure: "无法开始观察。",
+    observationBusy: "一个观察任务正在运行。请等待其完成后再添加文档。",
+    observationPublishedRefreshFailed: "观察记录已发布，但工作区无法刷新。已保留上次接受的视图。请使用“刷新工作区”，不要再次运行观察。",
+    observationStatusUnknown: "无法确认观察状态。工作台将进行协调；未重放任何操作。",
+    observationWorkspaceReconciled: "重启后无法恢复观察结果。已协调接受的工作区；未重放任何操作。",
+    ruleIntro: "发现是固定条件产生的证据，不是裁决，也不是更改文档的授权。",
+    credit: "一个可检查的文档准备项目。", github: "GitHub 仓库",
+    "rule.D001.name": "空文档", "rule.D001.about": "规范文档不包含任何内容项。",
+    "rule.D002.name": "文档短得可疑", "rule.D002.about": "提取文本处于固定的短文档范围内。",
+    "rule.D003.name": "替换字符", "rule.D003.about": "提取文本包含 Unicode 替换字符。",
+    "rule.D004.name": "重复文本块", "rule.D004.about": "足够长的文本块出现了多次。",
+    "rule.D005.name": "标题级别跳跃", "rule.D005.about": "标题相对前一标题跳过了一个以上的级别。",
+    "rule.D006.name": "孤立题注", "rule.D006.about": "题注附近没有支持的图片或表格。",
+    "rule.D007.name": "重复页边文本", "rule.D007.about": "相同的有限文本在足够多页面的页边附近出现。",
+    "rule.D008.name": "缺少 PDF 来源证据", "rule.D008.about": "PDF 观察缺少所需的提取来源证据。",
+    "rule.D009.name": "可规范化空白", "rule.D009.about": "文本空白与固定的规范形式不同。",
+    "rule.D010.name": "可能的行尾连字符", "rule.D010.about": "固定的行尾模式可能表示被拆分的单词。",
+    "refiner.R001": "空白规范化", "refiner.R002": "重复样板移除", "refiner.R003": "确定性去连字符"
+  }
 };
 
-const statusTone = {
-  AVAILABLE: "good",
-  COMPLETE: "good",
-  MATCH: "good",
-  SUCCESS: "good",
-  VERIFIED: "good",
-  APPLIED: "good",
-  APPROVED: "good",
-  FAILED: "bad",
-  MISSING: "bad",
-  ERROR: "bad",
-  INCOMPLETE: "warn",
-  NOT_AVAILABLE: "warn",
-  PARTIAL: "warn",
-  PARTIAL_SUCCESS: "warn",
-  REJECTED: "warn",
-  TOO_LARGE: "warn",
-  NOT_CHECKED: "neutral",
-  NOT_APPLICABLE: "na",
-};
+const state = { projection: null, locale: "en", selectedKind: null, selectedKey: null, stage: "observe", inspector: "summary", initialFailure: false, activeObservationJobId: null, pendingReactivationKey: null, pendingTerminalToastKey: null, workspaceReconciliationPending: false };
+const elements = {};
+let toastTimer = null;
+let toastRemaining = TOAST_DURATION_MS;
+let toastStartedAt = 0;
+let toastHovered = false;
+let toastFocused = false;
+let pollingTimer = null;
+let modalReturnFocus = null;
 
 function node(tag, text, className) {
   const value = document.createElement(tag);
-  if (text !== undefined && text !== null) {
-    value.textContent = String(text);
-  }
-  if (className) {
-    value.className = className;
-  }
+  if (text !== undefined && text !== null) value.textContent = String(text);
+  if (className) value.className = className;
   return value;
 }
-
-function clear(value) {
-  while (value.firstChild) {
-    value.removeChild(value.firstChild);
-  }
+function clear(value) { while (value.firstChild) value.removeChild(value.firstChild); }
+function format(template, values = {}) { return Object.entries(values).reduce((result, [key, value]) => result.replace(`{${key}}`, String(value)), template); }
+function t(key, values) { return format(catalogs[state.locale][key] || catalogs.en[key] || key, values); }
+function catalogParity() {
+  const en = Object.keys(catalogs.en).sort();
+  const zh = Object.keys(catalogs["zh-CN"]).sort();
+  return en.length === zh.length && en.every((key, index) => key === zh[index]);
 }
-
-function displayName(value) {
-  return String(value).replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function shortHash(value) {
-  if (typeof value !== "string" || value.length < 18) {
-    return value === null ? "None" : String(value);
-  }
-  return `${value.slice(0, 10)}…${value.slice(-8)}`;
-}
-
-function status(value) {
-  const label = value === null || value === undefined ? "Unknown" : String(value);
-  const badge = node("span", displayName(label), `status status-${statusTone[label] || "neutral"}`);
-  badge.dataset.state = label;
-  return badge;
-}
-
-function announce(message) {
-  elements.announcer.textContent = message;
-}
-
-function isActiveJob(job) {
-  return job !== null && (job.state === "QUEUED" || job.state === "RUNNING");
-}
-
-function formatBytes(value) {
-  if (!Number.isFinite(value)) {
-    return "Unknown";
-  }
-  if (value < 1024) {
-    return `${value} bytes`;
-  }
-  if (value < 1024 * 1024) {
-    return `${(value / 1024).toFixed(1)} KiB`;
-  }
-  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
-function setObservationAlert(message, tone = "warning", focus = false) {
-  elements.observationAlert.hidden = !message;
-  elements.observationAlert.className = tone === "error" ? "notice error" : "notice";
-  elements.observationAlert.textContent = message || "";
-  if (message && focus) {
-    elements.observationAlert.focus();
-  }
-}
-
-function updateObservationControls() {
-  const active = isActiveJob(latestObservationJob) || lifecycleMutationInFlight;
-  const hasCapabilities = observationCapabilities !== null;
-  const hasFile = elements.uploadInput.files && elements.uploadInput.files.length === 1;
-  const guided = hasCapabilities && Array.isArray(observationCapabilities.guided)
-    ? observationCapabilities.guided
-    : [];
-  elements.guidedButton.disabled = active || !guided.some((item) => item.id === "policy-memo-md");
-  elements.lifecycleGuidedButton.disabled = active || !guided.some((item) => item.id === "whitespace-cleanup-md");
-  elements.uploadButton.disabled = active || !hasCapabilities || !hasFile;
-}
-
-function appendFacts(target, entries) {
-  clear(target);
-  for (const [label, value, monospaced] of entries) {
-    const wrapper = node("div");
-    wrapper.append(node("dt", label), node("dd", value, monospaced ? "mono" : undefined));
-    target.append(wrapper);
-  }
-}
-
-function rememberObservedStage(job) {
-  if (job === null) {
-    observedProgressJobId = null;
-    lastObservedStageIndex = -1;
-    return;
-  }
-  if (observedProgressJobId !== job.job_id) {
-    observedProgressJobId = job.job_id;
-    lastObservedStageIndex = -1;
-  }
-  const stageIndex = OBSERVATION_STAGES.indexOf(job.stage);
-  if (isActiveJob(job) && stageIndex >= 0) {
-    lastObservedStageIndex = Math.max(lastObservedStageIndex, stageIndex);
-  }
-}
-
-function observationStageState(job, stageIndex) {
-  if (job === null || job.state === "QUEUED") {
-    return {label: "Waiting", current: false};
-  }
-  const currentIndex = OBSERVATION_STAGES.indexOf(job.stage);
-  if (isActiveJob(job) && currentIndex >= 0) {
-    if (stageIndex < currentIndex) {
-      return {label: "Completed", current: false};
-    }
-    if (stageIndex === currentIndex) {
-      return {label: "Current", current: true};
-    }
-    return {label: "Waiting", current: false};
-  }
-  if (job.state === "COMPLETED") {
-    if (stageIndex < OBSERVATION_STAGES.length - 1) {
-      return {label: "Completed", current: false};
-    }
-    if (job.refresh && job.refresh.status === "READY") {
-      return {label: "Completed", current: false};
-    }
-    if (job.refresh && job.refresh.status === "FAILED") {
-      return {label: "Failed", current: false};
-    }
-    return {label: "Unknown", current: false};
-  }
-  if (job.state === "FAILED") {
-    if (stageIndex === OBSERVATION_STAGES.length - 1) {
-      return {label: "Not reached", current: false};
-    }
-    if (lastObservedStageIndex < 0) {
-      return {label: "Unknown", current: false};
-    }
-    if (stageIndex < lastObservedStageIndex) {
-      return {label: "Completed", current: false};
-    }
-    if (stageIndex === lastObservedStageIndex) {
-      return {label: "Last observed", current: false};
-    }
-    return {label: "Not reached or unknown", current: false};
-  }
-  return {label: "Waiting", current: false};
-}
-
-function appendObservationStages(target, job) {
-  const wrapper = node("div");
-  const value = node("dd");
-  const stages = node("ol", undefined, "observation-stages");
-  stages.setAttribute("aria-label", "Observation stage sequence");
-  for (const [stageIndex, stage] of OBSERVATION_STAGES.entries()) {
-    const presentation = observationStageState(job, stageIndex);
-    const item = node("li", undefined, "observation-stage");
-    item.dataset.stage = stage;
-    item.dataset.stageState = presentation.label;
-    if (presentation.current) {
-      item.setAttribute("aria-current", "step");
-    }
-    item.append(
-      node("span", displayName(stage), "observation-stage-name"),
-      node("span", `— ${presentation.label}`, "observation-stage-state"),
-    );
-    stages.append(item);
-  }
-  value.append(stages);
-  wrapper.append(node("dt", "Ordered stages"), value);
-  target.append(wrapper);
-}
-
-function renderObservationJob(job) {
-  latestObservationJob = job;
-  rememberObservedStage(job);
-  const stateValue = job === null ? "AVAILABLE" : job.state;
-  elements.observationState.replaceWith(status(stateValue));
-  elements.observationState = document.querySelector("#observation-workflow .section-heading .status");
-  setObservationAlert("");
-  clear(elements.observationSource);
-  clear(elements.observationProgress);
-
-  if (job === null) {
-    elements.observationMessage.textContent = "Run the guided example or observe one local document.";
-    appendObservationStages(elements.observationProgress, job);
-    updateObservationControls();
-    return;
-  }
-
-  const stage = job.stage === null ? "Not active" : displayName(job.stage);
-  const observationStatus = job.observation === null
-    ? "Not published"
-    : displayName(job.observation.status);
-  const refreshStatus = job.refresh === null ? "Not started" : displayName(job.refresh.status);
-  elements.observationMessage.textContent = isActiveJob(job)
-    ? `Observation is ${displayName(job.state).toLowerCase()}. Current stage: ${stage}.`
-    : `Observation job ${displayName(job.state).toLowerCase()}.`;
-  appendFacts(elements.observationSource, [
-    ["Filename", job.input.name],
-    ["Format", job.input.media_type],
-    ["Size", formatBytes(job.input.size)],
-    ["SHA-256", job.input.sha256, true],
-  ]);
-  appendFacts(elements.observationProgress, [
-    ["Job state", displayName(job.state)],
-    ["Current stage", stage],
-    ["Observation", observationStatus],
-    ["Workspace refresh", refreshStatus],
-  ]);
-  appendObservationStages(elements.observationProgress, job);
-
-  if (job.state === "FAILED" && job.error !== null) {
-    setObservationAlert(
-      `${job.error.code}: ${job.error.message}`,
-      "error",
-      handledTerminalJobId !== job.job_id,
-    );
-  } else if (job.state === "COMPLETED" && job.refresh && job.refresh.status === "FAILED") {
-    setObservationAlert(
-      `The observation was published, but the current workspace projection rejected the complete candidate. The previous record view remains available. ${job.refresh.message || ""}`.trim(),
-      "warning",
-      handledTerminalJobId !== job.job_id,
-    );
-  } else if (
-    job.state === "COMPLETED"
-    && job.observation
-    && job.observation.status !== "SUCCESS"
-  ) {
-    setObservationAlert(
-      `The immutable observation was published with ${displayName(job.observation.status)} evidence. Inspect the extractor outcomes for details.`,
-    );
-  }
-  updateObservationControls();
-}
-
-function stopObservationPolling() {
-  if (observationPollTimer !== null) {
-    clearTimeout(observationPollTimer);
-    observationPollTimer = null;
-  }
-}
-
-function scheduleObservationPoll() {
-  stopObservationPolling();
-  if (isActiveJob(latestObservationJob)) {
-    observationPollTimer = setTimeout(pollObservationJob, OBSERVATION_POLL_INTERVAL_MS);
-  }
-}
-
-async function handleObservationEnvelope(envelope) {
-  observationCapabilities = envelope.capabilities;
-  const job = envelope.job;
-  renderObservationJob(job);
-  if (isActiveJob(job)) {
-    const activeStage = job.stage === null ? job.state : job.stage;
-    if (
-      announcedActiveJobId !== job.job_id
-      || announcedActiveStage !== activeStage
-    ) {
-      announce(
-        job.stage === null
-          ? `Observation ${displayName(job.state).toLowerCase()}.`
-          : `Observation stage: ${displayName(job.stage)}.`,
-      );
-      announcedActiveJobId = job.job_id;
-      announcedActiveStage = activeStage;
-    }
-  }
-  if (!isActiveJob(job) && job !== null && handledTerminalJobId !== job.job_id) {
-    handledTerminalJobId = job.job_id;
-    if (
-      job.state === "COMPLETED"
-      && job.refresh
-      && job.refresh.status === "READY"
-      && job.observation
-      && job.observation.record_key
-    ) {
-      selectedRecordKey = job.observation.record_key;
-      try {
-        if (await loadProjection()) {
-          announce("Published observation selected in the refreshed workspace.");
-        }
-      } catch (error) {
-        setObservationAlert(
-          "The observation was published and the workspace refresh succeeded, but the updated record view could not be loaded. Use Refresh records to load and select it.",
-          "error",
-          true,
-        );
-        announce("The published observation view could not be loaded. Use Refresh records.");
-      }
-    } else if (job.state === "COMPLETED") {
-      announce("The observation was published, but the workspace view was not refreshed.");
-    } else {
-      announce("Observation failed before publication.");
-    }
-  }
-  scheduleObservationPoll();
-}
-
-async function readObservationJobs() {
-  const response = await fetch(`${API_ROOT}/observation-jobs`, {
-    credentials: "same-origin",
-    headers: {"Accept": "application/json"},
+function catalogCoversReference(reference) {
+  if (!reference || !Array.isArray(reference.rules)) return false;
+  const expectedRules = new Set(reference.rules.map((rule) => rule.rule_id));
+  const expectedRefiners = new Set(reference.rules.filter((rule) => rule.refiner).map((rule) => rule.refiner.refiner_id));
+  return Object.values(catalogs).every((catalog) => {
+    const actualRuleNames = Object.keys(catalog).filter((key) => /^rule\.[^.]+\.name$/.test(key)).map((key) => key.split(".")[1]);
+    const actualRuleCopy = Object.keys(catalog).filter((key) => /^rule\.[^.]+\.about$/.test(key)).map((key) => key.split(".")[1]);
+    const actualRefiners = Object.keys(catalog).filter((key) => key.startsWith("refiner.")).map((key) => key.slice("refiner.".length));
+    return setsEqual(expectedRules, new Set(actualRuleNames)) && setsEqual(expectedRules, new Set(actualRuleCopy)) && setsEqual(expectedRefiners, new Set(actualRefiners));
   });
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}.`);
-  }
-  await handleObservationEnvelope(await response.json());
 }
-
-async function pollObservationJob() {
-  observationPollTimer = null;
-  try {
-    await readObservationJobs();
-  } catch (error) {
-    setObservationAlert(
-      "Observation status is unavailable. The Workbench will try again while the job is active.",
-      "error",
-    );
-    announce("Observation status could not be loaded.");
-    scheduleObservationPoll();
-  }
+function setsEqual(left, right) { return left.size === right.size && Array.from(left).every((value) => right.has(value)); }
+function negotiatedLocale(languages, stored) {
+  if (stored === "en" || stored === "zh-CN") return stored;
+  return Array.from(languages || []).some((value) => String(value).toLowerCase().startsWith("zh")) ? "zh-CN" : "en";
 }
-
-async function submitObservation(target, body) {
-  stopObservationPolling();
-  elements.guidedButton.disabled = true;
-  elements.lifecycleGuidedButton.disabled = true;
-  elements.uploadButton.disabled = true;
-  setObservationAlert("");
-  announce("Submitting an observation.");
-  try {
-    const options = {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {"Accept": "application/json"},
-    };
-    if (body !== undefined) {
-      options.body = body;
-    }
-    const response = await fetch(`${API_ROOT}/observation-jobs${target}`, options);
-    const payload = await response.json();
-    if (!response.ok) {
-      throw new Error(`${payload.code}: ${payload.message}`);
-    }
-    announce("Observation accepted.");
-    await handleObservationEnvelope({
-      capabilities: observationCapabilities,
-      job: payload.job,
-    });
-  } catch (error) {
-    setObservationAlert(error.message, "error", true);
-    announce("Observation submission failed.");
-    updateObservationControls();
-  }
-}
-
-function submitGuidedObservation(guidedId = "policy-memo-md") {
-  return submitObservation(`/guided/${guidedId}`);
-}
-
-function submitUploadedObservation() {
-  const file = elements.uploadInput.files && elements.uploadInput.files[0];
-  if (!file || observationCapabilities === null) {
-    return Promise.resolve();
-  }
-  const allowed = observationCapabilities.upload.extensions.some(
-    (extension) => file.name.toLowerCase().endsWith(extension),
-  );
-  if (!allowed) {
-    setObservationAlert("Choose a .docx, .md, .pdf, or .txt file.", "error", true);
-    return Promise.resolve();
-  }
-  if (file.size > observationCapabilities.upload.max_bytes) {
-    setObservationAlert("The selected file exceeds the 32 MiB limit.", "error", true);
-    return Promise.resolve();
-  }
-  return submitObservation(
-    `/upload?filename=${encodeURIComponent(file.name)}`,
-    file,
-  );
-}
-
-function setLifecycleAlert(message, tone = "warning", focus = false) {
-  elements.lifecycleAlert.hidden = !message;
-  elements.lifecycleAlert.className = tone === "error" ? "notice error" : "notice";
-  elements.lifecycleAlert.textContent = message || "";
-  if (message && focus) {
-    elements.lifecycleAlert.focus();
-  }
-}
-
-function setLifecycleMutationState(inFlight) {
-  lifecycleMutationInFlight = inFlight;
-  updateObservationControls();
-  for (const button of elements.recordList.querySelectorAll("button")) {
-    button.disabled = inFlight;
-  }
-  for (const container of [elements.recordContent, elements.lifecycleContent]) {
-    for (const button of container.querySelectorAll(".lifecycle-mutation-button")) {
-      button.disabled = inFlight || actionToken === null;
-    }
-  }
-  renderDocumentLifecycle();
-}
-
-async function fetchActionToken() {
-  try {
-    const response = await fetch(`${API_ROOT}/lifecycle/action-token`, {
-      credentials: "same-origin",
-      headers: {"Accept": "application/json"},
-    });
-    if (!response.ok) {
-      throw new Error(`Request failed with status ${response.status}.`);
-    }
-    const payload = await response.json();
-    if (typeof payload.action_token !== "string" || payload.action_token.length === 0) {
-      throw new Error("The lifecycle action token is invalid.");
-    }
-    actionToken = payload.action_token;
-    renderDocumentLifecycle();
-    return true;
-  } catch (error) {
-    actionToken = null;
-    setLifecycleAlert(
-      "Lifecycle controls are unavailable. Observation and record refresh remain available.",
-      "error",
-    );
-    renderDocumentLifecycle();
-    return false;
-  }
-}
-
-async function lifecyclePost(target) {
-  if (actionToken === null || lifecycleMutationInFlight) {
-    return null;
-  }
-  setLifecycleAlert("");
-  setLifecycleMutationState(true);
-  try {
-    const response = await fetch(`${API_ROOT}/lifecycle${target}`, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {
-        "Accept": "application/json",
-        "X-TCW-Action-Token": actionToken,
-      },
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      if (response.status === 403 && payload.code === "ACTION_TOKEN_INVALID") {
-        actionToken = null;
-        const refreshed = await fetchActionToken();
-        if (refreshed) {
-          setLifecycleAlert(
-            "The lifecycle action token changed. It was refreshed; choose the action again.",
-            "error",
-            true,
-          );
-        }
-        announce("The lifecycle action token was rejected. No action was replayed.");
-        return ACTION_TOKEN_REJECTED;
-      }
-      throw new Error(`${payload.code}: ${payload.message}`);
-    }
-    return payload;
-  } catch (error) {
-    setLifecycleAlert(error.message, "error", true);
-    announce("Lifecycle action failed. No action was retried.");
-    return null;
-  } finally {
-    setLifecycleMutationState(false);
-  }
-}
-
-function lifecycleButton(label, handler, className = "primary-button") {
-  const button = node("button", label, `${className} lifecycle-mutation-button`);
-  button.type = "button";
-  button.disabled = lifecycleMutationInFlight || actionToken === null;
-  button.addEventListener("click", handler);
-  return button;
-}
-
-function diagnosticActionAvailable(record, detail) {
-  if (record.origin !== "TOP_LEVEL") {
-    return false;
-  }
-  if (detail.kind === "OBSERVATION") {
-    return detail.artifacts.some(
-      (artifact) => artifact.role === "docling-document-json",
-    );
-  }
-  return detail.kind === "REFINEMENT" && detail.view.decision === "APPROVED";
-}
-
-async function diagnoseSelected(record) {
-  const originKey = record.record_key;
-  announce("Diagnosing the selected document.");
-  const payload = await lifecyclePost(`/diagnoses/${originKey}`);
-  if (payload === null || payload === ACTION_TOKEN_REJECTED) {
-    return;
-  }
-  if (payload.refresh.status === "FAILED") {
-    setLifecycleAlert(
-      `The diagnosis was published, but the workspace did not accept the refreshed view. Use Refresh records later. ${payload.refresh.message || ""}`.trim(),
-      "warning",
-      true,
-    );
-    announce("Diagnosis published; workspace refresh failed.");
-    return;
-  }
-  if (selectedRecordKey !== originKey) {
-    announce("Diagnosis published for its originating document context.");
-    return;
-  }
-  selectedRecordKey = payload.publication.record_key;
-  if (await loadProjection()) {
-    announce("Diagnosis published and selected.");
-  }
-}
-
-async function createProposal(diagnosisRecordKey, findingId) {
-  announce("Creating a refinement proposal.");
-  const payload = await lifecyclePost(`/proposals/${diagnosisRecordKey}/${findingId}`);
-  if (payload === null || payload === ACTION_TOKEN_REJECTED) {
-    return;
-  }
-  const proposal = payload.draft;
-  if (proposal.diagnosis_record_key !== diagnosisRecordKey) {
-    setLifecycleAlert("The proposal response did not match its diagnosis context.", "error", true);
-    return;
-  }
-  proposalsByDiagnosis.set(proposal.diagnosis_record_key, proposal);
-  dispatchedDraftKeys.delete(proposal.draft_key);
-  completedDraftKeys.delete(proposal.draft_key);
-  if (selectedRecordKey === diagnosisRecordKey) {
-    renderDocumentLifecycle();
-  }
-  announce("Refinement proposal ready for review.");
-}
-
-async function resolveProposal(proposal, decision) {
-  const draftKey = proposal.draft_key;
-  const originKey = proposal.diagnosis_record_key;
-  if (dispatchedDraftKeys.has(draftKey) || completedDraftKeys.has(draftKey)) {
-    return;
-  }
-  dispatchedDraftKeys.add(draftKey);
-  renderDocumentLifecycle();
-  announce(`${decision === "approve" ? "Approving" : "Rejecting"} the proposal.`);
-  const payload = await lifecyclePost(`/proposals/${draftKey}/${decision}`);
-  if (payload === ACTION_TOKEN_REJECTED) {
-    dispatchedDraftKeys.delete(draftKey);
-    renderDocumentLifecycle();
-    return;
-  }
-  if (payload === null) {
-    renderDocumentLifecycle();
-    return;
-  }
-  completedDraftKeys.add(draftKey);
-  if (payload.refresh.status === "FAILED") {
-    setLifecycleAlert(
-      `The ${payload.publication.decision.toLowerCase()} decision was published, but the workspace did not accept the refreshed view. Use Refresh records later. ${payload.refresh.message || ""}`.trim(),
-      "warning",
-      true,
-    );
-    renderDocumentLifecycle();
-    announce("Decision published; workspace refresh failed.");
-    return;
-  }
-  if (selectedRecordKey !== originKey) {
-    announce("Decision published for its originating diagnosis context.");
-    return;
-  }
-  selectedRecordKey = payload.publication.record_key;
-  if (await loadProjection()) {
-    announce(`${displayName(payload.publication.decision)} refinement published and selected.`);
-  }
-}
-
-function editValue(value) {
-  if (typeof value === "string") {
-    return node("pre", value, "proposal-text");
-  }
-  const facts = [];
-  if (value && typeof value === "object") {
-    for (const key of ["content_layer", "body_index", "furniture_index", "parent"]) {
-      if (Object.hasOwn(value, key)) {
-        const displayed = key === "parent" && value[key] && typeof value[key] === "object"
-          ? value[key].$ref
-          : value[key];
-        facts.push([displayName(key), displayed, key === "parent"]);
-      }
-    }
-  }
-  return factList(facts);
-}
-
-function renderProposal(proposal) {
-  const wrapper = node("div", undefined, "proposal-view");
-  wrapper.append(node("h3", displayName(proposal.refiner.name)));
-  wrapper.append(factList([
-    ["Refiner ID", proposal.refiner.refiner_id, true],
-    ["Refiner version", proposal.refiner.version],
-    ["Finding", `${displayName(proposal.finding.summary)} (${proposal.finding.rule_id})`],
-    ["Draft ID", proposal.draft_id, true],
-    ["Affected references", proposal.affected_refs.join(", "), true],
-  ]));
-  const edits = section("Proposed edits", "Review literal before and after evidence. No markup is executed.");
-  proposal.edits.forEach((edit, index) => {
-    const card = node("article", undefined, "card subsection proposal-edit");
-    card.append(node("h4", `Edit ${index + 1}`));
-    card.append(node("p", `Target: ${JSON.stringify(edit.target)}`, "mono"));
-    const comparison = node("div", undefined, "proposal-comparison");
-    const before = node("div");
-    before.append(node("h5", "Before"), editValue(edit.before));
-    const after = node("div");
-    after.append(node("h5", "After"), editValue(edit.after));
-    comparison.append(before, after);
-    card.append(comparison);
-    edits.append(card);
-  });
-  wrapper.append(edits);
-
-  const details = node("details", undefined, "technical-details");
-  details.append(node("summary", "Continue with the CLI"));
-  const paths = proposal.cli_continuation;
-  details.append(factList([
-    ["Proposal path", paths.proposal_path, true],
-    ["Diagnosis path", paths.diagnosis_path, true],
-    ["Base path", paths.base_path, true],
-    ["Output root", paths.output_root_path, true],
-  ]));
-  details.append(node(
-    "pre",
-    `corpus resolve-refinement ${paths.proposal_path} --diagnosis ${paths.diagnosis_path} --base ${paths.base_path} --output-root ${paths.output_root_path} --approve|--reject`,
-    "evidence",
-  ));
-  wrapper.append(details);
-
-  const alreadyDispatched = dispatchedDraftKeys.has(proposal.draft_key);
-  const completed = completedDraftKeys.has(proposal.draft_key);
-  const actions = node("div", undefined, "lifecycle-actions");
-  const approve = lifecycleButton("Approve proposal", () => resolveProposal(proposal, "approve"));
-  const reject = lifecycleButton("Reject proposal", () => resolveProposal(proposal, "reject"), "secondary-button");
-  approve.disabled = approve.disabled || alreadyDispatched || completed;
-  reject.disabled = reject.disabled || alreadyDispatched || completed;
-  actions.append(approve, reject);
-  wrapper.append(actions);
-  if (completed) {
-    wrapper.append(node("p", "This displayed proposal has a completed decision. Create proposal again to make another explicit decision.", "help"));
-  } else if (alreadyDispatched) {
-    wrapper.append(node("p", "This decision was already dispatched. It cannot be sent again from this proposal view.", "help"));
-  }
-  return wrapper;
-}
-
-function renderDocumentLifecycle() {
-  elements.lifecycleState.replaceWith(status(
-    lifecycleMutationInFlight ? "RUNNING" : actionToken === null ? "NOT_AVAILABLE" : "AVAILABLE",
-  ));
-  elements.lifecycleState = document.querySelector("#document-lifecycle .section-heading .status");
-  clear(elements.lifecycleContent);
-  if (actionToken === null) {
-    elements.lifecycleMessage.textContent = "Lifecycle actions need a same-UI action token. Observation and refresh still work.";
-    return;
-  }
-  if (selectedRecord === null || selectedDetail === null) {
-    elements.lifecycleMessage.textContent = "Select a top-level observation, diagnosis, or refinement to continue.";
-    return;
-  }
-  if (selectedDetail.kind === "DIAGNOSIS") {
-    const proposal = proposalsByDiagnosis.get(selectedRecord.record_key);
-    elements.lifecycleMessage.textContent = proposal
-      ? "Review the proposal for this diagnosis context."
-      : "Inspect a finding and create an available deterministic proposal.";
-    if (proposal) {
-      elements.lifecycleContent.append(renderProposal(proposal));
-    }
-    return;
-  }
-  if (diagnosticActionAvailable(selectedRecord, selectedDetail)) {
-    elements.lifecycleMessage.textContent = selectedDetail.kind === "REFINEMENT"
-      ? "This approved prepared revision can continue through diagnosis."
-      : "This canonical document was verified during workspace admission and can be diagnosed.";
-    const label = selectedDetail.kind === "REFINEMENT" ? "Diagnose prepared revision" : "Diagnose document";
-    elements.lifecycleContent.append(lifecycleButton(label, () => diagnoseSelected(selectedRecord)));
-    return;
-  }
-  if (selectedDetail.kind === "OBSERVATION") {
-    elements.lifecycleMessage.textContent = "Diagnosis unavailable · canonical document is not available";
-  } else if (selectedDetail.kind === "REFINEMENT" && selectedDetail.view.decision === "REJECTED") {
-    elements.lifecycleMessage.textContent = "This rejected decision has no prepared revision and cannot continue.";
-  } else {
-    elements.lifecycleMessage.textContent = "Lifecycle actions are unavailable for this record.";
-  }
-}
-
-function factList(entries) {
-  const list = node("dl", undefined, "facts");
-  for (const [label, value, monospaced] of entries) {
-    const wrapper = node("div");
-    wrapper.append(node("dt", label), node("dd", value, monospaced ? "mono" : undefined));
-    list.append(wrapper);
-  }
-  return list;
-}
-
-function section(title, description) {
-  const wrapper = node("section", undefined, "section");
-  wrapper.append(node("h3", title));
-  if (description) {
-    wrapper.append(node("p", description));
-  }
-  return wrapper;
-}
-
-function stateCard(label, value) {
-  const card = node("div", undefined, "state-card");
-  const heading = node("h4", label);
-  heading.append(" ", status(value));
-  card.append(heading);
-  if (stateHelp[value]) {
-    card.append(node("p", stateHelp[value]));
-  }
-  return card;
-}
-
-function makeTable(captionText, columns, rows) {
-  const wrapper = node("div", undefined, "table-wrap");
-  const table = node("table");
-  table.append(node("caption", captionText));
-  const head = node("thead");
-  const headingRow = node("tr");
-  for (const column of columns) {
-    const th = node("th", column.label);
-    th.scope = "col";
-    headingRow.append(th);
-  }
-  head.append(headingRow);
-  table.append(head);
-  const body = node("tbody");
-  for (const row of rows) {
-    const tr = node("tr");
-    columns.forEach((column, index) => {
-      const cell = node(index === 0 ? "th" : "td");
-      if (index === 0) {
-        cell.scope = "row";
-      }
-      const content = column.render ? column.render(row) : row[column.key];
-      if (content instanceof Node) {
-        cell.append(content);
-      } else {
-        cell.textContent = content === null || content === undefined ? "—" : String(content);
-      }
-      tr.append(cell);
-    });
-    body.append(tr);
-  }
-  table.append(body);
-  wrapper.append(table);
-  return wrapper;
-}
-
-function jsonText(value) {
-  return node("pre", JSON.stringify(value, null, 2), "evidence");
-}
-
-function metricValue(view, metric) {
-  return view === null ? "Not available" : view[metric];
-}
-
-function signedMetricValue(view, metric) {
-  if (view === null) {
-    return "Not available";
-  }
-  const value = view[metric];
-  return value >= 0 ? `+${value}` : String(value);
-}
-
-function renderStateKey() {
-  const wrapper = section("State key", "Relationship and evaluation states have separate meanings.");
-  const grid = node("div", undefined, "state-grid");
-  for (const value of ["MATCH", "MISSING", "NOT_CHECKED", "NOT_APPLICABLE"]) {
-    grid.append(stateCard(displayName(value), value));
-  }
-  wrapper.append(grid);
-  elements.stateKey.append(wrapper);
-}
-
-function renderOverview(projection) {
-  elements.sessionState.replaceWith(status(projection.refresh.status));
-  elements.sessionState = document.querySelector("#session-overview .section-heading .status");
-  if (projection.refresh.status === "FAILED") {
-    elements.sessionMessage.textContent = projection.refresh.message;
-  } else if (projection.counts.record_count === 0) {
-    elements.sessionMessage.textContent = "This workspace has no records. Observe a document here, or publish a CLI record and refresh.";
-  } else {
-    elements.sessionMessage.textContent = "This accepted snapshot is derived in memory. Published records cannot be edited here.";
-  }
-  const counts = projection.counts;
-  const facts = [
-    ["Records", counts.record_count],
-    ["Top-level records", counts.top_level_record_count],
-    ["Contained records", counts.contained_record_count],
-    ["Session ID", shortHash(projection.session_id), true],
-  ];
-  clear(elements.sessionFacts);
-  for (const [label, value, monospaced] of facts) {
-    const wrapper = node("div");
-    wrapper.append(node("dt", label), node("dd", value, monospaced ? "mono" : undefined));
-    elements.sessionFacts.append(wrapper);
-  }
-}
-
-function recordLabel(record) {
-  return `${displayName(record.status)} ${displayName(record.kind)} ${shortHash(record.primary_identity.value)} context ${recordContext(record)}`;
-}
-
-function recordContext(record) {
-  return `${record.record_key.slice(0, 6)}…${record.record_key.slice(-4)}`;
-}
-
-function renderNavigation(projection, generation) {
-  elements.recordCount.textContent = String(projection.records.length);
-  elements.recordCount.setAttribute("aria-label", `${projection.records.length} records`);
-  clear(elements.recordList);
-  if (projection.records.length === 0) {
-    elements.recordList.append(node("p", "No records are available.", "empty"));
-    elements.recordView.hidden = true;
-    selectedRecordKey = null;
-    selectedRecord = null;
-    selectedDetail = null;
-    renderDocumentLifecycle();
-    detailRequestGeneration += 1;
-    return true;
-  }
-  for (const record of projection.records) {
-    const button = node("button", undefined, "record-button");
-    button.type = "button";
-    button.disabled = lifecycleMutationInFlight;
-    button.dataset.recordKey = record.record_key;
-    button.append(node("strong", displayName(record.kind)));
-    button.append(node("small", `${displayName(record.status)} · ${shortHash(record.primary_identity.value)} · Context ${recordContext(record)}`));
-    button.setAttribute("aria-label", `Open ${recordLabel(record)}`);
-    button.addEventListener("click", () => selectRecord(record));
-    elements.recordList.append(button);
-  }
-  const selected = projection.records.find((record) => record.record_key === selectedRecordKey)
-    || projection.records[0];
-  return selectRecord(selected, generation);
-}
-
-function renderRecordSummary(record, detail) {
-  clear(elements.recordSummary);
-  const identity = `${displayName(record.primary_identity.name)}: ${shortHash(record.primary_identity.value)}`;
-  elements.recordSummary.append(factList([
-    ["Run ID", record.run_id, true],
-    ["Identity", identity, true],
-    ["Origin", displayName(record.origin)],
-    ["Artifacts", record.artifact_count],
-    ["Artifact integrity", detail.artifact_integrity],
-  ]));
-}
-
-function renderRelationships(detail) {
-  const wrapper = section("Integrity and relationships", "Intrinsic integrity is independent from cross-record relationship and replay evaluation.");
-  const grid = node("div", undefined, "state-grid");
-  grid.append(stateCard("Artifact integrity", detail.artifact_integrity));
-  if (detail.relationships.length === 0) {
-    const empty = node("div", undefined, "state-card");
-    empty.append(node("h4", "Relationships"), node("p", "This record declares no cross-record relationship."));
-    grid.append(empty);
-  } else {
-    for (const edge of detail.relationships) {
-      const card = stateCard(displayName(edge.relation), edge.state);
-      card.append(node("p", `Expected ${displayName(edge.target_kind)} ${shortHash(edge.target_identity.value)}.`, "mono"));
-      grid.append(card);
-    }
-  }
-  wrapper.append(grid);
-  return wrapper;
-}
-
-function renderSource(source) {
-  const wrapper = section("Source metadata", "The source itself is not available from the workbench.");
-  wrapper.append(factList([
-    ["Name", source.name || source.key],
-    ["Media type", source.media_type],
-    ["Size", `${source.size} bytes`],
-    ["SHA-256", source.sha256, true],
-  ]));
-  return wrapper;
-}
-
-function renderObservation(detail) {
-  const value = detail.view;
-  const fragment = document.createDocumentFragment();
-  fragment.append(renderSource(value.source));
-  fragment.append(node("p", "Verified during workspace admission.", "verification-note"));
-
-  const extractors = section("Extractor comparison", "Extractor results remain separate. A comparison can be incomplete.");
-  extractors.append(factList([
-    ["Canonical document", value.docling_document.name],
-    ["Document version", value.docling_document.version],
-  ]));
-  const cards = node("div", undefined, "card-grid");
-  for (const extractor of value.extractors) {
-    const card = node("article", undefined, "card");
-    const heading = node("h4", `${displayName(extractor.name)} ${extractor.version}`);
-    heading.append(" ", status(extractor.status));
-    card.append(heading);
-    card.append(node("p", `Upstream state: ${extractor.upstream_status === null ? "Not reported" : displayName(extractor.upstream_status)}.`));
-    if (extractor.error) {
-      card.append(node("p", `${extractor.error.code}: ${extractor.error.message}`, "error"));
-    }
-    cards.append(card);
-  }
-  extractors.append(cards);
-
-  const comparison = value.comparison;
-  const comparisonState = node("p");
-  comparisonState.append("Comparison ", status(comparison.status));
-  extractors.append(comparisonState);
-  if (comparison.docling || comparison.markitdown) {
-    if (comparison.docling_minus_markitdown) {
-      extractors.append(node(
-        "p",
-        `Normalized text equal: ${comparison.docling_minus_markitdown.normalized_equal ? "Yes" : "No"}.`,
-      ));
-    }
-    extractors.append(makeTable(
-      "Ten extractor comparison metrics",
-      [
-        {label: "Metric", render: (row) => displayName(row)},
-        {label: "Docling", render: (row) => comparison.docling ? comparison.docling[row] : "—"},
-        {label: "MarkItDown", render: (row) => comparison.markitdown ? comparison.markitdown[row] : "—"},
-        {label: "Delta", render: (row) => comparison.docling_minus_markitdown ? comparison.docling_minus_markitdown[row] : "—"},
-      ],
-      COMPARISON_METRICS,
-    ));
-  }
-  fragment.append(extractors);
-  return fragment;
-}
-
-function renderDiagnosis(detail) {
-  const value = detail.view;
-  const fragment = document.createDocumentFragment();
-  fragment.append(renderSource(value.source));
-  const evaluations = section("Evaluation states");
-  const grid = node("div", undefined, "state-grid");
-  grid.append(stateCard("Subject identity", value.subject_state));
-  grid.append(stateCard("Diagnosis derivation", value.derivation_state));
-  evaluations.append(grid);
-  fragment.append(evaluations);
-
-  const findings = section("Findings", `${value.finding_total} evidence-backed finding(s). Evidence is displayed as literal text.`);
-  if (value.findings.length === 0) {
-    findings.append(node("p", "No rule matched this document.", "empty"));
-  }
-  for (const finding of value.findings) {
-    const card = node("article", undefined, "card subsection");
-    const heading = node("h4", `${displayName(finding.summary)} · ${finding.rule_id}`);
-    heading.append(" ", status(finding.severity));
-    card.append(heading);
-    card.append(factList([
-      ["Finding ID", finding.finding_id, true],
-      ["Rule version", finding.rule_version],
-      ["Affected references", finding.document_refs.join(", "), true],
-    ]));
-    card.append(node("h5", "Evidence"));
-    card.append(jsonText(finding.evidence));
-    if (finding.refiner === null) {
-      card.append(node("p", "Diagnosis only · No supported deterministic refiner", "capability-note"));
-    } else {
-      card.append(node("h5", displayName(finding.refiner.name)));
-      card.append(node(
-        "p",
-        `${finding.refiner.refiner_id} · version ${finding.refiner.version}`,
-        "mono",
-      ));
-      if (finding.proposal_action.status === "AVAILABLE") {
-        card.append(node("p", "Refiner available", "capability-note"));
-        card.append(lifecycleButton(
-          "Create proposal",
-          () => createProposal(detail.record_key, finding.finding_id),
-        ));
-      } else if (finding.proposal_action.reason === "SUBJECT_NOT_ACTIONABLE") {
-        card.append(node(
-          "p",
-          "Proposal unavailable · diagnosis subject is not actionable in this workspace",
-          "capability-note",
-        ));
-      }
-    }
-    findings.append(card);
-  }
-  fragment.append(findings);
-  return fragment;
-}
-
-function renderRefinement(detail) {
-  const value = detail.view;
-  const fragment = document.createDocumentFragment();
-  fragment.append(renderSource(value.source));
-
-  const decision = section("Decision", "The workbench reports the recorded human decision. It cannot change it.");
-  const decisionHeading = node("p");
-  decisionHeading.append("Decision ", status(value.decision));
-  decision.append(decisionHeading);
-  decision.append(factList([
-    ["Draft ID", value.proposal.draft_id, true],
-    ["Finding ID", value.proposal.finding_id, true],
-    ["Refiner", value.proposal.refiner.refiner_id],
-  ]));
-  fragment.append(decision);
-
-  const evaluations = section("Evaluation states");
-  const grid = node("div", undefined, "state-grid");
-  grid.append(stateCard("Diagnosis identity", value.diagnosis_state));
-  grid.append(stateCard("Base identity", value.base_state));
-  grid.append(stateCard("Forward derivation", value.derivation_state));
-  grid.append(stateCard("Reversibility", value.reversibility_state));
-  evaluations.append(grid);
-  fragment.append(evaluations);
-
-  const transformations = section("Transformations", "Before and after hashes bind each deterministic change.");
-  if (value.transformations.length === 0) {
-    transformations.append(node("p", "No transformation was applied.", "empty"));
-  } else {
-    transformations.append(makeTable(
-      "Applied transformations",
-      [
-        {label: "Step", key: "ordinal"},
-        {label: "Refiner", render: (row) => `${row.refiner.refiner_id} · ${displayName(row.refiner.name)}`},
-        {label: "Before", render: (row) => shortHash(row.before_sha256)},
-        {label: "After", render: (row) => shortHash(row.after_sha256)},
-        {label: "References", key: "affected_reference_count"},
-      ],
-      value.transformations,
-    ));
-  }
-  fragment.append(transformations);
-
-  const chain = section("Revision chain");
-  if (value.revision_chain.length === 0) {
-    chain.append(node("p", "A rejected decision has no revision chain.", "empty"));
-  } else {
-    chain.append(makeTable(
-      "Immutable revision lineage",
-      [
-        {label: "Revision", render: (row) => shortHash(row.revision_id)},
-        {label: "Parent revision", render: (row) => row.parent_revision_id ? shortHash(row.parent_revision_id) : "Source observation"},
-        {label: "Refiner", render: (row) => row.refiner.refiner_id},
-        {label: "Before", render: (row) => shortHash(row.before_sha256)},
-        {label: "After", render: (row) => shortHash(row.after_sha256)},
-      ],
-      value.revision_chain,
-    ));
-  }
-  fragment.append(chain);
-  return fragment;
-}
-
-function renderCorpus(detail) {
-  const value = detail.view;
-  const fragment = document.createDocumentFragment();
-  const summary = section("Corpus summary");
-  const summaryLine = node("p");
-  summaryLine.append("Corpus state ", status(value.status));
-  summary.append(summaryLine, factList([
-    ["Corpus ID", value.corpus_id],
-    ["Snapshot ID", value.snapshot_id, true],
-    ["Members", value.totals.member_count],
-    ["Complete", value.totals.complete],
-    ["Partial", value.totals.partial],
-    ["Failed", value.totals.failed],
-    ["Findings", value.totals.finding_count],
-    ["Revisions", value.totals.revision_count],
-  ]));
-  fragment.append(summary);
-
-  const matrix = section("Family and format matrix", "Each member keeps its complete, partial, or failed state.");
-  matrix.append(makeTable(
-    "Corpus members by family and format",
-    [
-      {label: "Member", key: "member_id"},
-      {label: "Family", key: "family"},
-      {label: "Format", key: "format"},
-      {label: "Source", render: (row) => row.source.name || row.source.key},
-      {label: "State", render: (row) => status(row.status)},
-      {label: "Observation", render: (row) => row.observation_record_key ? shortHash(row.observation_record_key) : "Not available"},
-      {label: "Diagnosis", render: (row) => row.diagnosis_record_key ? shortHash(row.diagnosis_record_key) : "Not available"},
-      {label: "Explanation", render: (row) => row.error ? `${row.error.code}: ${row.error.message}` : "Complete"},
-    ],
-    value.matrix,
-  ));
-  fragment.append(matrix);
-
-  const aggregates = section("Aggregates");
-  aggregates.append(makeTable(
-    "Family totals",
-    [
-      {label: "Family", key: "name"},
-      {label: "Members", key: "member_count"},
-      {label: "Complete", key: "complete"},
-      {label: "Partial", key: "partial"},
-      {label: "Failed", key: "failed"},
-    ],
-    value.aggregates.by_family,
-  ));
-  aggregates.append(makeTable(
-    "Format totals",
-    [
-      {label: "Format", key: "name"},
-      {label: "Members", key: "member_count"},
-      {label: "Complete", key: "complete"},
-      {label: "Partial", key: "partial"},
-      {label: "Failed", key: "failed"},
-    ],
-    value.aggregates.by_format,
-  ));
-  aggregates.append(makeTable(
-    "Extractor availability",
-    [
-      {label: "Extractor", key: "name"},
-      {label: "Available", key: "available"},
-      {label: "Unavailable", key: "unavailable"},
-    ],
-    value.aggregates.extractors,
-  ));
-  aggregates.append(makeTable(
-    "Member normalized equality",
-    [
-      {label: "Member", key: "member_id"},
-      {label: "State", render: (row) => status(row.status)},
-      {label: "Normalized equal", render: (row) => row.docling_minus_markitdown === null ? "Not available" : row.docling_minus_markitdown.normalized_equal ? "Yes" : "No"},
-    ],
-    value.aggregates.comparisons,
-  ));
-  const comparisonRows = value.aggregates.comparisons.flatMap((comparison) =>
-    COMPARISON_METRICS.map((metric) => ({
-      member_id: comparison.member_id,
-      status: comparison.status,
-      metric,
-      docling: comparison.docling,
-      markitdown: comparison.markitdown,
-      delta: comparison.docling_minus_markitdown,
-    }))
-  );
-  aggregates.append(makeTable(
-    "Member extractor comparison metrics",
-    [
-      {label: "Member", key: "member_id"},
-      {label: "State", render: (row) => status(row.status)},
-      {label: "Metric", render: (row) => displayName(row.metric)},
-      {label: "Docling", render: (row) => metricValue(row.docling, row.metric)},
-      {label: "MarkItDown", render: (row) => metricValue(row.markitdown, row.metric)},
-      {label: "Signed delta", render: (row) => signedMetricValue(row.delta, row.metric)},
-    ],
-    comparisonRows,
-  ));
-  aggregates.append(makeTable(
-    "Finding totals",
-    [
-      {label: "Rule", key: "rule_id"},
-      {label: "Severity", render: (row) => status(row.severity)},
-      {label: "Family", key: "family"},
-      {label: "Format", key: "format"},
-      {label: "Findings", key: "finding_count"},
-      {label: "Members", key: "affected_member_count"},
-    ],
-    value.aggregates.findings,
-  ));
-  aggregates.append(makeTable(
-    "Revision groups",
-    [
-      {label: "Family", key: "family"},
-      {label: "Format", key: "format"},
-      {label: "Finding rule", key: "finding_rule"},
-      {label: "Refiner", key: "refiner_id"},
-      {label: "Revisions", key: "revision_count"},
-    ],
-    value.aggregates.revision_groups,
-  ));
-  aggregates.append(makeTable(
-    "Revision summaries",
-    [
-      {label: "Member", key: "member_id"},
-      {label: "Finding", key: "finding_rule"},
-      {label: "Refiner", render: (row) => row.refiner.refiner_id},
-      {label: "Chain length", key: "chain_length"},
-      {label: "Before", render: (row) => shortHash(row.before_document_sha256)},
-      {label: "After", render: (row) => shortHash(row.after_document_sha256)},
-    ],
-    value.aggregates.revisions,
-  ));
-  fragment.append(aggregates);
-
-  const external = section("External revisions", "External refinement records are admitted only when explicitly supplied.");
-  if (value.external_revisions.length === 0) {
-    external.append(node("p", "No external revision was listed.", "empty"));
-  } else {
-    external.append(makeTable(
-      "External revision relationships",
-      [
-        {label: "Member", key: "member_id"},
-        {label: "Revision", render: (row) => shortHash(row.revision_id)},
-        {label: "Relationship", render: (row) => status(row.relationship_state)},
-      ],
-      value.external_revisions,
-    ));
-  }
-  fragment.append(external);
-  return fragment;
-}
-
-function artifactCard(descriptor) {
-  const card = node("article", undefined, "card");
-  const heading = node("h4", displayName(descriptor.role));
-  heading.append(" ", status(descriptor.availability));
-  card.append(heading);
-  card.append(factList([
-    ["Media type", descriptor.media_type],
-    ["Size", `${descriptor.size} bytes`],
-    ["SHA-256", descriptor.sha256, true],
-  ]));
-  const button = node("button", descriptor.availability === "AVAILABLE" ? "Retrieve plain text" : "Artifact is too large", "artifact-button");
-  button.type = "button";
-  button.disabled = descriptor.availability !== "AVAILABLE";
-  const result = node("pre", undefined, "evidence artifact-result");
-  result.hidden = true;
-  button.addEventListener("click", async () => {
-    button.disabled = true;
-    result.hidden = false;
-    result.textContent = "Loading plain text…";
-    announce(`Retrieving ${displayName(descriptor.role)}.`);
-    try {
-      const response = await fetch(`${API_ROOT}/artifacts/${descriptor.artifact_key}`, {
-        credentials: "same-origin",
-        headers: {"Accept": "text/plain"},
-      });
-      if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}.`);
-      }
-      result.textContent = await response.text();
-      announce(`${displayName(descriptor.role)} retrieved as plain text.`);
-    } catch (error) {
-      result.textContent = "The artifact could not be retrieved. Restart the local workbench and try again.";
-      announce("Artifact retrieval failed.");
-    } finally {
-      button.disabled = false;
-    }
-  });
-  card.append(button, result);
-  return card;
-}
-
-function renderArtifacts(detail) {
-  const wrapper = section("Artifacts", "Content is not fetched until you choose Retrieve plain text. HTML and Markdown remain literal text.");
-  const grid = node("div", undefined, "card-grid");
-  for (const descriptor of detail.artifacts) {
-    grid.append(artifactCard(descriptor));
-  }
-  wrapper.append(grid);
-  return wrapper;
-}
-
-async function loadRecord(record, generation = projectionGeneration) {
-  const selectionChanged = selectedRecordKey !== record.record_key;
-  selectedRecordKey = record.record_key;
-  selectedRecord = record;
-  selectedDetail = null;
-  if (selectionChanged && actionToken !== null) {
-    setLifecycleAlert("");
-  }
-  renderDocumentLifecycle();
-  const requestGeneration = ++detailRequestGeneration;
-  for (const button of elements.recordList.querySelectorAll("button")) {
-    button.setAttribute("aria-current", String(button.dataset.recordKey === record.record_key));
-  }
-  elements.recordView.hidden = false;
-  elements.recordKind.textContent = displayName(record.kind);
-  elements.recordHeading.textContent = `${displayName(record.kind)} details`;
-  elements.recordState.replaceWith(status(record.status));
-  elements.recordState = document.querySelector("#record-view .section-heading .status");
-  clear(elements.recordSummary);
-  clear(elements.recordContent);
-  elements.recordContent.append(node("p", "Loading record details…"));
-  announce(`Loading ${recordLabel(record)}.`);
-  try {
-    const response = await fetch(`${API_ROOT}/records/${record.record_key}`, {
-      credentials: "same-origin",
-      headers: {"Accept": "application/json"},
-    });
-    if (!response.ok) {
-      throw new Error(`Request failed with status ${response.status}.`);
-    }
-    const detail = await response.json();
-    if (
-      requestGeneration !== detailRequestGeneration
-      || generation !== projectionGeneration
-      || selectedRecordKey !== record.record_key
-    ) {
-      return false;
-    }
-    renderRecordSummary(record, detail);
-    selectedRecord = record;
-    selectedDetail = detail;
-    clear(elements.recordContent);
-    elements.recordContent.append(renderRelationships(detail));
-    if (detail.kind === "OBSERVATION") {
-      elements.recordContent.append(renderObservation(detail));
-    } else if (detail.kind === "DIAGNOSIS") {
-      elements.recordContent.append(renderDiagnosis(detail));
-    } else if (detail.kind === "REFINEMENT") {
-      elements.recordContent.append(renderRefinement(detail));
-    } else {
-      elements.recordContent.append(renderCorpus(detail));
-    }
-    elements.recordContent.append(renderArtifacts(detail));
-    renderDocumentLifecycle();
-    elements.recordHeading.focus();
-    announce(`${recordLabel(record)} loaded.`);
-    return true;
-  } catch (error) {
-    if (
-      requestGeneration !== detailRequestGeneration
-      || generation !== projectionGeneration
-      || selectedRecordKey !== record.record_key
-    ) {
-      return false;
-    }
-    clear(elements.recordContent);
-    selectedDetail = null;
-    renderDocumentLifecycle();
-    elements.recordContent.append(node("p", "The record details are unavailable.", "error"));
-    elements.recordHeading.focus();
-    announce("Record details could not be loaded.");
-    return false;
-  }
-}
-
-function selectRecord(record, generation = projectionGeneration) {
-  activeDetailPromise = loadRecord(record, generation);
-  return activeDetailPromise;
-}
-
-async function waitForActiveDetail() {
-  let pending;
-  do {
-    pending = activeDetailPromise;
-    await pending;
-  } while (pending !== activeDetailPromise);
-}
-
-async function loadProjection() {
-  const requestGeneration = ++projectionRequestGeneration;
-  const response = await fetch(`${API_ROOT}/workbench`, {
-      credentials: "same-origin",
-      headers: {"Accept": "application/json"},
-  });
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}.`);
-  }
-  const projection = await response.json();
-  if (requestGeneration !== projectionRequestGeneration) {
-    return false;
-  }
-  currentProjection = projection;
-  const generation = ++projectionGeneration;
-  renderOverview(currentProjection);
-  renderNavigation(currentProjection, generation);
-  await waitForActiveDetail();
-  if (
-    requestGeneration !== projectionRequestGeneration
-    || generation !== projectionGeneration
-  ) {
-    return false;
-  }
-  announce(`${currentProjection.counts.record_count} records are ready.`);
+function safeStoredLocale() { try { return localStorage.getItem(LOCALE_KEY); } catch (_) { return null; } }
+function saveLocale(value) { try { localStorage.setItem(LOCALE_KEY, value); } catch (_) { /* browser storage can be unavailable */ } }
+function setLocale(value, persist = true) {
+  if (value !== "en" && value !== "zh-CN") return false;
+  state.locale = value;
+  if (persist) saveLocale(value);
+  if (elements.localeToggle) render();
   return true;
 }
 
-async function refreshRecords() {
-  elements.refreshButton.disabled = true;
-  elements.refreshButton.textContent = "Refreshing…";
-  announce("Refreshing workspace records.");
+function localizeStatic() {
+  document.documentElement.lang = state.locale;
+  document.querySelectorAll("[data-i18n]").forEach((item) => { item.textContent = t(item.dataset.i18n); });
+  elements.localeToggle.textContent = state.locale === "en" ? "中" : "EN";
+  elements.localeToggle.title = t("switchLocale"); elements.localeToggle.setAttribute("aria-label", t("switchLocale"));
+  elements.ruleButton.title = t("ruleReference"); elements.ruleButton.setAttribute("aria-label", t("ruleReference"));
+  elements.refresh.title = t("refreshWorkspace"); elements.refresh.setAttribute("aria-label", t("refreshWorkspace"));
+  elements.add.title = t("addDocument"); elements.add.setAttribute("aria-label", t("addDocument"));
+  elements.toastClose.title = t("closeNotification"); elements.toastClose.setAttribute("aria-label", t("closeNotification"));
+  document.getElementById("workspace-navigation").setAttribute("aria-label", t("workspaceNavigation"));
+  elements.stepper.setAttribute("aria-label", t("stagesLabel"));
+  document.getElementById("stage-inspector").setAttribute("aria-label", t("inspectorLabel"));
+  document.querySelectorAll(".modal-close").forEach((button) => { button.title = t("close"); button.setAttribute("aria-label", t("close")); });
+}
+
+function selectedItem() {
+  if (!state.projection) return null;
+  const values = state.selectedKind === "corpus" ? state.projection.corpora : state.projection.documents;
+  const key = state.selectedKind === "corpus" ? "record_key" : "document_key";
+  return values.find((item) => item[key] === state.selectedKey) || null;
+}
+function selectItem(kind, key) { state.selectedKind = kind; state.selectedKey = key; state.stage = "observe"; render(); }
+
+function navigationCard(item, kind) {
+  const key = kind === "document" ? item.document_key : item.record_key;
+  const name = kind === "document" ? item.source.name : item.title;
+  const button = node("button", null, "navigation-card"); button.type = "button"; button.title = name;
+  button.setAttribute("aria-current", String(state.selectedKind === kind && state.selectedKey === key));
+  button.append(node("span", name, "card-name"));
+  button.append(node("span", kind === "document" ? item.source.media_type : t("verifiedMembers", {count: item.member_count}), "card-meta"));
+  button.addEventListener("click", () => selectItem(kind, key));
+  return button;
+}
+function renderNavigation() {
+  clear(elements.documents); clear(elements.corpora);
+  for (const item of state.projection.documents) elements.documents.append(navigationCard(item, "document"));
+  for (const item of state.projection.corpora) elements.corpora.append(navigationCard(item, "corpus"));
+  if (!state.projection.documents.length) elements.documents.append(node("p", t("noDocuments"), "card-meta"));
+  if (!state.projection.corpora.length) elements.corpora.append(node("p", t("noCorpora"), "card-meta"));
+}
+function renderEmptyOrFailure() {
+  clear(elements.workspaceState); elements.selected.hidden = true; elements.workspaceState.hidden = false;
+  const card = node("div", null, "state-card");
+  card.append(node("h2", t(state.initialFailure ? "loadFailureTitle" : "emptyTitle")));
+  card.append(node("p", t(state.initialFailure ? "loadFailureBody" : "emptyBody")));
+  if (!state.initialFailure) { const add = node("button", t("addDocument"), "primary-button"); add.type = "button"; add.addEventListener("click", () => openModal(elements.addModal)); card.append(add); }
+  elements.workspaceState.append(card);
+}
+function renderSelected() {
+  const item = selectedItem();
+  if (!item) { state.selectedKind = null; state.selectedKey = null; renderEmptyOrFailure(); return; }
+  elements.workspaceState.hidden = true; elements.selected.hidden = false;
+  elements.contextKind.textContent = t(state.selectedKind === "document" ? "contextDocument" : "contextCorpus");
+  elements.contextName.textContent = state.selectedKind === "document" ? item.source.name : item.title;
+  elements.stepper.hidden = state.selectedKind === "corpus";
+  elements.stepper.querySelectorAll("li").forEach((entry) => entry.dataset.current = String(entry.dataset.stage === state.stage));
+  elements.stageHeading.textContent = t(state.selectedKind === "corpus" ? "corpusShell" : state.stage); elements.stageGuidance.textContent = t("shellGuidance");
+  elements.tabs.forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.tab === state.inspector)));
+  elements.inspectorPanel.textContent = t(`inspector${state.inspector[0].toUpperCase()}${state.inspector.slice(1)}`);
+}
+function renderRuleReference() {
+  clear(elements.ruleList);
+  const rules = state.projection && state.projection.reference ? state.projection.reference.rules : [];
+  for (const rule of rules) {
+    const entry = node("article", null, "rule-entry");
+    entry.append(node("h3", `${t(`rule.${rule.rule_id}.name`)} · ${rule.rule_id}`));
+    const meta = rule.refiner ? `${rule.severity} · ${rule.refiner.refiner_id} ${t(`refiner.${rule.refiner.refiner_id}`)}` : rule.severity;
+    entry.append(node("p", meta, "rule-meta"), node("p", t(`rule.${rule.rule_id}.about`)));
+    elements.ruleList.append(entry);
+  }
+}
+function render() {
+  localizeStatic();
+  if (state.projection) { elements.version.textContent = `v${state.projection.package_version}`; renderNavigation(); renderRuleReference(); }
+  const hasWorkspace = state.projection && (state.projection.documents.length || state.projection.corpora.length);
+  elements.add.disabled = state.initialFailure || !state.projection;
+  updateObservationControls();
+  if (!hasWorkspace && !selectedItem()) renderEmptyOrFailure(); else renderSelected();
+}
+
+function dismissToast() { if (toastTimer !== null) clearTimeout(toastTimer); toastTimer = null; toastHovered = false; toastFocused = false; elements.toast.hidden = true; }
+function scheduleToast() { toastStartedAt = Date.now(); toastTimer = setTimeout(dismissToast, toastRemaining); }
+function pauseToast() { if (toastTimer === null) return; clearTimeout(toastTimer); toastTimer = null; toastRemaining = Math.max(0, toastRemaining - (Date.now() - toastStartedAt)); }
+function resumeToast() { if (!toastHovered && !toastFocused && !elements.toast.hidden && elements.toast.dataset.tone !== "failure" && toastTimer === null) scheduleToast(); }
+function setToastHover(value) { toastHovered = value; if (value) pauseToast(); else resumeToast(); }
+function setToastFocus(value) { toastFocused = value; if (value) pauseToast(); else resumeToast(); }
+function showToast(message, tone = "info") {
+  dismissToast(); elements.toastMessage.textContent = message; elements.toast.dataset.tone = tone; elements.toast.hidden = false;
+  const announcer = tone === "failure" ? elements.assertive : elements.polite; announcer.textContent = ""; announcer.textContent = message;
+  if (tone !== "failure") { toastRemaining = TOAST_DURATION_MS; scheduleToast(); }
+}
+
+function focusable(modal) { return Array.from(modal.querySelectorAll("button:not([disabled]), input:not([disabled])")); }
+function openModal(modal) { modalReturnFocus = document.activeElement; modal.hidden = false; elements.surface.inert = true; const targets = focusable(modal); if (targets.length) targets[0].focus(); }
+function closeModal(modal) { modal.hidden = true; elements.surface.inert = false; if (modalReturnFocus && modalReturnFocus.focus) modalReturnFocus.focus(); modalReturnFocus = null; }
+function modalKeydown(event) {
+  const modal = event.currentTarget;
+  if (event.key === "Escape") { event.preventDefault(); closeModal(modal); return; }
+  if (event.key !== "Tab") return;
+  const targets = focusable(modal); if (!targets.length) return;
+  const first = targets[0], last = targets[targets.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
+function backdropDismiss(event) { if (event.target === event.currentTarget) closeModal(event.currentTarget); }
+
+async function fetchJSON(target, options = {}) {
+  const response = await fetch(target, {credentials: "same-origin", headers: {Accept: "application/json", ...(options.headers || {})}, ...options});
+  if (!response.ok) { let body = {}; try { body = await response.json(); } catch (_) { /* status is sufficient */ } const error = new Error(body.message || `Request failed with status ${response.status}.`); error.code = body.code; error.confirmed = true; throw error; }
+  return response.status === 204 ? null : response.json();
+}
+async function loadProjection({initial = false, preferredKey = null} = {}) {
   try {
-    const response = await fetch(`${API_ROOT}/workbench/refresh`, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {"Accept": "application/json"},
-    });
-    if (!response.ok) {
-      const failure = await response.json();
-      if (currentProjection !== null) {
-        currentProjection.refresh = {status: "FAILED", message: failure.message};
-        renderOverview(currentProjection);
-      }
-      throw new Error(failure.message);
-    }
-    if (await loadProjection()) {
-      announce("Workspace records refreshed.");
-    }
+    const projection = await fetchJSON(`${API_ROOT}/workbench`);
+    applyProjection(projection, preferredKey);
+    render(); elements.refresh.disabled = false; return true;
   } catch (error) {
-    announce(`Workspace refresh failed. ${error.message}`);
-  } finally {
-    elements.refreshButton.disabled = false;
-    elements.refreshButton.textContent = "Refresh records";
+    if (initial) { state.initialFailure = true; state.projection = null; render(); elements.assertive.textContent = t("loadFailureTitle"); elements.refresh.disabled = false; }
+    throw error;
+  }
+}
+function applyProjection(projection, preferredKey = null) {
+    if (!catalogCoversReference(projection.reference)) throw new Error("locale catalogs do not match the canonical reference");
+    const priorKey = preferredKey || state.selectedKey; const priorKind = state.selectedKind;
+    state.projection = projection; state.initialFailure = false;
+    const documentExists = projection.documents.some((item) => item.document_key === priorKey);
+    const corpusExists = projection.corpora.some((item) => item.record_key === priorKey);
+    if ((priorKind === "document" && documentExists) || (priorKind === "corpus" && corpusExists)) { state.selectedKey = priorKey; state.selectedKind = priorKind; }
+    else if (preferredKey && documentExists) { state.selectedKey = preferredKey; state.selectedKind = "document"; state.stage = "observe"; }
+    else if (state.selectedKey && !documentExists && !corpusExists) { state.selectedKey = null; state.selectedKind = null; }
+    if (!state.selectedKey && projection.documents.length) { state.selectedKind = "document"; state.selectedKey = projection.documents[0].document_key; }
+    else if (!state.selectedKey && projection.corpora.length) { state.selectedKind = "corpus"; state.selectedKey = projection.corpora[0].record_key; }
+    return state.projection;
+}
+function observationIsActive(job) { return Boolean(job && (job.state === "QUEUED" || job.state === "RUNNING")); }
+function setObservationActive(job) {
+  state.activeObservationJobId = observationIsActive(job) ? job.job_id : null;
+  updateObservationControls();
+}
+function updateObservationControls() {
+  if (!elements.add) return;
+  const disabled = state.initialFailure || !state.projection || state.activeObservationJobId !== null;
+  elements.add.disabled = disabled;
+  if (elements.guidedWhitespace) elements.guidedWhitespace.disabled = disabled;
+  if (elements.guidedPolicy) elements.guidedPolicy.disabled = disabled;
+  if (elements.file) elements.file.disabled = disabled;
+  if (elements.upload) elements.upload.disabled = disabled || !(elements.file.files && elements.file.files.length === 1);
+}
+async function refreshWorkspace() {
+  const selected = state.selectedKey; const before = state.projection ? state.projection.session_id : null;
+  elements.refresh.disabled = true; elements.polite.textContent = t("refreshStarted");
+  try {
+    await fetchJSON(`${API_ROOT}/workbench/refresh`, {method: "POST"}); await loadProjection({preferredKey: selected});
+    showToast(t(before === state.projection.session_id ? "refreshNoChange" : "refreshSuccess"), "success");
+  } catch (_) { showToast(t("refreshFailure"), "failure"); }
+  finally { elements.refresh.disabled = false; }
+}
+async function handleObservationEnvelope(envelope, inputName) {
+  if (envelope.reactivation) {
+    state.pendingReactivationKey = envelope.reactivation.document_key;
+    await reconcilePendingReactivation();
+    return;
+  }
+  closeModal(elements.addModal); showToast(t("observing", {name: inputName}), "info");
+  if (envelope.job) { await consumeObservationJob(envelope.job, envelope.job.job_id); return; }
+  throw new Error("observation response outcome is unknown");
+}
+async function reconcilePendingReactivation({announce = true, announceFailure = true} = {}) {
+  const documentKey = state.pendingReactivationKey;
+  if (documentKey === null) return true;
+  try { await loadProjection({preferredKey: documentKey}); }
+  catch (_) { retainUnknownObservationOwnership(announceFailure); return false; }
+  if (!state.projection.documents.some((document) => document.document_key === documentKey)) { retainUnknownObservationOwnership(announceFailure); return false; }
+  state.pendingReactivationKey = null;
+  setObservationActive(null);
+  closeModal(elements.addModal);
+  if (announce) showToast(t("reactivated"), "info");
+  return true;
+}
+function claimObservationSubmission() {
+  if (state.activeObservationJobId !== null) return false;
+  state.activeObservationJobId = RECONCILING_OBSERVATION;
+  updateObservationControls();
+  return true;
+}
+function scheduleObservationDiscovery() {
+  if (pollingTimer !== null) clearTimeout(pollingTimer);
+  pollingTimer = setTimeout(discoverActiveObservation, OBSERVATION_POLL_INTERVAL_MS);
+}
+function retainUnknownObservationOwnership(announce = true) {
+  state.activeObservationJobId = RECONCILING_OBSERVATION;
+  updateObservationControls();
+  if (announce) showToast(t("observationStatusUnknown"), "failure");
+  scheduleObservationDiscovery();
+}
+async function settleTerminalOwnership({announceReactivation = false, preserveToast = false} = {}) {
+  if (state.pendingReactivationKey !== null) {
+    return reconcilePendingReactivation({announce: announceReactivation, announceFailure: !preserveToast});
+  }
+  setObservationActive(null);
+  return true;
+}
+async function reconcileMissingObservationSnapshot() {
+  state.workspaceReconciliationPending = true;
+  const preferredKey = state.pendingReactivationKey || state.selectedKey;
+  try { await loadProjection({preferredKey}); }
+  catch (_) { retainUnknownObservationOwnership(); return false; }
+  if (state.pendingReactivationKey !== null && !state.projection.documents.some((document) => document.document_key === state.pendingReactivationKey)) {
+    retainUnknownObservationOwnership();
+    return false;
+  }
+  if (state.pendingReactivationKey !== null) {
+    state.pendingReactivationKey = null;
+    closeModal(elements.addModal);
+  }
+  state.workspaceReconciliationPending = false;
+  setObservationActive(null);
+  showToast(t("observationWorkspaceReconciled"), "failure");
+  return true;
+}
+async function handleObservationSubmissionError(error) {
+  if (!error.confirmed || error.ownershipUnresolved) { retainUnknownObservationOwnership(); return; }
+  if (error.code === "OBSERVATION_BUSY") {
+    showToast(t("observationBusy"), "failure");
+    await discoverActiveObservation();
+    return;
+  }
+  setObservationActive(null);
+  showToast(t("observeFailure"), "failure");
+}
+async function submitGuidedObservation(guidedId, name) {
+  if (state.activeObservationJobId !== null) { showToast(t("observationBusy"), "failure"); return; }
+  claimObservationSubmission();
+  try { await handleObservationEnvelope(await fetchJSON(`${API_ROOT}/observation-jobs/guided/${guidedId}`, {method: "POST"}), name); }
+  catch (error) { await handleObservationSubmissionError(error); }
+}
+async function submitUploadedObservation() {
+  if (state.activeObservationJobId !== null) { showToast(t("observationBusy"), "failure"); return; }
+  const file = elements.file.files && elements.file.files[0]; if (!file) return;
+  claimObservationSubmission();
+  try {
+    const envelope = await fetchJSON(`${API_ROOT}/observation-jobs/upload?filename=${encodeURIComponent(file.name)}`, {method: "POST", body: file, headers: {"Content-Type": file.type || "application/octet-stream"}});
+    await handleObservationEnvelope(envelope, file.name);
+  } catch (error) { await handleObservationSubmissionError(error); }
+}
+function scheduleObservationPoll(jobId) {
+  if (pollingTimer !== null) clearTimeout(pollingTimer);
+  pollingTimer = setTimeout(() => pollObservation(jobId), OBSERVATION_POLL_INTERVAL_MS);
+}
+async function consumeObservationJob(job, expectedJobId) {
+  if (!job) {
+    await reconcileMissingObservationSnapshot();
+    return;
+  }
+  if (job.job_id !== expectedJobId) {
+    await consumeObservationJob(job, job.job_id);
+    return;
+  }
+  if (observationIsActive(job)) {
+    setObservationActive(job);
+    scheduleObservationPoll(job.job_id);
+    return;
+  }
+  if (pollingTimer !== null) clearTimeout(pollingTimer);
+  pollingTimer = null;
+  if (job.state === "COMPLETED" && job.refresh && job.refresh.status === "FAILED") {
+    const reconciled = await settleTerminalOwnership({preserveToast: true});
+    state.pendingTerminalToastKey = reconciled ? null : "observationPublishedRefreshFailed";
+    showToast(t("observationPublishedRefreshFailed"), "failure");
+    return;
+  }
+  if (job.state === "COMPLETED" && job.observation && job.refresh && job.refresh.status === "READY" && job.observation.record_key) {
+    const projected = await fetchJSON(`${API_ROOT}/workbench`);
+    const document = projected.documents.find((item) => item.observation_record_key === job.observation.record_key);
+    applyProjection(projected, document ? document.document_key : null);
+    if (document) state.stage = "observe";
+    render();
+    const hadPendingReactivation = state.pendingReactivationKey !== null;
+    const reconciled = await settleTerminalOwnership({announceReactivation: true});
+    if (reconciled && !hadPendingReactivation) showToast(t("refreshSuccess"), "success");
+    return;
+  }
+  const reconciled = await settleTerminalOwnership({preserveToast: true});
+  state.pendingTerminalToastKey = reconciled ? null : "observeFailure";
+  showToast(t("observeFailure"), "failure");
+}
+async function pollObservation(jobId) {
+  if (pollingTimer !== null) { clearTimeout(pollingTimer); pollingTimer = null; }
+  try {
+    const envelope = await fetchJSON(`${API_ROOT}/observation-jobs`); const job = envelope.job;
+    await consumeObservationJob(job, jobId);
+  } catch (_) {
+    state.activeObservationJobId = jobId;
+    updateObservationControls();
+    showToast(t("observationStatusUnknown"), "failure");
+    scheduleObservationPoll(jobId);
+  }
+}
+async function discoverActiveObservation() {
+  if (pollingTimer !== null) { clearTimeout(pollingTimer); pollingTimer = null; }
+  try {
+    const envelope = await fetchJSON(`${API_ROOT}/observation-jobs`);
+    if (envelope.job !== null) { await consumeObservationJob(envelope.job, envelope.job.job_id); return; }
+    if (state.workspaceReconciliationPending) { await reconcileMissingObservationSnapshot(); return; }
+    if (state.pendingReactivationKey !== null) {
+      const terminalToastKey = state.pendingTerminalToastKey;
+      const reconciled = await reconcilePendingReactivation({announce: terminalToastKey === null, announceFailure: terminalToastKey === null});
+      if (terminalToastKey !== null) {
+        if (reconciled) state.pendingTerminalToastKey = null;
+        showToast(t(terminalToastKey), "failure");
+      }
+      return;
+    }
+    setObservationActive(null);
+  } catch (_) {
+    state.activeObservationJobId = RECONCILING_OBSERVATION;
+    updateObservationControls();
+    if (!state.initialFailure) showToast(t("observationStatusUnknown"), "failure");
+    scheduleObservationDiscovery();
   }
 }
 
+function bindElements() {
+  const ids = ["app-surface", "package-version", "rule-reference", "locale-toggle", "refresh-workspace", "add-document", "document-list", "corpus-list", "workspace-state", "selected-workspace", "context-kind", "context-name", "stage-stepper", "stage-heading", "stage-guidance", "inspector-panel", "toast", "toast-message", "toast-close", "polite-announcer", "assertive-announcer", "add-modal", "rule-modal", "rule-list", "observation-file", "add-upload", "add-whitespace", "add-policy"];
+  for (const id of ids) elements[id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = document.getElementById(id);
+  Object.assign(elements, {surface: elements.appSurface, version: elements.packageVersion, ruleButton: elements.ruleReference, localeToggle: elements.localeToggle, refresh: elements.refreshWorkspace, add: elements.addDocument, documents: elements.documentList, corpora: elements.corpusList, workspaceState: elements.workspaceState, selected: elements.selectedWorkspace, contextKind: elements.contextKind, contextName: elements.contextName, stepper: elements.stageStepper, stageHeading: elements.stageHeading, stageGuidance: elements.stageGuidance, inspectorPanel: elements.inspectorPanel, toastMessage: elements.toastMessage, toastClose: elements.toastClose, polite: elements.politeAnnouncer, assertive: elements.assertiveAnnouncer, addModal: elements.addModal, ruleModal: elements.ruleModal, ruleList: elements.ruleList, file: elements.observationFile, upload: elements.addUpload, guidedWhitespace: elements.addWhitespace, guidedPolicy: elements.addPolicy});
+  elements.tabs = Array.from(document.querySelectorAll("[role=tab]"));
+}
+function addListeners() {
+  elements.refresh.addEventListener("click", refreshWorkspace); elements.add.addEventListener("click", () => openModal(elements.addModal));
+  elements.ruleButton.addEventListener("click", () => openModal(elements.ruleModal));
+  elements.localeToggle.addEventListener("click", () => setLocale(state.locale === "en" ? "zh-CN" : "en"));
+  elements.toastClose.addEventListener("click", dismissToast); elements.toast.addEventListener("mouseenter", () => setToastHover(true)); elements.toast.addEventListener("mouseleave", () => setToastHover(false)); elements.toast.addEventListener("focusin", () => setToastFocus(true)); elements.toast.addEventListener("focusout", (event) => { if (!elements.toast.contains(event.relatedTarget)) setToastFocus(false); });
+  document.querySelectorAll(".modal-backdrop").forEach((modal) => { modal.addEventListener("keydown", modalKeydown); modal.querySelector(".modal-close").addEventListener("click", () => closeModal(modal)); modal.addEventListener("mousedown", backdropDismiss); });
+  document.getElementById("add-whitespace").addEventListener("click", () => submitGuidedObservation("whitespace-cleanup-md", "whitespace-cleanup.md"));
+  document.getElementById("add-policy").addEventListener("click", () => submitGuidedObservation("policy-memo-md", "policy-memo.md"));
+  elements.file.addEventListener("change", updateObservationControls); elements.upload.addEventListener("click", submitUploadedObservation);
+  elements.stepper.querySelectorAll("li button").forEach((button) => button.addEventListener("click", () => { state.stage = button.parentElement.dataset.stage; renderSelected(); }));
+  elements.tabs.forEach((tab) => tab.addEventListener("click", () => { state.inspector = tab.dataset.tab; renderSelected(); }));
+}
 async function start() {
-  renderStateKey();
-  elements.refreshButton.addEventListener("click", refreshRecords);
-  elements.guidedButton.addEventListener("click", () => submitGuidedObservation());
-  elements.lifecycleGuidedButton.addEventListener(
-    "click",
-    () => submitGuidedObservation("whitespace-cleanup-md"),
-  );
-  elements.uploadButton.addEventListener("click", submitUploadedObservation);
-  elements.uploadInput.addEventListener("change", updateObservationControls);
-  const projectionStartup = loadProjection().catch(() => {
-    elements.sessionState.replaceWith(status("FAILED"));
-    elements.sessionState = document.querySelector("#session-overview .section-heading .status");
-    elements.sessionMessage.textContent = "The workbench projection is unavailable. Use Refresh records to try again.";
-    announce("The workbench projection is unavailable. Use Refresh records.");
-  });
-  const observationStartup = readObservationJobs().catch(() => {
-    elements.observationState.replaceWith(status("FAILED"));
-    elements.observationState = document.querySelector("#observation-workflow .section-heading .status");
-    elements.observationMessage.textContent = "Observation controls are unavailable.";
-    setObservationAlert("Observation controls are unavailable. Restart the local Workbench and try again.", "error");
-    updateObservationControls();
-    announce("Observation controls are unavailable.");
-  });
-  const tokenStartup = fetchActionToken();
-  await Promise.all([projectionStartup, observationStartup, tokenStartup]);
-  elements.refreshButton.disabled = false;
+  if (!catalogParity()) throw new Error("locale catalogs must contain identical keys");
+  bindElements(); state.locale = negotiatedLocale(navigator.languages || [navigator.language], safeStoredLocale()); state.activeObservationJobId = RECONCILING_OBSERVATION; addListeners(); localizeStatic();
+  elements.workspaceState.append(node("p", t("loading")));
+  try { await loadProjection({initial: true}); } catch (_) { /* durable initial failure is rendered */ }
+  await discoverActiveObservation();
 }
 
-start();
+if (typeof window !== "undefined") window.__tcwWorkbench = {catalogs, state, elements, t, catalogParity, catalogCoversReference, negotiatedLocale, setLocale, applyProjection, showToast, pauseToast, resumeToast, setToastHover, setToastFocus, dismissToast, loadProjection, refreshWorkspace, handleObservationEnvelope, reconcilePendingReactivation, reconcileMissingObservationSnapshot, claimObservationSubmission, submitGuidedObservation, submitUploadedObservation, observationIsActive, setObservationActive, consumeObservationJob, pollObservation, discoverActiveObservation, updateObservationControls, render, openModal, closeModal, modalKeydown, backdropDismiss};
+if (!globalThis.__TCW_TEST_NO_START__) start();

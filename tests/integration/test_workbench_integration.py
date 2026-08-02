@@ -43,14 +43,19 @@ class WorkbenchIntegrationTests(unittest.TestCase):
         cls.incomplete.close()
         cls.complete.close()
 
-    def test_bundled_shell_uses_only_same_origin_assets(self) -> None:
+    def test_bundled_shell_uses_same_origin_assets_and_only_canonical_footer_link(
+        self,
+    ) -> None:
         page = self.complete_server.request("/")
         self.assertEqual(page.status, 200)
         html = page.body.decode("utf-8")
         self.assertIn('href="/assets/workbench.css"', html)
         self.assertIn('src="/assets/workbench.js"', html)
         self.assertNotIn("http://", html)
-        self.assertNotIn("https://", html)
+        self.assertEqual(html.count("https://"), 1)
+        self.assertIn(
+            'href="https://github.com/jameswei/tiny-corpus-workbench"', html
+        )
 
     def test_complete_and_failed_observations_are_both_usable(self) -> None:
         complete = json.loads(

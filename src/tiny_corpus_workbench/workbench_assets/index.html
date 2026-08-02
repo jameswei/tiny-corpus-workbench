@@ -3,108 +3,103 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <title>Local Visual Workbench</title>
+  <meta name="color-scheme" content="light">
+  <title>Corpus Workbench</title>
   <link rel="stylesheet" href="/assets/workbench.css">
 </head>
 <body>
-  <a class="skip-link" href="#workspace">Skip to record details</a>
-  <header class="masthead">
-    <div>
-      <p class="eyebrow">tiny-corpus-workbench</p>
-      <h1>Local Visual Workbench</h1>
-      <p>Run local observations and inspect immutable prepared-document evidence.</p>
-    </div>
-    <div class="header-actions">
-      <p class="record-policy"><span aria-hidden="true">●</span> Published records stay immutable</p>
-      <button id="refresh-records" class="refresh-button" type="button" disabled>Refresh records</button>
-    </div>
-  </header>
-
-  <div class="layout">
-    <nav class="record-nav" aria-labelledby="records-heading">
-      <div class="nav-heading">
-        <h2 id="records-heading">Records</h2>
-        <span id="record-count" class="count" aria-label="record count">0</span>
+  <a class="skip-link" href="#workspace" data-i18n="skipToWorkspace">Skip to workspace</a>
+  <div id="app-surface" class="app-surface">
+    <header class="masthead">
+      <div class="brand"><h1>Corpus Workbench</h1><span id="package-version" class="version"></span></div>
+      <div class="header-actions">
+        <button id="rule-reference" class="icon-button" type="button" aria-label="Rule reference" title="Rule reference">?</button>
+        <button id="locale-toggle" class="locale-button" type="button" aria-label="Switch to Simplified Chinese" title="Switch to Simplified Chinese">中</button>
       </div>
-      <div id="record-list" class="record-list"></div>
-    </nav>
+    </header>
 
-    <main id="workspace" tabindex="-1">
-      <div id="announcer" class="visually-hidden" role="status" aria-live="polite"></div>
-      <section id="observation-workflow" class="panel" aria-labelledby="observation-heading">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Workflow</p>
-            <h2 id="observation-heading">Observe a document</h2>
-          </div>
-          <span id="observation-state" class="status status-neutral">Loading</span>
+    <div class="workbench-shell">
+      <nav id="workspace-navigation" class="sidebar" aria-label="Workspace navigation">
+        <div class="workspace-toolbar">
+          <h2 data-i18n="workspace">Workspace</h2>
+          <button id="refresh-workspace" class="icon-button" type="button" aria-label="Refresh workspace" title="Refresh workspace" disabled>
+            <span aria-hidden="true">↻</span>
+          </button>
         </div>
-        <p id="observation-message">Loading observation controls.</p>
-        <div class="observation-actions">
-          <div class="action-card">
-            <h3>Guided example</h3>
-            <p>Publish a new observation of the project policy memo.</p>
-            <button id="observe-guided" class="primary-button" type="button" disabled>Observe policy memo</button>
+        <section class="sidebar-section" aria-labelledby="documents-heading">
+          <div class="sidebar-heading">
+            <h3 id="documents-heading" data-i18n="documents">Documents</h3>
+            <button id="add-document" class="icon-button" type="button" aria-label="Add document" title="Add document" disabled><span aria-hidden="true">+</span></button>
           </div>
-          <div class="action-card">
-            <h3>Guided lifecycle</h3>
-            <p>Start with a model-free document that has whitespace findings.</p>
-            <button id="start-lifecycle" class="primary-button" type="button" disabled>Start whitespace lifecycle</button>
-          </div>
-          <div class="action-card">
-            <h3>Upload one document</h3>
-            <label for="observation-file">Choose a .docx, .md, .pdf, or .txt file</label>
-            <input id="observation-file" type="file" accept=".docx,.md,.pdf,.txt" aria-describedby="upload-help">
-            <p id="upload-help" class="help">One file, up to 32 MiB. The Workbench displays source metadata, not the original content.</p>
-            <button id="observe-upload" class="primary-button" type="button" disabled>Observe selected file</button>
-          </div>
-        </div>
-        <div id="observation-alert" class="notice" role="alert" tabindex="-1" hidden></div>
-        <dl id="observation-source" class="facts" aria-label="Observation source metadata"></dl>
-        <dl id="observation-progress" class="facts" aria-label="Observation job status"></dl>
-      </section>
+          <div id="document-list" class="navigation-list"></div>
+        </section>
+        <section class="sidebar-section" aria-labelledby="corpora-heading">
+          <div class="sidebar-heading"><h3 id="corpora-heading" data-i18n="corpora">Corpora</h3></div>
+          <div id="corpus-list" class="navigation-list"></div>
+        </section>
+      </nav>
 
-      <section id="document-lifecycle" class="panel" aria-labelledby="lifecycle-heading">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Prepare</p>
-            <h2 id="lifecycle-heading">Document lifecycle</h2>
+      <main id="workspace" tabindex="-1">
+        <section id="workspace-state" class="workspace-state" aria-live="off"></section>
+        <div id="selected-workspace" hidden>
+          <div class="document-context">
+            <p id="context-kind" class="eyebrow"></p>
+            <h2 id="context-name"></h2>
           </div>
-          <span id="lifecycle-state" class="status status-neutral">Loading</span>
+          <ol id="stage-stepper" class="stage-stepper" aria-label="Document preparation stages">
+            <li data-stage="observe"><button type="button"><span>1</span><strong data-i18n="observeQuestion">What did extraction produce?</strong></button></li>
+            <li data-stage="diagnose"><button type="button"><span>2</span><strong data-i18n="diagnoseQuestion">What needs attention?</strong></button></li>
+            <li data-stage="refine"><button type="button"><span>3</span><strong data-i18n="refineQuestion">What change is proposed?</strong></button></li>
+            <li data-stage="revision"><button type="button"><span>4</span><strong data-i18n="revisionQuestion">What was preserved?</strong></button></li>
+          </ol>
+          <div class="work-area">
+            <section id="central-surface" class="central-surface" aria-labelledby="stage-heading">
+              <p class="eyebrow" data-i18n="currentStage">Current stage</p>
+              <h2 id="stage-heading"></h2>
+              <p id="stage-guidance"></p>
+            </section>
+            <aside id="stage-inspector" class="inspector" aria-label="Stage inspector">
+              <div class="inspector-tabs" role="tablist">
+                <button id="tab-summary" role="tab" type="button" data-tab="summary" data-i18n="summary">Summary</button>
+                <button id="tab-evidence" role="tab" type="button" data-tab="evidence" data-i18n="evidence">Evidence</button>
+                <button id="tab-artifacts" role="tab" type="button" data-tab="artifacts" data-i18n="artifacts">Artifacts</button>
+              </div>
+              <div id="inspector-panel" role="tabpanel"></div>
+            </aside>
+          </div>
         </div>
-        <p id="lifecycle-message">Loading lifecycle controls.</p>
-        <div id="lifecycle-alert" class="notice" role="alert" tabindex="-1" hidden></div>
-        <div id="lifecycle-content"></div>
-      </section>
+      </main>
+    </div>
 
-      <section id="session-overview" class="panel" aria-labelledby="overview-heading">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Session</p>
-            <h2 id="overview-heading">Overview</h2>
-          </div>
-          <span id="session-state" class="status status-neutral">Loading</span>
-        </div>
-        <p id="session-message">Loading the local projection.</p>
-        <dl id="session-facts" class="facts"></dl>
-        <div id="state-key"></div>
-      </section>
-
-      <section id="record-view" class="panel" aria-labelledby="record-heading" hidden>
-        <div class="section-heading">
-          <div>
-            <p id="record-kind" class="eyebrow">Record</p>
-            <h2 id="record-heading" tabindex="-1">Record details</h2>
-          </div>
-          <span id="record-state" class="status status-neutral">Loading</span>
-        </div>
-        <div id="record-summary"></div>
-        <div id="record-content"></div>
-      </section>
-    </main>
+    <footer><span data-i18n="credit">An inspectable document-preparation project.</span> <a href="https://github.com/jameswei/tiny-corpus-workbench" data-i18n="github">GitHub Repository</a></footer>
   </div>
 
+  <div id="toast" class="toast" hidden tabindex="-1">
+    <span id="toast-message"></span>
+    <button id="toast-close" type="button" aria-label="Close notification" title="Close notification">×</button>
+  </div>
+  <div id="polite-announcer" class="visually-hidden" role="status" aria-live="polite"></div>
+  <div id="assertive-announcer" class="visually-hidden" role="alert" aria-live="assertive"></div>
+
+  <div id="add-modal" class="modal-backdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-title">
+      <div class="modal-heading"><h2 id="add-title" data-i18n="addDocument">Add a document</h2><button class="modal-close icon-button" type="button" aria-label="Close" title="Close">×</button></div>
+      <p data-i18n="addIntro">Choose one path. A new source is selected and Observe starts immediately.</p>
+      <div class="path-list">
+        <button id="add-whitespace" class="path-card" type="button"><strong>whitespace-cleanup.md</strong><span data-i18n="completePath">Complete guided preparation</span></button>
+        <button id="add-policy" class="path-card" type="button"><strong>policy-memo.md</strong><span data-i18n="noFindingsPath">Guided no-findings inspection</span></button>
+        <div class="path-card upload-card"><strong data-i18n="uploadTitle">Upload one document</strong><label for="observation-file" data-i18n="uploadFormats">.docx, .md, .pdf, or .txt up to 32 MiB</label><input id="observation-file" type="file" accept=".docx,.md,.pdf,.txt"><button id="add-upload" type="button" disabled data-i18n="startObserve">Start Observe</button></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="rule-modal" class="modal-backdrop" hidden>
+    <section class="modal rule-modal" role="dialog" aria-modal="true" aria-labelledby="rule-title">
+      <div class="modal-heading"><h2 id="rule-title" data-i18n="ruleReference">Rule reference</h2><button class="modal-close icon-button" type="button" aria-label="Close" title="Close">×</button></div>
+      <p data-i18n="ruleIntro">A finding is evidence from a fixed condition. It is not a verdict or permission to change a document.</p>
+      <div id="rule-list" class="rule-list"></div>
+    </section>
+  </div>
   <script src="/assets/workbench.js" defer></script>
 </body>
 </html>
