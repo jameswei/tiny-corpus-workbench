@@ -23,10 +23,11 @@ const catalogs = {
     preparationRound: "Preparation round {current} of {total}", startsOriginal: "Starts from Original", startsRevision: "Starts from Revision {number}", chooseRound: "Choose preparation round", sharedObservation: "Shared initial observation",
     sourceObject: "Source object", filename: "Filename", mediaType: "Media type", size: "Size", sha256: "SHA-256", observationComplete: "Observation completed", observationMeaning: "The source was extracted into separate views and a canonical working document.", observationStages: "Observation stages", canonicalEvidence: "Canonical evidence", extractionEvidence: "Extraction evidence", uploadPrivacy: "Workbench shows source metadata and extracted artifacts. It never displays or serves the uploaded original.", diagnoseHandoff: "The observation is ready for deterministic, read-only Diagnosis.", continueDiagnosis: "Continue to Diagnosis",
     diagnosisReady: "Diagnosis is read-only", diagnosisReadyBody: "Fixed rules inspect the current document and record evidence. Diagnosis does not change the source, observation, or current revision.", runDiagnosis: "Run Diagnosis", diagnosisRunning: "Diagnosis is running…", diagnosisCompleted: "Diagnosis completed", findingsCount: "{count} findings", noFindingsMeaning: "No fixed rule matched. No content changed.", noFindingsLimit: "This does not prove that the document is correct, complete, or suitable for every use.", findingEvidenceLimit: "A finding is evidence that one fixed mechanical rule matched. It is not an invalidity or compliance verdict.", whyItMatters: "Why it matters", availableNextStep: "Available next step", refineFinding: "Review the supported refinement", severity: "Severity", unavailable: "Unavailable", notNeeded: "Not needed", unavailablePrerequisite: "This stage has no published prerequisite yet.", noFindingsNotNeeded: "No fixed rule matched, so no refinement or prepared revision is needed. Diagnosis evidence remains available.", historicalReadOnly: "Historical round · read-only", returnLatest: "Return to latest round",
-    refineReady: "Review a supported refinement", refineReadyBody: "The finding and supported refiner are shown before proposal creation. A proposal describes one change; it does not change the document.", sourceFinding: "Source finding", supportedRefiner: "Supported refiner", createProposal: "Create proposal", proposalRunning: "Creating the proposal…", proposedChange: "Proposed change", comparisonPreview: "Comparison preview", before: "Before", after: "After", visibleWhitespace: "Visible whitespace: · space, → tab, ↵ line break", openFullComparison: "Open full comparison", closeFullComparison: "Close full comparison", previousChange: "Previous change", nextChange: "Next change", changePosition: "Change {current} of {total}", structuralMovement: "Structural movement", chooseDecision: "Choose a decision", decisionGuidance: "Approval creates one immutable prepared revision. Rejection keeps the current document without a new revision.", approve: "Approve", reject: "Reject", recordDecision: "Record decision", decisionRunning: "Recording the decision…", approved: "Approved", rejected: "Rejected", decisionApprovedBody: "The approved edit created one immutable prepared revision.", decisionRejectedBody: "No prepared revision was created. The base document remains current and unchanged.", viewPreparedRevision: "View prepared revision", rejectedEvidence: "The proposal, human decision, and refinement report remain available. No forward or inverse transformation was applied.",
+    refineReady: "Review a supported refinement", refineReadyBody: "The finding and supported refiner are shown before proposal creation. A proposal describes one change; it does not change the document.", sourceFinding: "Source finding", supportedRefiner: "Supported refiner", createProposal: "Create proposal", proposalRunning: "Creating the proposal…", proposedChange: "Proposed change", comparisonPreview: "Comparison preview", before: "Before", after: "After", visibleWhitespace: "Visible whitespace: · space, → tab, ↵ line break", openFullComparison: "Open full comparison", closeFullComparison: "Close full comparison", previousChange: "Previous change", nextChange: "Next change", changePosition: "Change {current} of {total}", changePositionShort: "{current} of {total}", structuralMovement: "Structural movement", chooseDecision: "Choose a decision", decisionGuidance: "Approval creates one immutable prepared revision. Rejection keeps the current document without a new revision.", approve: "Approve", reject: "Reject", recordDecision: "Record decision", decisionRunning: "Recording the decision…", approved: "Approved", rejected: "Rejected", decisionApprovedBody: "The approved edit created one immutable prepared revision.", decisionRejectedBody: "No prepared revision was created. The base document remains current and unchanged.", viewPreparedRevision: "View prepared revision", rejectedEvidence: "The proposal, human decision, and refinement report remain available. No forward or inverse transformation was applied.",
     revisionCreated: "Prepared revision created", revisionMeaning: "The base remains preserved and the prepared revision is the current immutable result.", revisionEvidence: "The source and observation are unchanged. One approved edit was applied, with forward and inverse transformation evidence.", revisionHistory: "Revision history", original: "Original", revisionNumber: "Revision {number}", current: "Current", openAppliedComparison: "Open applied comparison", optionalNextStep: "Optional next step", nextRoundBody: "Diagnose the prepared revision to begin another Diagnose → Refine → Revision round.", startNextRound: "Start another Diagnosis", rejectedRevisionNotNeeded: "The recorded decision rejected the proposal. Only an approved proposal creates a prepared revision.", preservedEvidence: "Preserved and immutable evidence", forwardInverse: "Forward and inverse evidence verified", loadingStage: "Loading stage evidence…",
     lifecyclePrepublicationFailure: "The operation failed before publication. No record was created, and the accepted immutable source remains unchanged.", retry: "Retry", lifecyclePublishedRefreshFailed: "The record was published, but the workspace could not refresh. Keep this accepted view and use Refresh workspace; do not rerun the producer.", lifecycleUnknown: "The mutation outcome is unknown. Workbench is reconciling the workspace and will not replay the action.", staleToken: "The action token changed. It was refreshed; click again to confirm this action.", lifecycleBusy: "Another mutation is running. Wait for it to reach a terminal result.", decisionComplete: "This proposal already has a recorded decision.", noCliNeeded: "The browser completes this lifecycle; no CLI command or target JSON is required.",
     inspectorSummary: "Stage guidance and status will appear here.", inspectorEvidence: "Verified supporting evidence will appear here.", inspectorArtifacts: "Published artifacts will appear here.",
+    verified: "Verified", recordKind: "Record", auditStatus: "Audit status", bytes: "bytes", artifactCount: "{count} artifacts", openArtifact: "Open artifact", artifactReader: "Artifact reader", artifactRole: "Artifact role", copyArtifact: "Copy artifact", copiedArtifact: "Artifact copied.", copyFailed: "Artifact could not be copied.", toggleWrap: "Toggle line wrapping", showHtmlSource: "Show HTML source", showHtmlReport: "Show formatted HTML report", closeReader: "Close artifact reader", wrapped: "Lines wrap", unwrapped: "Lines do not wrap", oversizedTitle: "Artifact is too large to open", oversizedBody: "Workbench verified this artifact, but its {size} bytes exceed the reader limit. The content was not truncated.", readerFailure: "Artifact could not be opened.", htmlReaderTitle: "Verified project-generated HTML report", htmlReaderDescription: "The report is isolated from scripts, network resources, and navigation.", cliNote: "Optional: the corpus CLI can use this published record. Run corpus --help and use the lifecycle lessons in learning/ for the command workflow.", pendingProposalEvidence: "This proposal is temporary and has not published a record.", corpusSummary: "Corpus summary", corpusMeaning: "This verified corpus contains {count} members. Corpus creation and execution remain available through the CLI.", corpusTotals: "Corpus totals", members: "Members", findings: "Findings", revisions: "Revisions", failures: "Failures", memberMatrix: "Member evidence", memberStatus: "{family} · {format} · {status}", noArtifactContent: "No published artifact is available for this stage.",
     noDocuments: "No documents", noCorpora: "No corpora", addIntro: "Choose one path. A new source is selected and Observe starts immediately.",
     completePath: "Complete guided preparation", noFindingsPath: "Guided no-findings inspection", uploadTitle: "Upload one document",
     uploadFormats: ".docx, .md, .pdf, or .txt up to 32 MiB", startObserve: "Start Observe", observing: "Observe started for {name}.",
@@ -65,10 +66,11 @@ const catalogs = {
     preparationRound: "准备轮次 {current}/{total}", startsOriginal: "从原始版本开始", startsRevision: "从修订 {number} 开始", chooseRound: "选择准备轮次", sharedObservation: "共享的初始观察",
     sourceObject: "来源对象", filename: "文件名", mediaType: "媒体类型", size: "大小", sha256: "SHA-256", observationComplete: "观察已完成", observationMeaning: "来源已提取为独立视图和规范工作文档。", observationStages: "观察阶段", canonicalEvidence: "规范证据", extractionEvidence: "提取证据", uploadPrivacy: "工作台显示来源元数据和提取产物，绝不显示或提供上传的原始文件。", diagnoseHandoff: "观察已准备好，可进行确定性的只读诊断。", continueDiagnosis: "继续诊断",
     diagnosisReady: "诊断为只读操作", diagnosisReadyBody: "固定规则检查当前文档并记录证据。诊断不会更改来源、观察记录或当前修订。", runDiagnosis: "运行诊断", diagnosisRunning: "正在运行诊断…", diagnosisCompleted: "诊断已完成", findingsCount: "{count} 个发现", noFindingsMeaning: "没有固定规则匹配，内容未更改。", noFindingsLimit: "这并不能证明文档正确、完整或适合所有用途。", findingEvidenceLimit: "发现表示一个固定机械规则匹配。它不是无效性或合规性裁决。", whyItMatters: "为什么重要", availableNextStep: "可用的下一步", refineFinding: "检查支持的改进", severity: "严重性", unavailable: "不可用", notNeeded: "不需要", unavailablePrerequisite: "此阶段尚无已发布的前置记录。", noFindingsNotNeeded: "没有固定规则匹配，因此不需要改进或准备修订。诊断证据仍可查看。", historicalReadOnly: "历史轮次 · 只读", returnLatest: "返回最新轮次",
-    refineReady: "检查支持的改进", refineReadyBody: "创建提案前会显示来源发现和支持的改进器。提案仅描述一项更改，不会更改文档。", sourceFinding: "来源发现", supportedRefiner: "支持的改进器", createProposal: "创建提案", proposalRunning: "正在创建提案…", proposedChange: "建议的更改", comparisonPreview: "比较预览", before: "更改前", after: "更改后", visibleWhitespace: "可见空白：· 空格、→ 制表符、↵ 换行", openFullComparison: "打开完整比较", closeFullComparison: "关闭完整比较", previousChange: "上一个更改", nextChange: "下一个更改", changePosition: "更改 {current}/{total}", structuralMovement: "结构移动", chooseDecision: "选择决定", decisionGuidance: "批准会创建一个不可变的准备修订。拒绝会保留当前文档且不创建新修订。", approve: "批准", reject: "拒绝", recordDecision: "记录决定", decisionRunning: "正在记录决定…", approved: "已批准", rejected: "已拒绝", decisionApprovedBody: "批准的编辑已创建一个不可变的准备修订。", decisionRejectedBody: "未创建准备修订。基础文档保持当前状态且未更改。", viewPreparedRevision: "查看准备修订", rejectedEvidence: "提案、人工决定和改进报告仍可检查。未应用正向或逆向转换。",
+    refineReady: "检查支持的改进", refineReadyBody: "创建提案前会显示来源发现和支持的改进器。提案仅描述一项更改，不会更改文档。", sourceFinding: "来源发现", supportedRefiner: "支持的改进器", createProposal: "创建提案", proposalRunning: "正在创建提案…", proposedChange: "建议的更改", comparisonPreview: "比较预览", before: "更改前", after: "更改后", visibleWhitespace: "可见空白：· 空格、→ 制表符、↵ 换行", openFullComparison: "打开完整比较", closeFullComparison: "关闭完整比较", previousChange: "上一个更改", nextChange: "下一个更改", changePosition: "更改 {current}/{total}", changePositionShort: "{current}/{total}", structuralMovement: "结构移动", chooseDecision: "选择决定", decisionGuidance: "批准会创建一个不可变的准备修订。拒绝会保留当前文档且不创建新修订。", approve: "批准", reject: "拒绝", recordDecision: "记录决定", decisionRunning: "正在记录决定…", approved: "已批准", rejected: "已拒绝", decisionApprovedBody: "批准的编辑已创建一个不可变的准备修订。", decisionRejectedBody: "未创建准备修订。基础文档保持当前状态且未更改。", viewPreparedRevision: "查看准备修订", rejectedEvidence: "提案、人工决定和改进报告仍可检查。未应用正向或逆向转换。",
     revisionCreated: "已创建准备修订", revisionMeaning: "基础版本保持保留，准备修订是当前不可变结果。", revisionEvidence: "来源和观察记录未更改。已应用一项批准的编辑，并保存正向和逆向转换证据。", revisionHistory: "修订历史", original: "原始版本", revisionNumber: "修订 {number}", current: "当前", openAppliedComparison: "打开已应用比较", optionalNextStep: "可选的下一步", nextRoundBody: "诊断准备修订，开始另一个“诊断 → 改进 → 修订”轮次。", startNextRound: "开始另一次诊断", rejectedRevisionNotNeeded: "已记录的决定拒绝了提案。只有批准的提案才会创建准备修订。", preservedEvidence: "已保留的不可变证据", forwardInverse: "正向和逆向证据已验证", loadingStage: "正在加载阶段证据…",
     lifecyclePrepublicationFailure: "操作在发布前失败。未创建记录，已接受的不可变来源保持不变。", retry: "重试", lifecyclePublishedRefreshFailed: "记录已发布，但工作区无法刷新。请保留当前已接受的视图并使用“刷新工作区”；不要重新运行生成操作。", lifecycleUnknown: "变更结果未知。工作台正在协调工作区，且不会重放操作。", staleToken: "操作令牌已更改并完成刷新；请再次点击以确认此操作。", lifecycleBusy: "另一个变更正在运行。请等待它达到终态。", decisionComplete: "此提案已有已记录的决定。", noCliNeeded: "浏览器可完成此生命周期；不需要 CLI 命令或目标 JSON。",
     inspectorSummary: "阶段指导和状态将在此显示。", inspectorEvidence: "已验证的支持证据将在此显示。", inspectorArtifacts: "已发布的产物将在此显示。",
+    verified: "已验证", recordKind: "记录", auditStatus: "审计状态", bytes: "字节", artifactCount: "{count} 个产物", openArtifact: "打开产物", artifactReader: "产物阅读器", artifactRole: "产物角色", copyArtifact: "复制产物", copiedArtifact: "已复制产物。", copyFailed: "无法复制产物。", toggleWrap: "切换自动换行", showHtmlSource: "显示 HTML 源码", showHtmlReport: "显示格式化 HTML 报告", closeReader: "关闭产物阅读器", wrapped: "行自动换行", unwrapped: "行不换行", oversizedTitle: "产物过大，无法打开", oversizedBody: "工作台已验证此产物，但其 {size} 字节超过阅读器限制。内容未被截断。", readerFailure: "无法打开产物。", htmlReaderTitle: "已验证的项目生成 HTML 报告", htmlReaderDescription: "该报告与脚本、网络资源和导航隔离。", cliNote: "可选：corpus CLI 可以使用此已发布记录。运行 corpus --help，并参阅 learning/ 中的生命周期课程了解命令工作流。", pendingProposalEvidence: "此提案是临时状态，尚未发布记录。", corpusSummary: "语料库摘要", corpusMeaning: "此已验证语料库包含 {count} 个成员。语料库创建和执行仍通过 CLI 完成。", corpusTotals: "语料库总计", members: "成员", findings: "发现", revisions: "修订", failures: "失败", memberMatrix: "成员证据", memberStatus: "{family} · {format} · {status}", noArtifactContent: "此阶段没有可用的已发布产物。",
     noDocuments: "没有文档", noCorpora: "没有语料库", addIntro: "请选择一种路径。新来源会被选中，并立即开始观察。",
     completePath: "完整引导式准备", noFindingsPath: "无发现引导式检查", uploadTitle: "上传一个文档",
     uploadFormats: ".docx、.md、.pdf 或 .txt，最大 32 MiB", startObserve: "开始观察", observing: "已开始观察 {name}。",
@@ -95,7 +97,7 @@ const catalogs = {
   }
 };
 
-const state = { projection: null, locale: "en", selectedKind: null, selectedKey: null, stage: "observe", inspector: "summary", selectedRound: null, selectedFinding: null, details: new Map(), proposal: null, proposalIdentity: null, appliedProposal: null, appliedProposalLoading: null, decisionSelection: null, decisionSubmitted: false, comparison: {expanded: false, index: 0}, lifecyclePending: false, lifecycleReconciliationPending: false, lifecycleNotice: null, pendingLifecycleMutation: null, actionToken: null, initialFailure: false, activeObservationJobId: null, pendingReactivationKey: null, pendingTerminalToastKey: null, workspaceReconciliationPending: false };
+const state = { projection: null, locale: "en", selectedKind: null, selectedKey: null, stage: "observe", inspector: "summary", selectedRound: null, selectedFinding: null, details: new Map(), proposal: null, proposalIdentity: null, appliedProposal: null, appliedProposalLoading: null, decisionSelection: null, decisionSubmitted: false, comparison: {expanded: false, index: 0}, reader: null, lifecyclePending: false, lifecycleReconciliationPending: false, lifecycleNotice: null, pendingLifecycleMutation: null, actionToken: null, initialFailure: false, activeObservationJobId: null, pendingReactivationKey: null, pendingTerminalToastKey: null, workspaceReconciliationPending: false };
 const elements = {};
 let toastTimer = null;
 let toastRemaining = TOAST_DURATION_MS;
@@ -166,7 +168,7 @@ function selectedItem() {
   const key = state.selectedKind === "corpus" ? "record_key" : "document_key";
   return values.find((item) => item[key] === state.selectedKey) || null;
 }
-function clearSelectionScopedState() { state.selectedFinding = null; state.proposal = null; state.proposalIdentity = null; state.appliedProposal = null; state.appliedProposalLoading = null; state.decisionSelection = null; state.decisionSubmitted = false; state.comparison = {expanded: false, index: 0}; }
+function clearSelectionScopedState() { state.selectedFinding = null; state.proposal = null; state.proposalIdentity = null; state.appliedProposal = null; state.appliedProposalLoading = null; state.decisionSelection = null; state.decisionSubmitted = false; state.comparison = {expanded: false, index: 0}; state.reader = null; }
 function resetTransientLifecycle() { clearSelectionScopedState(); state.lifecycleNotice = null; }
 function selectItem(kind, key) {
   if (state.lifecyclePending || state.lifecycleReconciliationPending) return;
@@ -192,7 +194,8 @@ function latestViewNumber(item) { return Math.max(1, (item.rounds || []).length 
 function isHistoricalRound(item) { const round = selectedRoundData(item); return Boolean(round && round.number < (item.rounds || []).length); }
 function isNoFindings(detail) { return Boolean(detail && detail.kind === "DIAGNOSIS" && detail.view.finding_total === 0); }
 async function hydrateSelectedStage() {
-  const item = selectedItem(); if (!item || state.selectedKind !== "document") return;
+  const item = selectedItem(); if (!item) return;
+  if (state.selectedKind === "corpus") { await ensureDetail(item.record_key); return; }
   const round = selectedRoundData(item); const keys = new Set([item.observation_record_key]);
   if (round) { keys.add(round.base_record_key); keys.add(round.diagnosis_record_key); keys.add(round.refinement_record_key); }
   await Promise.all(Array.from(keys).filter(Boolean).map(ensureDetail));
@@ -225,18 +228,20 @@ function renderEmptyOrFailure() {
   elements.workspaceState.append(card);
 }
 function labeledValue(label, value, className = "") {
-  const row = node("div", null, `metadata-row ${className}`.trim()); row.append(node("dt", label), node("dd", value)); return row;
+  const row = node("div", null, `metadata-row ${className}`.trim()); const description = node("dd"); if (value && typeof value === "object" && (value.tagName || value.tag)) description.append(value); else description.textContent = String(value); row.append(node("dt", label), description); return row;
 }
 function actionButton(label, handler, className = "primary-button") {
   const button = node("button", label, className); button.type = "button"; button.disabled = state.lifecyclePending || state.lifecycleReconciliationPending; button.addEventListener("click", handler); return button;
 }
 function banner(title, body, tone = "success") { const box = node("div", null, "result-banner"); box.dataset.tone = tone; box.append(node("strong", title), node("p", body)); return box; }
 function compactHash(value) { return typeof value === "string" && value.length === 64 ? `${value.slice(0, 10)}…${value.slice(-8)}` : String(value || "—"); }
+function hashNode(value) { const hash = node("span", compactHash(value), "compact-hash"); hash.title = value || ""; return hash; }
+function formatSize(value) { return new Intl.NumberFormat(state.locale).format(Number(value) || 0); }
 function sourceMetadata(source) {
   const group = node("section", null, "stage-card"); group.append(node("h3", t("sourceObject")));
   const values = node("dl", null, "metadata-list");
-  values.append(labeledValue(t("filename"), source.name || "—"), labeledValue(t("mediaType"), source.media_type || "—"), labeledValue(t("size"), new Intl.NumberFormat(state.locale).format(source.size || 0)));
-  const hash = labeledValue(t("sha256"), compactHash(source.sha256), "hash-value"); if (hash.children[1]) hash.children[1].title = source.sha256 || ""; values.append(hash); group.append(values); return group;
+  values.append(labeledValue(t("filename"), source.name || "—"), labeledValue(t("mediaType"), source.media_type || "—"), labeledValue(t("size"), `${formatSize(source.size)} ${t("bytes")}`));
+  values.append(labeledValue(t("sha256"), hashNode(source.sha256), "hash-value")); group.append(values); return group;
 }
 function renderRoundContext(item) {
   clear(elements.roundContext); elements.roundContext.hidden = false;
@@ -295,7 +300,7 @@ function comparisonComponent(viewModel) {
   const context = node("div", null, "comparison-context"); context.append(node("strong", `${t(`rule.${viewModel.ruleId}.name`)} · ${viewModel.ruleId}`), node("span", `${t(`refiner.${viewModel.refinerId}`)} · ${viewModel.refinerId}`)); if (viewModel.ruleId === "D009") context.append(node("span", t("visibleWhitespace"))); if (edit.target && edit.target.field === "content_layer") context.append(node("span", t("structuralMovement"))); shell.append(context);
   const panes = node("div", null, `comparison-panes ${state.comparison.expanded ? "is-expanded" : "is-preview"}`); for (const side of ["before", "after"]) { const pane = node("section", null, "comparison-pane"); pane.append(node("h4", t(side)), node("pre", comparisonValue(edit, side, viewModel.ruleId))); panes.append(pane); } shell.append(panes);
   const toggle = actionButton(t(state.comparison.expanded ? "closeFullComparison" : "openFullComparison"), () => { state.comparison.expanded = !state.comparison.expanded; renderSelected(); }, "secondary-button"); shell.append(toggle);
-  const navigation = node("div", null, "comparison-navigation"); const previous = actionButton("←", () => { state.comparison.index = Math.max(0, current - 1); renderSelected(); }, "icon-button"); previous.title = t("previousChange"); previous.setAttribute("aria-label", t("previousChange")); previous.disabled = current === 0 || state.lifecyclePending; const next = actionButton("→", () => { state.comparison.index = Math.min(edits.length - 1, current + 1); renderSelected(); }, "icon-button"); next.title = t("nextChange"); next.setAttribute("aria-label", t("nextChange")); next.disabled = current >= edits.length - 1 || state.lifecyclePending; navigation.append(previous, node("span", `${current + 1} ${state.locale === "zh-CN" ? "/" : "of"} ${Math.max(1, edits.length)}`), next); navigation.setAttribute("aria-label", t("changePosition", {current: current + 1, total: Math.max(1, edits.length)})); shell.append(navigation); return shell;
+  const navigation = node("div", null, "comparison-navigation"); const previous = actionButton("←", () => { state.comparison.index = Math.max(0, current - 1); renderSelected(); }, "icon-button"); previous.title = t("previousChange"); previous.setAttribute("aria-label", t("previousChange")); previous.disabled = current === 0 || state.lifecyclePending; const next = actionButton("→", () => { state.comparison.index = Math.min(edits.length - 1, current + 1); renderSelected(); }, "icon-button"); next.title = t("nextChange"); next.setAttribute("aria-label", t("nextChange")); next.disabled = current >= edits.length - 1 || state.lifecyclePending; navigation.append(previous, node("span", t("changePositionShort", {current: current + 1, total: Math.max(1, edits.length)})), next); navigation.setAttribute("aria-label", t("changePosition", {current: current + 1, total: Math.max(1, edits.length)})); shell.append(navigation); return shell;
 }
 function proposalFinding(item, round) {
   const diagnosis = round ? detailFor(round.diagnosis_record_key) : null; if (!diagnosis) return null;
@@ -361,11 +366,90 @@ function renderRevision(item, round, refinement) {
   }));
   if (!isHistoricalRound(item) && round.number === (item.rounds || []).length) { const next = node("section", null, "action-guidance optional-next"); next.append(node("h3", t("optionalNextStep")), node("p", t("nextRoundBody")), actionButton(t("startNextRound"), () => { state.selectedRound = round.number + 1; state.stage = "diagnose"; resetTransientLifecycle(); render(); })); elements.central.append(next); }
 }
+function selectedDetail(item, round) {
+  if (state.selectedKind === "corpus") return detailFor(item.record_key);
+  if (state.stage === "observe") return detailFor(item.observation_record_key);
+  if (!round) return null;
+  if (state.stage === "diagnose") return detailFor(round.diagnosis_record_key);
+  return detailFor(round.refinement_record_key || round.diagnosis_record_key);
+}
+function artifactMetadata(descriptor) {
+  const values = node("dl", null, "metadata-list artifact-metadata");
+  values.append(labeledValue(t("artifactRole"), descriptor.role), labeledValue(t("mediaType"), descriptor.media_type), labeledValue(t("size"), `${formatSize(descriptor.size)} ${t("bytes")}`), labeledValue(t("sha256"), hashNode(descriptor.sha256), "hash-value"));
+  return values;
+}
+function iconControl(icon, label, handler, pressed = null) {
+  const button = actionButton(icon, handler, "icon-button reader-control"); button.title = label; button.setAttribute("aria-label", label); if (pressed !== null) button.setAttribute("aria-pressed", String(pressed)); return button;
+}
+function artifactList(detail) {
+  const list = node("div", null, "artifact-list");
+  for (const descriptor of detail.artifacts || []) {
+    const row = node("article", null, "artifact-row"); const copy = node("div", null, "artifact-copy"); copy.append(node("strong", descriptor.role), node("span", `${descriptor.media_type} · ${formatSize(descriptor.size)} ${t("bytes")}`), hashNode(descriptor.sha256));
+    const open = iconControl("↗", `${t("openArtifact")}: ${descriptor.role}`, () => openArtifact(descriptor)); open.dataset.artifactKey = descriptor.artifact_key; row.append(copy, open); list.append(row);
+  }
+  if (!(detail.artifacts || []).length) list.append(node("p", t("noArtifactContent")));
+  return list;
+}
+async function copyReaderContent() {
+  if (!state.reader || typeof state.reader.content !== "string") return;
+  try { await navigator.clipboard.writeText(state.reader.content); elements.polite.textContent = ""; elements.polite.textContent = t("copiedArtifact"); showToast(t("copiedArtifact"), "success"); }
+  catch (_) { showToast(t("copyFailed"), "failure"); }
+}
+function closeReader() { const key = state.reader ? state.reader.descriptor.artifact_key : null; state.reader = null; renderSelected(); if (key) { const target = elements.inspectorPanel.querySelector(`[data-artifact-key="${key}"]`); if (target) target.focus(); } }
+async function openArtifact(descriptor) {
+  const item = selectedItem(); const round = item && state.selectedKind === "document" ? selectedRoundData(item) : null; const detail = item ? selectedDetail(item, round) : null;
+  const stylesheet = descriptor.media_type === "text/html" && detail ? (detail.artifacts || []).find((item) => item.role === "corpus-stylesheet" && item.availability === "AVAILABLE") : null;
+  const request = {descriptor, content: null, stylesheet: null, loading: descriptor.availability !== "TOO_LARGE", oversized: descriptor.availability === "TOO_LARGE", error: null, wrap: true, htmlSource: false, focusReader: true, selection: {kind: state.selectedKind, key: state.selectedKey, stage: state.stage, round: state.selectedRound}}; state.reader = request; renderSelected();
+  if (request.oversized) return;
+  try { const [content, stylesheetContent] = await Promise.all([fetchArtifact(descriptor), stylesheet ? fetchArtifact(stylesheet) : null]); if (state.reader !== request) return; request.content = content; request.stylesheet = stylesheetContent; request.loading = false; request.focusReader = true; renderSelected(); }
+  catch (error) { if (state.reader !== request) return; request.loading = false; request.error = error.code || "UNKNOWN"; request.focusReader = true; renderSelected(); }
+}
+function isolatedHtml(content, stylesheet = "") {
+  const policy = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; navigate-to 'none'; base-uri 'none'";
+  const documentContent = String(content).replace(/<link\b[^>]*>/gi, "").replace(/\s+href=(['"])[^'"]*\1/gi, "");
+  const protections = `<meta http-equiv="Content-Security-Policy" content="${policy}"><style>${stylesheet}</style>`;
+  return /<head(?:\s[^>]*)?>/i.test(documentContent) ? documentContent.replace(/<head((?:\s[^>]*)?)>/i, `<head$1>${protections}`) : `<!doctype html><html><head>${protections}</head><body>${documentContent}</body></html>`;
+}
+function comparisonArtifactView(reader) {
+  if (reader.descriptor.role !== "refinement-proposal" || typeof reader.content !== "string") return null;
+  try {
+    const value = JSON.parse(reader.content); if (!Array.isArray(value.forward_edits) || !value.finding || !value.refiner) return null;
+    const applied = state.stage === "revision"; return {mode: applied ? "applied" : "proposal", title: t(applied ? "openAppliedComparison" : "proposedChange"), edits: value.forward_edits, ruleId: value.finding.rule_id, refinerId: value.refiner.refiner_id};
+  } catch (_) { return null; }
+}
+function renderArtifactReader() {
+  const reader = state.reader; const descriptor = reader.descriptor;
+  const comparisonView = comparisonArtifactView(reader);
+  const shell = node("section", null, "artifact-reader"); const heading = node("div", null, "reader-heading"); const title = node("div"); const readerHeading = node("h2", descriptor.role); readerHeading.id = "artifact-reader-heading"; title.append(node("p", t("artifactReader"), "eyebrow"), readerHeading); const controls = node("div", null, "reader-controls");
+  if (typeof reader.content === "string") { const wrap = iconControl("↵", `${t("toggleWrap")}: ${t(reader.wrap ? "wrapped" : "unwrapped")}`, () => { reader.wrap = !reader.wrap; reader.focusControl = "wrap"; renderSelected(); }, reader.wrap); wrap.dataset.readerControl = "wrap"; controls.append(wrap, iconControl("⧉", t("copyArtifact"), copyReaderContent)); }
+  if (descriptor.media_type === "text/html" && typeof reader.content === "string") { const source = iconControl("</>", reader.htmlSource ? t("showHtmlReport") : t("showHtmlSource"), () => { reader.htmlSource = !reader.htmlSource; reader.focusControl = "html-source"; renderSelected(); }, reader.htmlSource); source.dataset.readerControl = "html-source"; controls.append(source); }
+  const close = iconControl("×", t("closeReader"), closeReader); close.dataset.readerClose = "true"; controls.append(close); heading.append(title, controls); shell.append(heading, artifactMetadata(descriptor));
+  if (reader.loading) shell.append(node("p", t("loadingStage")));
+  else if (reader.oversized) shell.append(banner(t("oversizedTitle"), t("oversizedBody", {size: formatSize(descriptor.size)}), "neutral"));
+  else if (reader.error) shell.append(banner(t("readerFailure"), reader.error, "failure"));
+  else if (comparisonView) shell.append(comparisonComponent(comparisonView));
+  else if (descriptor.media_type === "text/html" && !reader.htmlSource) { shell.append(node("p", t("htmlReaderDescription"), "privacy-note")); const frame = node("iframe"); frame.className = "html-report"; frame.title = t("htmlReaderTitle"); frame.setAttribute("sandbox", ""); frame.setAttribute("referrerpolicy", "no-referrer"); frame.setAttribute("tabindex", "-1"); frame.srcdoc = isolatedHtml(reader.content, reader.stylesheet); shell.append(frame); }
+  else { let source = reader.content; if (descriptor.media_type === "application/json") { try { source = JSON.stringify(JSON.parse(source), null, 2); } catch (_) { /* verified bytes remain readable as source */ } } const pre = node("pre", source, `source-reader ${reader.wrap ? "is-wrapped" : "is-unwrapped"}`); shell.append(pre); }
+  return shell;
+}
 function renderInspector(item, round) {
-  clear(elements.inspectorPanel); const detail = state.stage === "observe" ? detailFor(item.observation_record_key) : round ? detailFor(state.stage === "diagnose" ? round.diagnosis_record_key : round.refinement_record_key || round.diagnosis_record_key) : null;
-  if (state.inspector === "summary") elements.inspectorPanel.append(node("p", detail ? `${detail.kind} · ${detail.artifact_integrity}` : t("inspectorSummary")));
-  else if (state.inspector === "evidence") elements.inspectorPanel.append(node("p", detail ? t(state.stage === "revision" ? "forwardInverse" : "preservedEvidence") : t("inspectorEvidence")));
-  else elements.inspectorPanel.append(node("p", detail ? `${detail.artifacts.length} ${t("artifacts")}` : t("inspectorArtifacts")));
+  clear(elements.inspectorPanel); const detail = selectedDetail(item, round);
+  if (state.inspector === "summary") {
+    if (!detail) elements.inspectorPanel.append(node("p", t("inspectorSummary")));
+    else { const values = node("dl", null, "metadata-list"); values.append(labeledValue(t("recordKind"), detail.kind), labeledValue(t("auditStatus"), detail.artifact_integrity), labeledValue(t("artifacts"), t("artifactCount", {count: detail.artifacts.length}))); elements.inspectorPanel.append(values); }
+  } else if (state.inspector === "evidence") {
+    elements.inspectorPanel.append(node("p", detail ? t(state.stage === "revision" ? "forwardInverse" : "preservedEvidence") : t("inspectorEvidence")));
+    if (state.proposal && !detailFor(round && round.refinement_record_key)) elements.inspectorPanel.append(node("p", t("pendingProposalEvidence"), "inspector-note"));
+    else if (detail && ["OBSERVATION", "DIAGNOSIS", "REFINEMENT"].includes(detail.kind)) elements.inspectorPanel.append(node("p", t("cliNote"), "inspector-note"));
+  } else elements.inspectorPanel.append(detail ? artifactList(detail) : node("p", t("inspectorArtifacts")));
+}
+function renderCorpus(item, detail) {
+  elements.stageHeading.textContent = t("corpusSummary"); elements.stageGuidance.textContent = t("corpusMeaning", {count: item.member_count});
+  if (!detail) { elements.central.append(node("p", t("loadingStage"))); return; }
+  elements.central.append(banner(t("verified"), t("corpusMeaning", {count: item.member_count})));
+  const totals = detail.view.totals || {}; const summary = node("section", null, "stage-card"); summary.append(node("h3", t("corpusTotals")));
+  const values = node("dl", null, "metadata-list"); for (const [key, label] of [["member_count", "members"], ["finding_count", "findings"], ["revision_count", "revisions"], ["failed", "failures"]]) if (Object.prototype.hasOwnProperty.call(totals, key)) values.append(labeledValue(t(label), new Intl.NumberFormat(state.locale).format(totals[key]))); summary.append(values); elements.central.append(summary);
+  const members = node("section", null, "stage-card corpus-members"); members.append(node("h3", t("memberMatrix"))); for (const member of detail.view.matrix || []) { const row = node("div", null, "evidence-row"); row.append(node("strong", member.member_id), node("span", t("memberStatus", {family: member.family, format: member.format, status: member.status}))); members.append(row); } elements.central.append(members);
 }
 function renderSelected() {
   const item = selectedItem();
@@ -375,8 +459,11 @@ function renderSelected() {
   elements.contextName.textContent = state.selectedKind === "document" ? item.source.name : item.title;
   elements.stepper.hidden = state.selectedKind === "corpus";
   elements.stepper.querySelectorAll("li").forEach((entry) => entry.dataset.current = String(entry.dataset.stage === state.stage));
-  clear(elements.central); elements.central.append(node("p", t("currentStage"), "eyebrow"), elements.stageHeading, elements.stageGuidance);
-  if (state.selectedKind === "corpus") { elements.roundContext.hidden = true; elements.stageHeading.textContent = t("corpusShell"); elements.stageGuidance.textContent = t("shellGuidance"); }
+  const inspector = document.getElementById("stage-inspector"); inspector.hidden = Boolean(state.reader); elements.central.dataset.reader = String(Boolean(state.reader)); clear(elements.central);
+  if (state.reader) { elements.central.setAttribute("aria-labelledby", "artifact-reader-heading"); const focusReader = state.reader.focusReader; const focusControl = state.reader.focusControl; state.reader.focusReader = false; state.reader.focusControl = null; elements.central.append(renderArtifactReader()); const target = focusReader ? elements.central.querySelector('[data-reader-close="true"]') : focusControl ? elements.central.querySelector(`[data-reader-control="${focusControl}"]`) : null; if (target) target.focus(); return; }
+  elements.central.setAttribute("aria-labelledby", "stage-heading");
+  elements.central.append(node("p", t("currentStage"), "eyebrow"), elements.stageHeading, elements.stageGuidance);
+  if (state.selectedKind === "corpus") { elements.roundContext.hidden = true; renderCorpus(item, detailFor(item.record_key)); renderInspector(item, null); }
   else {
     renderRoundContext(item); const round = selectedRoundData(item);
     if (state.stage === "observe") renderObserve(item, detailFor(item.observation_record_key));
@@ -420,8 +507,8 @@ function showToast(message, tone = "info") {
 }
 
 function focusable(modal) { return Array.from(modal.querySelectorAll("button:not([disabled]), input:not([disabled])")); }
-function openModal(modal) { modalReturnFocus = document.activeElement; modal.hidden = false; elements.surface.inert = true; const targets = focusable(modal); if (targets.length) targets[0].focus(); }
-function closeModal(modal) { modal.hidden = true; elements.surface.inert = false; if (modalReturnFocus && modalReturnFocus.focus) modalReturnFocus.focus(); modalReturnFocus = null; }
+function openModal(modal) { modalReturnFocus = document.activeElement; modal.hidden = false; elements.surface.inert = true; elements.toast.inert = true; const targets = focusable(modal); if (targets.length) targets[0].focus(); }
+function closeModal(modal) { modal.hidden = true; elements.surface.inert = false; elements.toast.inert = false; if (modalReturnFocus && modalReturnFocus.focus) modalReturnFocus.focus(); modalReturnFocus = null; }
 function modalKeydown(event) {
   const modal = event.currentTarget;
   if (event.key === "Escape") { event.preventDefault(); closeModal(modal); return; }
@@ -438,6 +525,12 @@ async function fetchJSON(target, options = {}) {
   if (!response.ok) { let body = {}; try { body = await response.json(); } catch (_) { /* status is sufficient */ } const error = new Error(body.message || `Request failed with status ${response.status}.`); error.code = body.code; error.status = response.status; error.confirmed = true; throw error; }
   return response.status === 204 ? null : response.json();
 }
+async function fetchText(target, mediaType) {
+  const response = await fetch(target, {credentials: "same-origin", headers: {Accept: mediaType || "text/plain"}});
+  if (!response.ok) { let body = {}; try { body = await response.json(); } catch (_) { /* status is sufficient */ } const error = new Error(body.message || `Request failed with status ${response.status}.`); error.code = body.code; error.status = response.status; throw error; }
+  return response.text();
+}
+async function fetchArtifact(descriptor) { return fetchText(`${API_ROOT}/artifacts/${descriptor.artifact_key}`, descriptor.media_type); }
 async function actionToken(force = false) {
   if (!state.actionToken || force) state.actionToken = (await fetchJSON(`${API_ROOT}/lifecycle/action-token`)).action_token;
   return state.actionToken;
@@ -511,7 +604,7 @@ async function recordDecision() {
   catch (error) { await handleLifecycleError(error); }
 }
 function changeStage(stage) {
-  if (!STAGES.includes(stage) || state.lifecyclePending || state.lifecycleReconciliationPending) return;
+  if (!STAGES.includes(stage) || state.reader || state.lifecyclePending || state.lifecycleReconciliationPending) return;
   state.stage = stage; state.appliedProposal = null; state.comparison = {expanded: false, index: 0}; render(); hydrateSelectedStage().then(render).catch(() => render());
 }
 async function loadProjection({initial = false, preferredKey = null} = {}) {
@@ -767,5 +860,5 @@ async function start() {
   await discoverActiveObservation();
 }
 
-if (typeof window !== "undefined") window.__tcwWorkbench = {catalogs, state, elements, t, catalogParity, catalogCoversReference, negotiatedLocale, setLocale, applyProjection, showToast, pauseToast, resumeToast, setToastHover, setToastFocus, dismissToast, loadProjection, refreshWorkspace, handleObservationEnvelope, reconcilePendingReactivation, reconcileMissingObservationSnapshot, claimObservationSubmission, submitGuidedObservation, submitUploadedObservation, observationIsActive, setObservationActive, consumeObservationJob, pollObservation, discoverActiveObservation, updateObservationControls, render, renderSelected, comparisonComponent, visibleWhitespace, changeStage, runDiagnosis, createProposal, recordDecision, actionToken, reconcileLifecycleUnknown, openModal, closeModal, modalKeydown, backdropDismiss};
+if (typeof window !== "undefined") window.__tcwWorkbench = {catalogs, state, elements, t, catalogParity, catalogCoversReference, negotiatedLocale, setLocale, applyProjection, showToast, pauseToast, resumeToast, setToastHover, setToastFocus, dismissToast, loadProjection, refreshWorkspace, handleObservationEnvelope, reconcilePendingReactivation, reconcileMissingObservationSnapshot, claimObservationSubmission, submitGuidedObservation, submitUploadedObservation, observationIsActive, setObservationActive, consumeObservationJob, pollObservation, discoverActiveObservation, updateObservationControls, render, renderSelected, comparisonComponent, visibleWhitespace, compactHash, isolatedHtml, selectedDetail, artifactMetadata, artifactList, openArtifact, closeReader, renderArtifactReader, renderCorpus, changeStage, runDiagnosis, createProposal, recordDecision, actionToken, reconcileLifecycleUnknown, openModal, closeModal, modalKeydown, backdropDismiss};
 if (!globalThis.__TCW_TEST_NO_START__) start();

@@ -100,6 +100,55 @@ class WorkbenchUIContractTests(unittest.TestCase):
         for forbidden in ("innerHTML", "insertAdjacentHTML", "window.open", "WebSocket"):
             self.assertNotIn(forbidden, script)
 
+    def test_t4_readers_are_local_isolated_and_accessible(self) -> None:
+        script = (ASSETS / "workbench.js").read_text("utf-8")
+        css = (ASSETS / "workbench.css").read_text("utf-8")
+        for marker in (
+            'frame.setAttribute("sandbox", "")',
+            'frame.setAttribute("referrerpolicy", "no-referrer")',
+            'frame.setAttribute("tabindex", "-1")',
+            "default-src 'none'",
+            "connect-src 'none'",
+            "form-action 'none'",
+            "fetchText(`${API_ROOT}/artifacts/",
+            'button.setAttribute("aria-pressed"',
+            "JSON.stringify(JSON.parse(source), null, 2)",
+            "comparisonComponent(comparisonView)",
+            'descriptor.media_type === "text/html"',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, script)
+        self.assertIn(".source-reader.is-unwrapped { white-space: pre; }", css)
+        self.assertIn(".html-report", css)
+        self.assertIn("pointer-events: none", css)
+
+    def test_t4_hash_renderer_is_presentation_only(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.fail("Node.js 24.18.1 is required for Workbench contract tests")
+        harness = r'''
+global.__TCW_TEST_NO_START__ = true;
+global.window = {};
+require(process.argv[1]);
+const api = window.__tcwWorkbench;
+const full = "0123456789abcdef".repeat(4);
+console.log(JSON.stringify([api.compactHash(full), full, api.isolatedHtml('<h1>Report</h1><a href="#x">Jump</a><link rel="stylesheet" href="styles.css">')]));
+'''
+        result = subprocess.run(
+            [node, "-e", harness, str(ASSETS / "workbench.js")],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        compact, full, isolated = json.loads(result.stdout)
+        self.assertEqual(compact, "0123456789…89abcdef")
+        self.assertEqual(full, "0123456789abcdef" * 4)
+        self.assertIn("Content-Security-Policy", isolated)
+        self.assertIn("<h1>Report</h1>", isolated)
+        self.assertNotIn("href=", isolated)
+        self.assertNotIn("<link", isolated)
+
     def test_node_backed_state_locale_toast_and_modal_scenarios(self) -> None:
         node = shutil.which("node")
         if node is None:
@@ -200,7 +249,14 @@ function fake(tag = "div", id = "") {
     removeChild() { this.children.shift(); this.firstChild = this.children[0] || null; },
     addEventListener(type, fn) { this.listeners[type] = fn; },
     setAttribute(k, v) { this.attributes[k] = v; },
-    querySelector(selector) { return selector === ".modal-close" ? this.closeButton : null; },
+    querySelector(selector) {
+      if (selector === ".modal-close") return this.closeButton;
+      const data = selector.match(/^\[data-([a-z-]+)="([^"]+)"\]$/);
+      if (!data) return null;
+      const key = data[1].replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase());
+      const nodes = [this]; for (let index = 0; index < nodes.length; index++) nodes.push(...(nodes[index].children || []));
+      return nodes.find(value => String(value.dataset[key]) === data[2]) || null;
+    },
     querySelectorAll(selector) { return selector === "li" ? (this.stageEntries || []) : (this.focusables || []); },
     contains(value) { return this === value || this.children.includes(value); },
     focus() { document.activeElement = this; },
@@ -219,7 +275,7 @@ global.setTimeout = (fn, delay) => { const id = nextTimer++; timers.set(id, {fn,
 global.clearTimeout = (id) => timers.delete(id);
 const requests = [];
 const responses = [];
-function response(body, status = 200) { return {ok: status >= 200 && status < 300, status, async json() { return body; }}; }
+function response(body, status = 200) { return {ok: status >= 200 && status < 300, status, async json() { return body; }, async text() { return typeof body === "string" ? body : JSON.stringify(body); }}; }
 global.fetch = async (target, options = {}) => { requests.push([target, options.method || "GET"]); const value = responses.shift(); if (value instanceof Error) throw value; return value; };
 vm.runInThisContext(fs.readFileSync(process.argv[1], "utf8"), {filename: process.argv[1]});
 const api = window.__tcwWorkbench;
@@ -228,7 +284,7 @@ for (const id of ["workspace-navigation", "stage-inspector"]) registry[id] = fak
 Object.assign(e, {
   surface: fake(), version: fake(), ruleButton: fake("button"), localeToggle: fake("button"), refresh: fake("button"), add: fake("button"),
   documents: fake(), corpora: fake(), workspaceState: fake(), selected: fake(), contextKind: fake(), contextName: fake(),
-  roundContext: fake(), stepper: fake("ol"), central: fake(), stageHeading: fake(), stageGuidance: fake(), inspectorPanel: fake(), tabs,
+  roundContext: fake(), stepper: fake("ol"), central: fake("section", "central-surface"), stageHeading: fake("h2", "stage-heading"), stageGuidance: fake(), inspectorPanel: fake(), tabs,
   toast: fake(), toastMessage: fake(), toastClose: fake("button"), polite: fake(), assertive: fake(),
   addModal: fake(), ruleModal: fake(), ruleList: fake(), file: fake("input"), upload: fake("button"),
   guidedWhitespace: fake("button"), guidedPolicy: fake("button")
@@ -266,11 +322,11 @@ api.dismissToast(); outputs.dismissed = e.toast.hidden;
 
 e.surface = fake(); const opener = fake("button"); opener.focus();
 const close = fake("button"), last = fake("button"), modal = fake(); modal.focusables = [close, last];
-api.openModal(modal); outputs.modalOpen = [modal.hidden, e.surface.inert, document.activeElement === close];
+api.openModal(modal); outputs.modalOpen = [modal.hidden, e.surface.inert, e.toast.inert, document.activeElement === close];
 last.focus(); let prevented = 0; api.modalKeydown({currentTarget:modal,key:"Tab",shiftKey:false,preventDefault(){prevented++;}}); const wrappedForward = document.activeElement === close;
 close.focus(); api.modalKeydown({currentTarget:modal,key:"Tab",shiftKey:true,preventDefault(){prevented++;}}); const wrappedBackward = document.activeElement === last;
 api.modalKeydown({currentTarget:modal,key:"Escape",shiftKey:false,preventDefault(){prevented++;}}); outputs.modalKeys = [wrappedForward, wrappedBackward, modal.hidden, document.activeElement === opener, prevented];
-opener.focus(); api.openModal(modal); api.backdropDismiss({target:modal,currentTarget:modal}); outputs.backdrop = [modal.hidden, document.activeElement === opener];
+opener.focus(); api.openModal(modal); api.backdropDismiss({target:modal,currentTarget:modal}); outputs.backdrop = [modal.hidden, document.activeElement === opener, !e.toast.inert];
 
 api.state.locale = "en"; api.applyProjection(projection("old", [oldDoc]), "doc-old"); api.state.stage = "diagnose"; api.state.inspector = "evidence"; api.render();
 const acceptedView = api.state.projection;
@@ -437,6 +493,13 @@ prepareUnknownDecision(); const unknownPublishedStart=requests.length; responses
 prepareUnknownDecision(); const unknownAbsentStart=requests.length; responses.push(new Error("lost"),response(null,204),response(projection("decision-absent",[pendingRoundDoc]))); await api.recordDecision(); outputs.unknownDecisionAbsent=[requests.slice(unknownAbsentStart).filter(item=>item[1]==="POST").length,api.state.lifecycleReconciliationPending,api.state.proposal!==null,api.state.decisionSubmitted];
 
 const raceRefinement={...approvedRefinement,artifacts:[{role:"refinement-proposal",artifact_key:"8".repeat(64)}]}; api.state.projection=projection("race",[twoRoundDoc]);api.state.selectedKind="document";api.state.selectedKey="two-round";api.state.selectedRound=2;api.state.stage="revision";api.state.details=new Map([[secondDiagnosisKey,{kind:"DIAGNOSIS",artifact_integrity:"VERIFIED",artifacts:[],view:{finding_total:1,findings:[finding]}}],[secondRefinementKey,raceRefinement]]);api.state.appliedProposal=null;api.state.appliedProposalLoading=null;api.state.lifecyclePending=false;api.state.lifecycleReconciliationPending=false;api.renderSelected(); const openRace=treeNodes(e.central).find(value=>value.textContent==="Open applied comparison"&&value.tag==="button"); let resolveArtifact; const artifactDeferred=new Promise(resolve=>{resolveArtifact=resolve;});responses.push(artifactDeferred);const racePromise=openRace.listeners.click();api.state.selectedRound=1;api.state.stage="diagnose";api.renderSelected();resolveArtifact(response({forward_edits:[{target:{field:"text"},before:"before",after:"after"}],finding:{rule_id:"D009"},refiner:finding.refiner}));await racePromise;outputs.appliedRace=[api.state.appliedProposal===null,api.state.stage,api.state.selectedRound];
+
+const corpusKey="c".repeat(64), artifactKey="d".repeat(64), artifactHash="e".repeat(64); const corpusItem={record_key:corpusKey,title:"Golden corpus",member_count:2,status:"VERIFIED"}; const corpusDetail={kind:"CORPUS",artifact_integrity:"VERIFIED",artifacts:[{artifact_key:artifactKey,role:"corpus-summary",media_type:"application/json",size:7,sha256:artifactHash,availability:"AVAILABLE"}],view:{totals:{member_count:2,finding_count:1,revision_count:0,failed:0},matrix:[{member_id:"policy-md",family:"policy",format:"md",status:"COMPLETE"},{member_id:"notice-txt",family:"notice",format:"txt",status:"COMPLETE"}]}};
+api.state.projection={session_id:"corpus",package_version:"0.8.1",reference,records:[],documents:[],corpora:[corpusItem]};api.state.selectedKind="corpus";api.state.selectedKey=corpusKey;api.state.stage="observe";api.state.inspector="summary";api.state.reader=null;api.state.details=new Map([[corpusKey,corpusDetail]]);api.renderSelected();outputs.corpusInspection=[e.stepper.hidden,treeText(e.central).includes("2 members"),treeText(e.central).includes("policy-md"),treeText(e.inspectorPanel).includes("CORPUS")];
+api.state.inspector="artifacts";api.renderSelected();const artifactOpen=treeNodes(e.inspectorPanel).find(value=>value.dataset.artifactKey===artifactKey);responses.push(response('{"z":1,"name":"raw-value"}'));await artifactOpen.listeners.click();const jsonSource=treeNodes(e.central).find(value=>String(value.className).includes("source-reader"));const readerSelection=[api.state.selectedKind,api.state.selectedKey,api.state.stage];const readerHeading=treeNodes(e.central).find(value=>value.id==="artifact-reader-heading");const wrapToggle=treeNodes(e.central).find(value=>value.dataset.readerControl==="wrap");wrapToggle.focus();wrapToggle.listeners.click();const rerenderedWrap=treeNodes(e.central).find(value=>value.dataset.readerControl==="wrap");outputs.readerAccessibility=[e.central.attributes["aria-labelledby"]===readerHeading.id,document.activeElement===rerenderedWrap,rerenderedWrap!==wrapToggle];api.setLocale("zh-CN",false);outputs.jsonReader=[jsonSource.textContent==='{\n  "z": 1,\n  "name": "raw-value"\n}',treeText(e.central).includes("产物阅读器"),api.state.reader!==null,[api.state.selectedKind,api.state.selectedKey,api.state.stage].join(",")===readerSelection.join(",")];api.setLocale("en",false);api.closeReader();outputs.readerReturn=[api.state.reader===null,api.state.selectedKind,api.state.selectedKey,api.state.stage,!registry["stage-inspector"].hidden,e.central.attributes["aria-labelledby"]==="stage-heading",treeNodes(e.central).includes(e.stageHeading)];
+const htmlDescriptor={artifact_key:"f".repeat(64),role:"corpus-report",media_type:"text/html",size:12,sha256:"1".repeat(64),availability:"AVAILABLE"};responses.push(response("<h1>Report</h1>"));await api.openArtifact(htmlDescriptor);const htmlFrame=treeNodes(e.central).find(value=>value.tag==="iframe");const sourceToggle=treeNodes(e.central).find(value=>value.dataset.readerControl==="html-source");sourceToggle.focus();sourceToggle.listeners.click();const htmlSource=treeNodes(e.central).find(value=>String(value.className).includes("source-reader"));const reportToggle=treeNodes(e.central).find(value=>value.dataset.readerControl==="html-source");const sourceFocus=document.activeElement===reportToggle&&reportToggle!==sourceToggle;reportToggle.listeners.click();const sourceToggleAgain=treeNodes(e.central).find(value=>value.dataset.readerControl==="html-source");const reportFocus=document.activeElement===sourceToggleAgain&&sourceToggleAgain!==reportToggle;outputs.htmlReader=[htmlFrame.attributes.sandbox==="",htmlFrame.attributes.referrerpolicy==="no-referrer",htmlFrame.attributes.tabindex==="-1",htmlFrame.srcdoc.includes("default-src 'none'"),htmlSource.textContent==="<h1>Report</h1>",sourceFocus,reportFocus,treeNodes(e.central).some(value=>value.tag==="iframe")];
+api.closeReader();const largeDescriptor={artifact_key:"2".repeat(64),role:"large-report",media_type:"text/markdown",size:99999999,sha256:"3".repeat(64),availability:"TOO_LARGE"};await api.openArtifact(largeDescriptor);outputs.oversizedReader=[treeText(e.central).includes("too large"),treeText(e.central).includes("not truncated"),requests.every(item=>!item[0].includes(largeDescriptor.artifact_key))];
+api.closeReader();const comparisonDescriptor={artifact_key:"4".repeat(64),role:"refinement-proposal",media_type:"application/json",size:100,sha256:"5".repeat(64),availability:"AVAILABLE"};responses.push(response({forward_edits:[{target:{field:"text"},before:"A  B",after:"A B"}],finding:{rule_id:"D009"},refiner:{refiner_id:"R001"}}));await api.openArtifact(comparisonDescriptor);outputs.artifactComparison=[treeNodes(e.central).some(value=>value.className==="comparison-shell"),treeText(e.central).includes("A··B"),treeText(e.central).includes("Whitespace normalization")];
 console.log(JSON.stringify(outputs));
 })().catch(error => { console.error(error); process.exitCode = 1; });
 '''
@@ -470,9 +533,9 @@ console.log(JSON.stringify(outputs));
         self.assertEqual(values["failureToast"], [0, "bad", "failure"])
         self.assertEqual(values["replaced"], ["recovered", "success", 1])
         self.assertTrue(values["dismissed"])
-        self.assertEqual(values["modalOpen"], [False, True, True])
+        self.assertEqual(values["modalOpen"], [False, True, True, True])
         self.assertEqual(values["modalKeys"], [True, True, True, True, 3])
-        self.assertEqual(values["backdrop"], [True, True])
+        self.assertEqual(values["backdrop"], [True, True, True])
         self.assertEqual(values["active"], ["job-1", True, True, True, 1])
         self.assertEqual(values["publishedRefreshFailed"], [True, "doc-old", "diagnose", "evidence", "failure", True, False])
         self.assertEqual(values["publishedRefreshFailedNoObservation"], [True, "doc-old", "failure", True])
@@ -514,6 +577,13 @@ console.log(JSON.stringify(outputs));
         self.assertEqual(values["unknownDecisionPublished"], [2, False, True, "refine", True])
         self.assertEqual(values["unknownDecisionAbsent"], [2, False, True, False])
         self.assertEqual(values["appliedRace"], [True, "diagnose", 1])
+        self.assertEqual(values["corpusInspection"], [True, True, True, True])
+        self.assertEqual(values["readerAccessibility"], [True, True, True])
+        self.assertEqual(values["jsonReader"], [True, True, True, True])
+        self.assertEqual(values["readerReturn"], [True, "corpus", "c" * 64, "observe", True, True, True])
+        self.assertEqual(values["htmlReader"], [True, True, True, True, True, True, True, True])
+        self.assertEqual(values["oversizedReader"], [True, True, True])
+        self.assertEqual(values["artifactComparison"], [True, True, True])
 
     def test_static_assets_are_served_from_same_origin_with_expected_types(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
