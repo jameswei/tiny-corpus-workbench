@@ -387,7 +387,7 @@ class WorkbenchLifecycleHttpTests(unittest.TestCase):
             self.harness.server.application.jobs, "_observe", side_effect=blocked
         ):
             accepted = self.post(
-                "/api/observation-jobs/guided/whitespace-cleanup-md"
+                "/api/observation-jobs/guided/policy-memo-md"
             )
             self.assertEqual(accepted.status, 202)
             deadline = time.monotonic() + 2

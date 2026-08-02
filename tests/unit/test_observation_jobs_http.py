@@ -275,6 +275,86 @@ class ObservationJobHttpTests(unittest.TestCase):
         self.assertEqual(terminal["observation"]["status"], "SUCCESS")
         self.assertFalse((self.workspace / "inputs").exists())
 
+    def test_duplicate_guided_source_reactivates_without_starting_job(self) -> None:
+        first = self.harness.request(
+            "/api/observation-jobs/guided/policy-memo-md",
+            method="POST",
+            headers=[("Host", self.harness.authority), ("Content-Length", "0")],
+        )
+        self.assertEqual(first.status, 202)
+        terminal = self.wait_for_terminal()
+        before = self.harness.server.application.jobs.snapshot()
+        with patch.object(
+            self.harness.server.application.jobs,
+            "accept",
+            wraps=self.harness.server.application.jobs.accept,
+        ) as accept:
+            duplicate = self.harness.request(
+                "/api/observation-jobs/guided/policy-memo-md",
+                method="POST",
+                headers=[
+                    ("Host", self.harness.authority),
+                    ("Content-Length", "0"),
+                ],
+            )
+        payload = json.loads(duplicate.body)
+        self.assertEqual(duplicate.status, 200)
+        self.assertIsNone(payload["job"])
+        self.assertEqual(
+            payload["reactivation"]["observation_record_key"],
+            terminal["observation"]["record_key"],
+        )
+        self.assertEqual(
+            payload["reactivation"]["document_key"],
+            json.loads(
+                self.harness.request("/api/workbench").body
+            )["documents"][0]["document_key"],
+        )
+        accept.assert_not_called()
+        self.assertIs(self.harness.server.application.jobs.snapshot(), before)
+
+    def test_duplicate_upload_reactivates_before_input_storage(self) -> None:
+        content = b"# Same bytes\n\nOne source identity.\n"
+        first = self.request_upload("filename=first.md", content)
+        self.assertEqual(first.status, 202)
+        terminal = self.wait_for_terminal()
+        digest = terminal["input"]["sha256"]
+        duplicate = self.request_upload("filename=renamed.md", content)
+        payload = json.loads(duplicate.body)
+        self.assertEqual(duplicate.status, 200)
+        self.assertIsNone(payload["job"])
+        self.assertEqual(
+            payload["reactivation"]["observation_record_key"],
+            terminal["observation"]["record_key"],
+        )
+        self.assertFalse(
+            (self.workspace / "inputs" / digest / "renamed.md").exists()
+        )
+
+    def test_duplicate_reactivation_preserves_lifecycle_lease_ordering(self) -> None:
+        first = self.harness.request(
+            "/api/observation-jobs/guided/policy-memo-md",
+            method="POST",
+            headers=[("Host", self.harness.authority), ("Content-Length", "0")],
+        )
+        self.assertEqual(first.status, 202)
+        self.wait_for_terminal()
+        with self.harness.server.application.jobs.coordinator.acquire(
+            "LIFECYCLE"
+        ):
+            duplicate = self.harness.request(
+                "/api/observation-jobs/guided/policy-memo-md",
+                method="POST",
+                headers=[
+                    ("Host", self.harness.authority),
+                    ("Content-Length", "0"),
+                ],
+            )
+        self.assertEqual(duplicate.status, 409)
+        self.assertEqual(
+            json.loads(duplicate.body)["code"], "OBSERVATION_BUSY"
+        )
+
     def test_guided_ids_are_exact_and_singular_route_is_removed(self) -> None:
         application = self.harness.server.application
         with patch.object(application, "_submit", wraps=application._submit) as submit:
@@ -372,6 +452,18 @@ class ObservationJobHttpTests(unittest.TestCase):
             self.assertEqual(busy.status, 409)
             self.assertEqual(json.loads(busy.body)["code"], "OBSERVATION_BUSY")
             self.assertFalse((self.workspace / "inputs").exists())
+            duplicate = self.harness.request(
+                "/api/observation-jobs/guided/policy-memo-md",
+                method="POST",
+                headers=[
+                    ("Host", self.harness.authority),
+                    ("Content-Length", "0"),
+                ],
+            )
+            self.assertEqual(duplicate.status, 409)
+            self.assertEqual(
+                json.loads(duplicate.body)["code"], "OBSERVATION_BUSY"
+            )
             release.set()
             self.wait_for_terminal()
 

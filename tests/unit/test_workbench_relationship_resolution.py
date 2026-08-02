@@ -52,6 +52,34 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
         )
 
     @staticmethod
+    def _direct_detail(admitted: object, kind: str) -> dict[str, object]:
+        record = next(
+            value for value in admitted.records.values() if value.kind == kind
+        )
+        edges = projection_module._record_edges(admitted, record)
+        artifacts, _ = projection_module._artifact_bundle(record)
+        return projection_module._detail(admitted, record, edges, artifacts)
+
+    @classmethod
+    def _serialized_details(
+        cls, admitted: object
+    ) -> tuple[tuple[str, bytes], ...]:
+        return tuple(
+            (
+                key,
+                projection_module.canonical_json(
+                    projection_module._detail(
+                        admitted,
+                        record,
+                        projection_module._record_edges(admitted, record),
+                        projection_module._artifact_bundle(record)[0],
+                    )
+                ),
+            )
+            for key, record in sorted(admitted.records.items())
+        )
+
+    @staticmethod
     def _listed_path(
         admitted: object, kind: str, role: str
     ) -> Path:
@@ -83,15 +111,16 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
         artifact_path: Callable[[object], Path],
     ) -> None:
         admitted = admit_records(roots)
-        expected = self._serialized(admitted)
+        expected = self._serialized_details(admitted)
         path = artifact_path(admitted)
         with self._mutated_path(path, "CONTENT_REPLACEMENT"):
-            self.assertEqual(self._serialized(admitted), expected)
-        self.assertEqual(self._serialized(admitted), expected)
+            self.assertEqual(self._serialized_details(admitted), expected)
+        self.assertEqual(self._serialized_details(admitted), expected)
 
     def test_missing_subject_is_preserved_without_path_inference(self) -> None:
-        built = build_projection(admit_records([self.published.diagnosis]))
-        detail = next(iter(built.details.values()))
+        detail = self._direct_detail(
+            admit_records([self.published.diagnosis]), "DIAGNOSIS"
+        )
         edge = detail["relationships"][0]
         self.assertEqual(edge["state"], "MISSING")
         self.assertNotIn("target_record_key", edge)
@@ -151,31 +180,23 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
             self.assertEqual(snapshot(), baseline)
 
     def test_refinement_targets_are_evaluated_independently(self) -> None:
-        diagnosis_only = build_projection(
+        detail = self._direct_detail(
             admit_records(
                 [self.refinements.diagnosis, self.refinements.applied]
-            )
-        )
-        detail = next(
-            value["view"]
-            for value in diagnosis_only.details.values()
-            if value["kind"] == "REFINEMENT"
-        )
+            ),
+            "REFINEMENT",
+        )["view"]
         self.assertEqual(detail["diagnosis_state"], "MATCH")
         self.assertEqual(detail["base_state"], "NOT_CHECKED")
         self.assertEqual(detail["derivation_state"], "NOT_CHECKED")
         self.assertEqual(detail["reversibility_state"], "NOT_CHECKED")
 
-        base_only = build_projection(
+        detail = self._direct_detail(
             admit_records(
                 [self.refinements.observation, self.refinements.applied]
-            )
-        )
-        detail = next(
-            value["view"]
-            for value in base_only.details.values()
-            if value["kind"] == "REFINEMENT"
-        )
+            ),
+            "REFINEMENT",
+        )["view"]
         self.assertEqual(detail["diagnosis_state"], "NOT_CHECKED")
         self.assertEqual(detail["base_state"], "MATCH")
         self.assertEqual(detail["derivation_state"], "NOT_CHECKED")
@@ -244,8 +265,9 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
             build_projection(admitted)
 
     def test_rejected_refinement_without_targets_is_not_applicable(self) -> None:
-        built = build_projection(admit_records([self.refinements.rejected]))
-        detail = next(iter(built.details.values()))["view"]
+        detail = self._direct_detail(
+            admit_records([self.refinements.rejected]), "REFINEMENT"
+        )["view"]
         self.assertEqual(detail["diagnosis_state"], "NOT_CHECKED")
         self.assertEqual(detail["base_state"], "NOT_CHECKED")
         self.assertEqual(detail["derivation_state"], "NOT_APPLICABLE")
@@ -302,8 +324,7 @@ class WorkbenchRelationshipResolutionTests(unittest.TestCase):
             explicit_keys={wrong_run.record_key},
             containment=[],
         )
-        built = build_projection(records)
-        detail = next(iter(built.details.values()))
+        detail = self._direct_detail(records, "DIAGNOSIS")
         self.assertEqual(detail["relationships"][0]["state"], "MISSING")
 
         subject_admitted = admit_records([self.published.root])

@@ -31,14 +31,12 @@ class WorkbenchIntegrationTests(unittest.TestCase):
         cls.complete_server = ServerHarness(cls.complete.root)
         cls.incomplete_server = ServerHarness(cls.incomplete.root)
         cls.corpus_server = ServerHarness(cls.corpus.root)
-        cls.missing_server = ServerHarness(cls.diagnosis.diagnosis)
 
     @classmethod
     def tearDownClass(cls) -> None:
         cls.complete_server.close()
         cls.incomplete_server.close()
         cls.corpus_server.close()
-        cls.missing_server.close()
         cls.diagnosis.close()
         cls.refinements.close()
         cls.corpus.close()
@@ -81,6 +79,18 @@ class WorkbenchIntegrationTests(unittest.TestCase):
         corpus_record = next(
             record for record in projection["records"] if record["kind"] == "CORPUS"
         )
+        self.assertEqual(
+            projection["corpora"],
+            [
+                {
+                    "record_key": corpus_record["record_key"],
+                    "corpus_id": "model-free-workbench-corpus",
+                    "title": "Model-free workbench corpus",
+                    "status": "COMPLETE",
+                    "member_count": 5,
+                }
+            ],
+        )
         detail = json.loads(
             self.corpus_server.request(
                 f"/api/records/{corpus_record['record_key']}"
@@ -117,19 +127,46 @@ class WorkbenchIntegrationTests(unittest.TestCase):
         self.assertIn("revision_groups", detail["view"]["aggregates"])
         self.assertIn("revisions", detail["view"]["aggregates"])
 
-    def test_missing_diagnosis_subject_maps_to_not_checked_evaluations(self) -> None:
-        projection = json.loads(
-            self.missing_server.request("/api/workbench").body
-        )
-        record = projection["records"][0]
-        detail = json.loads(
-            self.missing_server.request(
-                f"/api/records/{record['record_key']}"
-            ).body
-        )
-        self.assertEqual(detail["relationships"][0]["state"], "MISSING")
-        self.assertEqual(detail["view"]["subject_state"], "NOT_CHECKED")
-        self.assertEqual(detail["view"]["derivation_state"], "NOT_CHECKED")
+    def test_missing_lifecycle_subject_refresh_keeps_accepted_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
+            workspace = Path(temporary)
+            observation = (
+                workspace
+                / "extraction-observatory"
+                / self.complete.root.name
+            )
+            observation.parent.mkdir(parents=True)
+            shutil.copytree(self.complete.root, observation)
+            harness = ServerHarness(workspace=workspace)
+            try:
+                accepted = harness.state.projection
+                diagnosis = (
+                    workspace
+                    / "evidence-based-diagnosis"
+                    / self.diagnosis.diagnosis.name
+                )
+                diagnosis.parent.mkdir(parents=True)
+                shutil.copytree(self.diagnosis.diagnosis, diagnosis)
+                before = {
+                    path: path.read_bytes()
+                    for path in (observation / "manifest.json", diagnosis / "diagnosis-manifest.json")
+                }
+                response = harness.request(
+                    "/api/workbench/refresh",
+                    method="POST",
+                    headers=[
+                        ("Host", harness.authority),
+                        ("Content-Length", "0"),
+                    ],
+                )
+                after = {path: path.read_bytes() for path in before}
+            finally:
+                harness.close()
+        self.assertEqual(response.status, 409)
+        self.assertIs(harness.state.projection, accepted)
+        self.assertEqual(after, before)
 
     def test_artifact_retrieval_is_plain_text_and_preserves_unsafe_markup(
         self,
@@ -274,7 +311,6 @@ class WorkbenchIntegrationTests(unittest.TestCase):
                 ("extraction-observatory", self.refinements.observation),
                 ("evidence-based-diagnosis", self.refinements.diagnosis),
                 ("controlled-revisions", self.refinements.applied),
-                ("controlled-revisions", self.refinements.rejected),
                 ("corpus-inspection", self.corpus.root),
             )
             for family, source in supplied:
@@ -290,8 +326,89 @@ class WorkbenchIntegrationTests(unittest.TestCase):
             {record["kind"] for record in accepted["records"]},
             {"OBSERVATION", "DIAGNOSIS", "REFINEMENT", "CORPUS"},
         )
-        self.assertEqual(accepted["counts"]["top_level_record_count"], 5)
+        self.assertEqual(accepted["counts"]["top_level_record_count"], 4)
         self.assertGreater(accepted["counts"]["contained_record_count"], 0)
+
+    def test_sibling_decision_refresh_rejects_candidate_and_keeps_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
+            workspace = Path(temporary)
+            supplied = (
+                ("extraction-observatory", self.refinements.observation),
+                ("evidence-based-diagnosis", self.refinements.diagnosis),
+                ("controlled-revisions", self.refinements.applied),
+            )
+            for family, source in supplied:
+                destination = workspace / family / source.name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(source, destination)
+            harness = ServerHarness(workspace=workspace)
+            try:
+                accepted = harness.state.projection
+                rejected = (
+                    workspace
+                    / "controlled-revisions"
+                    / self.refinements.rejected.name
+                )
+                shutil.copytree(self.refinements.rejected, rejected)
+                response = harness.request(
+                    "/api/workbench/refresh",
+                    method="POST",
+                    headers=[
+                        ("Host", harness.authority),
+                        ("Content-Length", "0"),
+                    ],
+                )
+                payload = json.loads(
+                    harness.request("/api/workbench").body
+                )
+            finally:
+                harness.close()
+        self.assertEqual(response.status, 409)
+        self.assertIs(harness.state.projection, accepted)
+        self.assertEqual(payload["refresh"]["status"], "FAILED")
+        self.assertEqual(payload["counts"]["top_level_record_count"], 3)
+
+    def test_second_observation_root_refresh_keeps_first_snapshot_and_files(self) -> None:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
+            workspace = Path(temporary)
+            output = workspace / "extraction-observatory"
+            first = run_corpus(
+                "observe",
+                str(REPOSITORY / "fixtures/golden/policy-memo.md"),
+                "--output-root",
+                str(output),
+            )
+            harness = ServerHarness(workspace=workspace)
+            try:
+                accepted = harness.state.projection
+                second = run_corpus(
+                    "observe",
+                    str(REPOSITORY / "fixtures/golden/policy-memo.md"),
+                    "--output-root",
+                    str(output),
+                )
+                manifests = {
+                    Path(first["manifest"]): Path(first["manifest"]).read_bytes(),
+                    Path(second["manifest"]): Path(second["manifest"]).read_bytes(),
+                }
+                response = harness.request(
+                    "/api/workbench/refresh",
+                    method="POST",
+                    headers=[
+                        ("Host", harness.authority),
+                        ("Content-Length", "0"),
+                    ],
+                )
+                after = {path: path.read_bytes() for path in manifests}
+            finally:
+                harness.close()
+        self.assertEqual(response.status, 409)
+        self.assertIs(harness.state.projection, accepted)
+        self.assertEqual(after, manifests)
 
 
 if __name__ == "__main__":

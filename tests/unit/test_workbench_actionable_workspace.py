@@ -169,28 +169,27 @@ class WorkbenchActionableWorkspaceTests(unittest.TestCase):
                 )
 
     def test_approved_refinement_is_a_subject_but_rejected_is_not(self) -> None:
-        self._copy(
-            self.refinements.applied,
-            "controlled-revisions",
-            "approved",
-        )
-        self._copy(
-            self.refinements.rejected,
-            "controlled-revisions",
-            "rejected",
-        )
-        state = WorkbenchState(self.workspace)
-        snapshot = state.capture_snapshot()
-        by_status = {
-            item["status"]: item["record_key"]
-            for item in state.projection.projection["records"]
-        }
-        self.assertIsNotNone(
-            state.diagnosis_subject(snapshot, by_status["APPROVED"])
-        )
-        self.assertIsNone(
-            state.diagnosis_subject(snapshot, by_status["REJECTED"])
-        )
+        for status, refinement, eligible in (
+            ("APPROVED", self.refinements.applied, True),
+            ("REJECTED", self.refinements.rejected, False),
+        ):
+            with self.subTest(status=status):
+                workspace = self.workspace / status.lower()
+                for family, source in (
+                    ("extraction-observatory", self.refinements.observation),
+                    ("evidence-based-diagnosis", self.refinements.diagnosis),
+                    ("controlled-revisions", refinement),
+                ):
+                    target = workspace / family / source.name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copytree(source, target)
+                state = WorkbenchState(workspace)
+                snapshot = state.capture_snapshot()
+                key = self._record_key(state, "REFINEMENT")
+                self.assertEqual(
+                    state.diagnosis_subject(snapshot, key) is not None,
+                    eligible,
+                )
 
     def test_diagnosis_base_requires_a_matching_top_level_actionable_subject(
         self,

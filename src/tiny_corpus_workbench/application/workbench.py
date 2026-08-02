@@ -286,7 +286,7 @@ class WorkbenchState:
             )
         for root in roots:
             try:
-                prepare_workbench([root])
+                admit_records([root])
             except (WorkbenchError, OSError, ValueError) as error:
                 relative = root.relative_to(self.workspace).as_posix()
                 raise InputError(f"{relative}: {sanitize_message(error)}") from error
