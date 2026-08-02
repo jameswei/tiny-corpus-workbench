@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Use the guided Workbench path to connect observation, admission verification,
-diagnosis, proposal, decision, and immutable revision evidence.
+Use the guided Workbench path to connect observation, diagnosis, proposal,
+decision, and immutable revision evidence.
 
 ## Guided exercise
 
@@ -14,79 +14,100 @@ LESSON_WORKSPACE="$(mktemp -d)"
 corpus workbench --workspace "$LESSON_WORKSPACE" --no-open
 ```
 
-Open the printed local address. Then complete these actions:
+Open the printed local address. Then complete these steps:
 
-1. Select **Start whitespace lifecycle**.
-2. Wait for observation publication and workspace admission.
-3. Inspect the verified observation and its two extraction views.
-4. Select **Diagnose document**.
-5. Inspect the D009 finding and R001 refiner mapping.
-6. Select **Create proposal**.
-7. Compare the readable before-and-after evidence.
-8. Select **Approve proposal** or **Reject proposal**.
-9. Inspect the decision and verification states.
-10. If approved, inspect the revision, lineage, derivation, and reversal evidence.
+1. Select **Add a document**.
+2. Select `whitespace-cleanup.md`.
+3. Wait for Observe to publish and refresh the workspace.
+4. Inspect the source, extraction, and canonical evidence.
+5. Select **Continue to Diagnosis**.
+6. Select **Run Diagnosis**.
+7. Inspect the D009 finding and its INFO severity.
+8. Review R001 in **Available next step**.
+9. Open Refine and select **Create proposal**.
+10. Inspect the visible-whitespace comparison.
+11. Choose **Approve** or **Reject**.
+12. Select **Record decision**.
+13. Inspect the completed Refine outcome.
+14. If approved, select **View prepared revision**.
+15. Inspect the applied comparison, history, and forward and inverse evidence.
 
-The actions map to the same persisted record families used by the CLI:
+Use the stage-scoped Summary, Evidence, and Artifacts tabs during the exercise.
+They keep learner guidance on the central surface and audit detail in the
+inspector.
+
+The actions publish the same record families as the CLI:
 
 ```text
-observe -> observation record
-diagnose -> diagnosis record
-decide -> refinement record -> optional prepared revision
+Observe -> Observation record
+Diagnosis -> Diagnosis record
+Decision -> Refinement record -> optional prepared Revision
 ```
 
-Rejection publishes no revision. Approval never overwrites the base. You can
-diagnose an approved prepared revision to continue an immutable chain.
-An approved record shows transformation and history evidence. A rejected
-record shows the decision and has no prepared document.
+Rejection publishes no Revision. Approval never overwrites the base. An
+approved Revision can start another numbered preparation round. Historical
+rounds remain inspectable and read-only.
 
-The proposal panel also gives exact paths for optional CLI continuation with
-`corpus resolve-refinement`. The CLI and Workbench are interfaces over the
-same application behavior. Corpus execution remains CLI-only.
+## Compare the no-findings path
 
-## Shared workspace behavior
+Select **Add a document**, then select `policy-memo.md`. Run Diagnosis after
+Observe finishes.
 
-The Workbench discovers observations, diagnoses, refinements, and corpora in
-four fixed directories under its workspace. Startup and **Refresh records**
-verify the complete candidate. A successful manual refresh replaces the
-accepted in-memory snapshot transactionally.
+Expected result: no fixed rule matches, and no content changes. Refine and
+Revision remain clickable. Each explains why the stage is **Not needed**. The
+Diagnosis evidence remains available.
 
-You can upload one supported document. The server stores an accepted upload
-under `inputs/` and publishes a new immutable observation. It shows source
-metadata but does not serve the uploaded original. The server retains only the
-latest in-memory observation job.
+Do not interpret `NO_FINDINGS` as Valid or Passed. It means only that no fixed
+rule matched.
 
-Each proposal belongs to its diagnosis. You can browse other records while a
-proposal waits. The page restores its panel only when that diagnosis-owned
-state still exists in the same page process. Draft files remain under
-`refinement-drafts/`, but they are not workspace records.
+## Use the shared workspace
 
-Select any record to inspect its evidence and relationships. An observation
-shows extraction and integrity evidence. A diagnosis shows findings and
-affected references. A refinement shows its decision, proposal,
-transformation, revision chain, and verification states. A corpus shows
-status counts, findings, its family and format matrix, extractor comparisons,
-contained records, and their relationships.
+The sidebar groups records under one document across its immutable revisions.
+It also lists verified corpora. Use **Refresh workspace** to discover records
+that the CLI published while the Workbench runs. Refresh runs no producer and
+preserves your selection and stage.
 
-## Temporal rules
+Add an unchanged guided source again. The Workbench reactivates its document.
+It does not publish another Observation.
+
+You can also upload one supported document up to 32 MiB. The Workbench shows
+source metadata and extracted artifacts. It does not display or serve the
+uploaded original.
+
+The CLI remains the full lifecycle interface. It can use the same published
+records. The Workbench does not generate continuation commands, and it does
+not require a CLI command to finish this exercise.
+
+## Inspect readers and rules
+
+Open a published artifact from the Artifacts tab. JSON is pretty-printed.
+Markdown appears as literal source. Verified project-generated HTML opens in
+an isolated formatted view and can switch to source mode.
+
+Select **Rule reference**. Find D009 and R001. The reference uses canonical
+rule identities, severities, and refiner mappings from the Python registries.
+
+Switch between EN and 中. Confirm that the selected document, round, stage, and
+inspector tab stay unchanged. Filenames, stable IDs, hashes, and artifact
+content do not translate.
+
+## Interpret recovery behavior
 
 Use these rules when you interpret the page:
 
-- Only one observation job runs at a time.
-- The page polls snapshots and can miss a fast stage live.
-- An ordered stage can appear complete without claiming that the browser
-  observed it live.
-- Reload restores the latest job only while the same server process remains.
-- Restart clears the job, action token, and proposal panels. It retains
-  accepted inputs, draft files, and published records.
+- The page polls only while an observation job is active.
+- A fast stage can finish between polls.
 - Observation and lifecycle publication do not overlap.
-- The page does not retry lifecycle actions automatically.
-- A refresh failure retains the last accepted projection. A successfully
-  published record remains on disk.
+- The page disables repeated submission during an unresolved mutation.
+- A refresh failure keeps the last accepted workspace view.
+- A published record stays on disk when its automatic refresh fails.
+- The page never replays a mutation automatically.
+- A stale action token requires a new explicit click.
+- Reload or restart restores only published records and decisions.
 
-Manual refresh is still useful for records that the CLI publishes while the
-Workbench runs. Record selection changes the inspected view; it does not
-change a record or transfer proposal state to another diagnosis.
+An unpublished proposal panel and its selected decision do not survive reload
+or restart. Create the deterministic proposal again. Draft files are private
+mechanics, not decision authority.
 
 ## Trusted-local boundary
 
@@ -95,8 +116,7 @@ bundled page reject ordinary cross-origin form submissions. The token is not
 authentication or access control. Other local processes can fetch it.
 
 The Workbench is for one trusted local user. Its HTTP routes are an internal
-bridge for the bundled interface, not a public API. Stop the server with
-`Ctrl-C` when you finish.
+bridge, not a public API. Stop the server with `Ctrl-C` when you finish.
 
 Only `refinement-manifest.json.decision` is persisted structured decision
 authority. The token, page state, proposal state, HTTP response, and
@@ -104,19 +124,20 @@ transformation state do not replace that authority.
 
 ## Knowledge check
 
-1. Why can a completed stage lack a live browser snapshot?
-2. What survives a server restart?
-3. What happens when publication succeeds but refresh fails?
-4. Is the action token authentication?
-5. Which persisted field records decision authority?
+1. Why is Observe shared across preparation rounds?
+2. What does a finding authorize?
+3. What happens after a rejected decision?
+4. What survives a server restart?
+5. Is the action token authentication?
 
 ## Answers
 
-1. The stage can finish between browser polls.
-2. Accepted inputs, draft files, and published records survive on disk.
-3. The record remains on disk, while the page keeps the last accepted projection.
-4. No. It is limited cross-origin-form mitigation in a trusted-local process.
-5. `refinement-manifest.json.decision`.
+1. Observe records the source once. Later rounds start from the Original or
+   latest approved Revision.
+2. Nothing. A finding records evidence and does not authorize mutation.
+3. The decision and evidence remain, but no prepared Revision exists.
+4. Accepted inputs, draft files, and published records survive on disk.
+5. No. It is limited cross-origin-form mitigation for a trusted local process.
 
 Return to the [learning hub](README.md) or use the
 [Local Visual Workbench guide](../docs/local-visual-workbench.md) for exact

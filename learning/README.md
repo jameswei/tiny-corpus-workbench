@@ -43,7 +43,7 @@ usable evidence.
 | 2. Diagnose | [Diagnose with evidence](diagnose-with-evidence.md) | Apply fixed rules without changing the document. |
 | 3. Decide | [Control a document revision](control-document-revision.md) | Approve or reject one reversible proposal. |
 | 4. Compare | [Inspect a corpus](inspect-a-corpus.md) | Aggregate explicit members in a source-text-free report. |
-| 5. Complete | [Complete the document lifecycle](complete-document-lifecycle.md) | Use the Workbench across observation, diagnosis, and decision. |
+| 5. Complete | [Complete the document lifecycle](complete-document-lifecycle.md) | Use Workbench stages and preparation rounds from observation through revision. |
 
 ## Shared terms
 

@@ -90,8 +90,9 @@ document, transformation, or history. Derivation and reversibility are
 `NOT_APPLICABLE`.
 
 Use exactly one decision flag. The CLI rejects zero flags or both flags before
-publication. Workbench **Approve proposal** and **Reject proposal** actions
-supply the same mutually exclusive decision.
+publication. In the Workbench, choose **Approve** or **Reject**, then select
+**Record decision**. These choices supply the same mutually exclusive
+decision.
 
 `refinement-manifest.json.decision` is the only persisted structured decision
 authority. Proposal state `REQUESTED`, transformation state `APPLIED`, UI
