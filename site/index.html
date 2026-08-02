@@ -24,7 +24,7 @@
     <section class="hero" aria-labelledby="hero-title">
       <p class="eyebrow">Local document preparation workbench</p>
       <h1 id="hero-title">Prepare documents without losing the evidence.</h1>
-      <p class="lede">Observe, verify, diagnose, and refine documents through a local browser workflow. Preview each supported change, decide explicitly, and keep the resulting evidence inspectable.</p>
+      <p class="lede">Follow one document through a focused local browser workflow. Move from observation to evidence-based diagnosis, decide on each supported change, and keep every immutable revision inspectable.</p>
       <div class="actions">
         <a class="button primary" href="#quick-start">Start locally</a>
         <a class="button secondary" href="https://github.com/jameswei/tiny-corpus-workbench">View GitHub</a>
@@ -108,7 +108,7 @@
         <article class="card">
           <p class="card-number">05 · Available</p>
           <h3>Explore locally</h3>
-          <p>Run a guided or uploaded observation, see workspace verification, diagnose the document, preview a supported proposal, and approve or reject it without editing JSON. Published records stay immutable.</p>
+          <p>Use Documents and Corpora navigation, learner-focused stages, preparation rounds, readable comparisons, and stage-scoped evidence without editing JSON. Switch the interface between English and Simplified Chinese.</p>
         </article>
       </div>
     </section>
@@ -138,14 +138,14 @@
       <div class="section-heading">
         <p class="kicker">Local by design</p>
         <h2 id="start-title">Run the implemented path locally.</h2>
-        <p>The browser guides one document from observation through an explicit proposal decision. The CLI provides the same lifecycle commands and optional continuation. Separate read-only commands verify published records.</p>
+        <p>The browser guides one document through Observe, Diagnosis, Refine, and Revision. The CLI remains a full interface for the same lifecycle records. Separate read-only commands verify published records.</p>
       </div>
       <div class="surface-list">
         <p><strong>CLI · Available</strong><span>Observation, diagnosis, decisions, and controlled revisions</span></p>
         <p><strong>Diagnosis report · Available</strong><span>Deterministic portable evidence</span></p>
         <p><strong>Prepared revision · Available</strong><span>Reversible, attributable transformation history</span></p>
         <p><strong>Static corpus report · Available</strong><span>Offline navigation across explicit local members</span></p>
-        <p><strong>Local Visual Workbench · Available</strong><span>Guided or uploaded observation, visible verification, diagnosis, proposal preview, explicit decisions, and immutable revision inspection</span></p>
+        <p><strong>Local Visual Workbench · Available</strong><span>Documents and Corpora, preparation rounds, finding guidance, explicit decisions, stage-scoped evidence, artifact readers, canonical rules, and EN/zh-CN UI</span></p>
       </div>
       <p><strong>One-time setup</strong></p>
       <pre class="command-block"><code>uv sync --frozen --python 3.12
@@ -160,7 +160,7 @@ corpus verify-refinement REFINEMENT_DIRECTORY --diagnosis DIAGNOSIS_DIRECTORY --
 corpus inspect fixtures/corpus/golden-matrix.json
 corpus verify-corpus CORPUS_DIRECTORY --spec fixtures/corpus/golden-matrix.json
 corpus workbench --no-open</code></pre>
-      <p>For the complete model-free browser path, start the Workbench and select <strong>Start whitespace lifecycle</strong>. The Workbench is local-only and trusts the local user and local processes. It provides no hosted processing service.</p>
+      <p>For the complete model-free browser path, start the Workbench, select <strong>Add a document</strong>, and choose <code>whitespace-cleanup.md</code>. The Workbench is local-only and trusts the local user and local processes. It provides no hosted processing service.</p>
       <p>The project is distributed as source from its repository. It does not ship prebuilt binaries. After setup, activate <code>.venv</code> to run <code>corpus</code> directly.</p>
       <div class="resource-links">
         <a href="https://github.com/jameswei/tiny-corpus-workbench/blob/main/learning/README.md">Explore all learning materials</a>

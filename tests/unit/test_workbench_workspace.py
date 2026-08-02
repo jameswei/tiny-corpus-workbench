@@ -116,6 +116,50 @@ class WorkbenchWorkspaceTests(unittest.TestCase):
         self.assertIsNone(state.refresh_message)
         self.assertEqual(state.projection_object()["refresh"]["message"], None)
 
+    def test_successful_refresh_admits_the_full_batch_once(self) -> None:
+        state = WorkbenchState(self.workspace)
+        target = self.publish_copy("extraction-observatory/one")
+
+        with patch(
+            "tiny_corpus_workbench.application.workbench.admit_records",
+            wraps=admit_records,
+        ) as mocked_admit:
+            result = state.refresh()
+
+        self.assertTrue(result.succeeded)
+        mocked_admit.assert_called_once_with([target])
+
+    def test_cross_record_conflict_keeps_generic_refresh_error(self) -> None:
+        self.publish_copy("extraction-observatory/one")
+        self.publish_copy("extraction-observatory/two")
+
+        state = WorkbenchState(self.workspace)
+
+        self.assertEqual(state.refresh_status, "FAILED")
+        self.assertEqual(
+            state.refresh_message,
+            "workspace records conflict or cannot form one projection",
+        )
+
+    def test_unexpected_batch_admission_failure_is_generic_without_retry(
+        self,
+    ) -> None:
+        state = WorkbenchState(self.workspace)
+        self.publish_copy("extraction-observatory/one")
+
+        with patch(
+            "tiny_corpus_workbench.application.workbench.admit_records",
+            side_effect=RuntimeError("unexpected admission detail"),
+        ) as mocked_admit:
+            result = state.refresh()
+
+        self.assertFalse(result.succeeded)
+        self.assertEqual(
+            result.message,
+            "workspace records conflict or cannot form one projection",
+        )
+        self.assertEqual(mocked_admit.call_count, 1)
+
     def test_response_limit_failure_preserves_snapshot_and_can_recover(self) -> None:
         self.publish_copy("extraction-observatory/one")
         state = WorkbenchState(self.workspace)

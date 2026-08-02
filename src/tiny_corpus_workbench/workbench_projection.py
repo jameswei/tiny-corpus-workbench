@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import importlib.metadata
 import json
 import tempfile
 from contextlib import contextmanager
@@ -11,8 +12,19 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator, Sequence
 
-from tiny_corpus_workbench.canonical_json import canonical_json, edge_key, session_id
-from tiny_corpus_workbench.diagnosis_rules import RULESET, RULESET_PARAMETER_HASH
+from tiny_corpus_workbench.canonical_json import (
+    canonical_json,
+    canonical_sha256,
+    edge_key,
+    session_id,
+)
+from tiny_corpus_workbench.diagnosis_rules import (
+    CURRENT_RULES,
+    CURRENT_RULESET,
+    CURRENT_RULESET_PARAMETER_HASH,
+    RULESET,
+    RULESET_PARAMETER_HASH,
+)
 from tiny_corpus_workbench.domain import IntegrityError
 from tiny_corpus_workbench.application.diagnosis import verify_diagnosis
 from tiny_corpus_workbench.application.refinement import (
@@ -36,6 +48,7 @@ SCHEMAS = {
     "REFINEMENT": "refinement-manifest",
     "CORPUS": "corpus-manifest",
 }
+PACKAGE_VERSION = importlib.metadata.version("tiny-corpus-workbench")
 
 
 @dataclass(frozen=True)
@@ -490,6 +503,212 @@ def _node(record: AdmittedRecord, artifact_count: int) -> dict[str, Any]:
     }
 
 
+def _source_identity(source: dict[str, Any]) -> tuple[str, str]:
+    return source["sha256"], source["media_type"]
+
+
+def _document_key(identity: tuple[str, str]) -> str:
+    return canonical_sha256(
+        {"source_sha256": identity[0], "media_type": identity[1]}
+    )
+
+
+def _reference_data() -> dict[str, Any]:
+    return {
+        "ruleset": {
+            "name": CURRENT_RULESET["name"],
+            "version": CURRENT_RULESET["version"],
+            "parameter_hash": CURRENT_RULESET_PARAMETER_HASH,
+        },
+        "rules": [
+            {
+                **copy.deepcopy(rule),
+                "refiner": supported_refiner(rule["rule_id"]),
+            }
+            for rule in CURRENT_RULES
+        ],
+    }
+
+
+def _matched_target_key(
+    edges: list[dict[str, Any]], relation: str
+) -> str | None:
+    matches = [
+        edge["target_record_key"]
+        for edge in edges
+        if edge["relation"] == relation and edge["state"] == "MATCH"
+    ]
+    if len(matches) > 1:
+        raise IntegrityError("linear preparation relationship is ambiguous")
+    return matches[0] if matches else None
+
+
+def _document_rounds(
+    records: AdmittedRecords,
+    edge_map: dict[str, list[dict[str, Any]]],
+    observation: AdmittedRecord,
+    consumed: set[str],
+) -> list[dict[str, Any]]:
+    """Shape only the fixed Diagnose -> Refine journey over verified edges."""
+
+    explicit = {
+        key: records.records[key] for key in records.explicit_keys
+    }
+    diagnoses_by_subject: dict[str, list[AdmittedRecord]] = {}
+    refinements_by_diagnosis_base: dict[
+        tuple[str, str], list[AdmittedRecord]
+    ] = {}
+    for key, record in explicit.items():
+        if record.kind == "DIAGNOSIS":
+            subject_key = _matched_target_key(
+                edge_map[key], "DIAGNOSIS_SUBJECT"
+            )
+            if subject_key is not None:
+                diagnoses_by_subject.setdefault(subject_key, []).append(record)
+        elif record.kind == "REFINEMENT":
+            diagnosis_key = _matched_target_key(
+                edge_map[key], "REFINEMENT_DIAGNOSIS"
+            )
+            base_key = _matched_target_key(edge_map[key], "REFINEMENT_BASE")
+            if diagnosis_key is not None and base_key is not None:
+                refinements_by_diagnosis_base.setdefault(
+                    (diagnosis_key, base_key), []
+                ).append(record)
+
+    rounds: list[dict[str, Any]] = []
+    seen_bases: set[str] = set()
+    base = observation
+    while True:
+        if base.record_key in seen_bases:
+            raise IntegrityError("preparation rounds are not linear")
+        seen_bases.add(base.record_key)
+        diagnoses = diagnoses_by_subject.get(base.record_key, [])
+        if len(diagnoses) > 1:
+            raise IntegrityError(
+                "one preparation base has multiple diagnoses"
+            )
+        if not diagnoses:
+            break
+        diagnosis = diagnoses[0]
+        if diagnosis.record_key in consumed:
+            raise IntegrityError("preparation record is not uniquely reachable")
+        consumed.add(diagnosis.record_key)
+        refinements = refinements_by_diagnosis_base.get(
+            (diagnosis.record_key, base.record_key), []
+        )
+        if len(refinements) > 1:
+            raise IntegrityError(
+                "one preparation diagnosis has multiple refinement decisions"
+            )
+        refinement = refinements[0] if refinements else None
+        if refinement is not None:
+            if refinement.record_key in consumed:
+                raise IntegrityError(
+                    "preparation record is not uniquely reachable"
+                )
+            consumed.add(refinement.record_key)
+        rounds.append(
+            {
+                "number": len(rounds) + 1,
+                "base_record_key": base.record_key,
+                "diagnosis_record_key": diagnosis.record_key,
+                "refinement_record_key": (
+                    refinement.record_key if refinement is not None else None
+                ),
+                "revision_record_key": (
+                    refinement.record_key
+                    if refinement is not None
+                    and refinement.status == "APPROVED"
+                    else None
+                ),
+            }
+        )
+        if refinement is None or refinement.status != "APPROVED":
+            break
+        base = refinement
+    return rounds
+
+
+def _presentation(
+    records: AdmittedRecords,
+    edge_map: dict[str, list[dict[str, Any]]],
+    nodes: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    explicit_lifecycle = {
+        key
+        for key in records.explicit_keys
+        if records.records[key].kind in {"DIAGNOSIS", "REFINEMENT"}
+    }
+    for key in explicit_lifecycle:
+        if any(edge["state"] != "MATCH" for edge in edge_map[key]):
+            raise IntegrityError(
+                "explicit lifecycle record has a missing required relationship"
+            )
+    observations: dict[tuple[str, str], list[AdmittedRecord]] = {}
+    for key in records.explicit_keys:
+        record = records.records[key]
+        if record.kind == "OBSERVATION":
+            observations.setdefault(
+                _source_identity(record.manifest["source"]), []
+            ).append(record)
+    duplicate = next(
+        (values for values in observations.values() if len(values) > 1),
+        None,
+    )
+    if duplicate is not None:
+        raise IntegrityError(
+            "workspace has multiple Observation roots for one source identity; "
+            "use a new or clean workspace"
+        )
+
+    documents = []
+    consumed: set[str] = set()
+    for identity, values in observations.items():
+        observation = values[0]
+        documents.append(
+            {
+                "document_key": _document_key(identity),
+                "source": _compact_source(observation.manifest["source"]),
+                "first_observation_at": observation.manifest["created_at"],
+                "observation_record_key": observation.record_key,
+                "rounds": _document_rounds(
+                    records, edge_map, observation, consumed
+                ),
+            }
+        )
+    if consumed != explicit_lifecycle:
+        raise IntegrityError(
+            "explicit lifecycle record is unreachable from an Observation root"
+        )
+    documents.sort(
+        key=lambda item: (
+            item["source"]["sha256"], item["source"]["media_type"]
+        )
+    )
+    documents.sort(
+        key=lambda item: item["first_observation_at"], reverse=True
+    )
+    by_key = {node["record_key"]: node for node in nodes}
+    corpora = []
+    for key in sorted(records.explicit_keys):
+        record = records.records[key]
+        if record.kind != "CORPUS":
+            continue
+        specification = _artifact_json(
+            record, "normalized-corpus-specification"
+        )
+        corpora.append(
+            {
+                "record_key": key,
+                "corpus_id": record.manifest["corpus_id"],
+                "title": specification["title"],
+                "status": by_key[key]["status"],
+                "member_count": record.manifest["summary"]["member_count"],
+            }
+        )
+    return documents, corpora
+
+
 def _artifact_json(record: AdmittedRecord, role: str) -> dict[str, Any]:
     raw = record.read_artifact(role)
     try:
@@ -851,6 +1070,8 @@ def build_projection(records: AdmittedRecords) -> WorkbenchProjection:
         edge_keys=[edge["edge_key"] for edge in edges],
     )
     projection = {
+        "package_version": PACKAGE_VERSION,
+        "reference": _reference_data(),
         "session_id": sid,
         "counts": {
             "record_count": len(records.records),
@@ -876,6 +1097,9 @@ def build_projection(records: AdmittedRecords) -> WorkbenchProjection:
             for key, record in records.records.items()
         ),
         key=lambda value: value["record_key"],
+    )
+    projection["documents"], projection["corpora"] = _presentation(
+        records, edge_map, projection["records"]
     )
     details = {
         key: _detail(

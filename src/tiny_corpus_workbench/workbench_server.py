@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import secrets
 import webbrowser
@@ -26,6 +27,7 @@ from tiny_corpus_workbench.application.lifecycle import (
     WorkbenchLifecycleService,
 )
 from tiny_corpus_workbench.application.mutation_coordinator import (
+    MutationBusyError,
     MutationCoordinator,
 )
 from tiny_corpus_workbench.application.observation_jobs import (
@@ -45,7 +47,7 @@ from tiny_corpus_workbench.domain import (
     StableError,
     sanitize_message,
 )
-from tiny_corpus_workbench.source import validate_source
+from tiny_corpus_workbench.source import MEDIA_TYPES, validate_source
 from tiny_corpus_workbench.workbench_projection import WorkbenchProjection
 from tiny_corpus_workbench.workbench_records import MAX_ARTIFACT_CONTENT
 
@@ -214,6 +216,9 @@ class WorkbenchApplication:
             validate_workspace(self.state.workspace)
         except InputError as error:
             return _error("WORKSPACE_UNAVAILABLE", message=sanitize_message(error))
+        reactivation = self._reactivation(input_value)
+        if reactivation is not None:
+            return reactivation
         try:
             job = self.jobs.accept(source, input_value)
         except ObservationBusyError:
@@ -222,6 +227,39 @@ class WorkbenchApplication:
             202,
             "application/json; charset=utf-8",
             canonical_json({"job": job.to_dict()}),
+        )
+
+    def _reactivation(self, input_value: JobInput) -> Response | None:
+        matches = [
+            document
+            for document in self.projection.projection["documents"]
+            if document["source"]["sha256"] == input_value.sha256
+            and document["source"]["media_type"] == input_value.media_type
+        ]
+        if len(matches) > 1:
+            raise IntegrityError("accepted source identity is ambiguous")
+        if not matches:
+            return None
+        document = matches[0]
+        try:
+            lease = self.jobs.coordinator.acquire("OBSERVATION")
+        except MutationBusyError:
+            return _error("OBSERVATION_BUSY")
+        lease.release()
+        return Response(
+            200,
+            "application/json; charset=utf-8",
+            canonical_json(
+                {
+                    "job": None,
+                    "reactivation": {
+                        "document_key": document["document_key"],
+                        "observation_record_key": document[
+                            "observation_record_key"
+                        ],
+                    },
+                }
+            ),
         )
 
     def _upload(self, filename: str, body: bytes) -> Response:
@@ -234,6 +272,20 @@ class WorkbenchApplication:
             if message.startswith("unsupported media type"):
                 return _error("INVALID_SOURCE", message=message)
             return _error("INVALID_REQUEST", message=message)
+        input_value = JobInput(
+            kind="UPLOAD",
+            name=filename,
+            media_type=MEDIA_TYPES[Path(filename).suffix.lower()],
+            size=len(body),
+            sha256=hashlib.sha256(body).hexdigest(),
+        )
+        try:
+            validate_workspace(self.state.workspace)
+        except InputError as error:
+            return _error("WORKSPACE_UNAVAILABLE", message=sanitize_message(error))
+        reactivation = self._reactivation(input_value)
+        if reactivation is not None:
+            return reactivation
         try:
             stored = store_uploaded_input(self.state.workspace, filename, body)
         except InputError as error:
@@ -248,7 +300,7 @@ class WorkbenchApplication:
         return self._submit(
             stored.path,
             JobInput(
-                kind="UPLOAD",
+                kind=input_value.kind,
                 name=stored.name,
                 media_type=stored.media_type,
                 size=stored.size,

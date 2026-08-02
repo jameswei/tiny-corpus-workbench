@@ -64,13 +64,16 @@ prove that the document is correct, complete, or suitable for a later use.
 
 ## Workbench equivalence
 
-The Workbench enables **Diagnose document** only for an admitted record with a
+The Workbench enables **Run Diagnosis** only for an admitted record with a
 verified canonical Docling document. It calls the same diagnosis behavior and
-shows the same named findings and evidence. A partial observation can be
-eligible when its canonical document is usable.
+shows the finding name before its stable ID. It also shows canonical severity,
+why the finding matters, and an available next step. A partial observation can
+be eligible when its canonical document is usable.
 
 Diagnosis publishes a separate immutable record. It does not edit the subject
-and never supplies mutation authority.
+and never supplies mutation authority. If no fixed rule matches, Refine and
+Revision explain that they are not needed. The diagnosis evidence stays
+available.
 
 ## Knowledge check
 

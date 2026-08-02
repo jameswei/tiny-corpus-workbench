@@ -5,7 +5,7 @@ review evidence, or publication state.
 
 ## Source state
 
-This checkout identifies package version `0.8.1`. The current product
+This checkout identifies package version `0.9.0`. The current product
 milestones cover:
 
 1. extraction observation;
@@ -13,19 +13,21 @@ milestones cover:
 3. controlled revisions;
 4. corpus inspection and comparison;
 5. the Local Visual Workbench;
-6. shared workspace discovery with transactional refresh; and
-7. guided or uploaded observation from the browser; and
+6. shared workspace discovery with transactional refresh;
+7. guided or uploaded observation from the browser;
 8. visible verification, diagnosis, proposal decisions, and immutable
-   revision inspection in the browser.
+   revision inspection in the browser; and
+9. a coherent bilingual Workbench with document-centered navigation,
+   preparation rounds, focused evidence, comparisons, and artifact readers.
 
 For published versions and release availability, use
 [GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases).
 
 ## Current source
 
-The current source keeps the v0.8 Interactive Document Lifecycle behavior and
-organizes its learning curriculum by lifecycle topic. For published versions
-and availability, use
+The current source contains the v0.9 Workbench UI/UX redesign. The CLI remains
+the full lifecycle interface. The bundled browser groups immutable records by
+document and preparation round. For published versions and availability, use
 [GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases).
 
 ## Settled invariants
@@ -41,6 +43,11 @@ and availability, use
 - The Workbench can publish observations. Published records stay immutable.
 - The Workbench can diagnose actionable documents and resolve supported
   proposals only after an explicit browser decision.
+- The Workbench shows Documents and Corpora in one sidebar and uses
+  stage-scoped Summary, Evidence, and Artifacts inspection.
+- The Workbench localizes its own interface in English and Simplified Chinese.
+- Browser-visible hashes are compact, but records and internal identity checks
+  keep full SHA-256 values.
 - The Workbench is loopback-only. Its HTTP routes are an internal bridge, not
   a public API.
 - Distribution is source-only. The project provides no hosted processing

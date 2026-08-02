@@ -15,7 +15,7 @@ record shapes. These internal shapes can change as the learning tool improves.
 Git tags preserve earlier implementations; the current project does not
 promise cross-version readers or migrations.
 
-The v0.6 through v0.8 sequence deliberately splits the next Workbench
+The v0.6 through v0.9 sequence deliberately splits the next Workbench
 direction into bounded, independently useful increments. It is not one large
 Webapp implementation milestone.
 
@@ -35,6 +35,7 @@ lesson for each product milestone.
 | v0.6 | Shared Workbench Workspace | Keep CLI-produced records available to one independently running, refreshable Workbench. |
 | v0.7 | Web Observation Workflow | Observe one guided or uploaded document through the browser. |
 | v0.8 | Interactive Document Lifecycle | Diagnose and explicitly resolve one document refinement through the browser. |
+| v0.9 | Workbench UI/UX Redesign | Present the document lifecycle through a focused, bilingual learning interface. |
 | v1.0 | Coherent Workbench | Present the complete learning workflow through clear local interfaces. |
 
 ## v0.0 — Planning Baseline
@@ -192,7 +193,7 @@ Deliverables:
 - mutually exclusive approve and reject actions
 - immutable refinement publication, verification, revision history, and
   reversibility views
-- CLI-to-Workbench and Workbench-to-CLI continuation over the same workspace
+- CLI and Workbench interoperability over the same published workspace records
 
 Exit condition: a learner can use the guided whitespace example to observe,
 verify, diagnose, inspect the D009 evidence, create a proposal, explicitly
@@ -203,6 +204,32 @@ and approval never overwrites earlier evidence.
 This increment remains single-document focused. It does not add browser-driven
 corpus execution, automatic repair, persistent jobs, Docker delivery, hosted
 services, authentication, or a public API.
+
+## v0.9 — Workbench UI/UX Redesign
+
+Redesign and polish the functional v0.8.1 Workbench without consuming the
+v1.0 outcome.
+
+Deliverables:
+
+- one stable shell with Documents and Corpora navigation
+- learner-question stages and numbered preparation rounds
+- stage-scoped Summary, Evidence, and Artifacts inspection
+- guidance that separates findings, proposals, and explicit decisions
+- shared readable comparisons and full-width artifact readers
+- compact visible hashes with full values available on demand
+- English and Simplified Chinese Workbench UI
+- a canonical rule reference derived from the rule and refiner registries
+- clear refresh, failure, reload, and restart behavior
+
+Exit condition: a learner can follow Observe, Diagnose, Refine, and Revision
+without navigating a flat record dashboard. The interface keeps evidence
+available, preserves explicit human authority, and remains local and
+source-only.
+
+This milestone changes the bundled human interface. It does not add new rules,
+refiners, persisted schemas, migrations, CLI behavior, browser corpus
+execution, hosted processing, or a public API.
 
 ## v1.0 — Coherent Workbench
 

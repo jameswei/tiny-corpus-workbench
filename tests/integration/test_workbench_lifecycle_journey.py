@@ -41,7 +41,7 @@ class WorkbenchLifecycleJourneyTests(unittest.TestCase):
             time.sleep(0.02)
         raise AssertionError("guided lifecycle observation did not finish")
 
-    def test_whitespace_lifecycle_supports_both_explicit_decisions(self) -> None:
+    def _run_whitespace_lifecycle(self, decision: str) -> None:
         accepted = self.post(
             "/api/observation-jobs/guided/whitespace-cleanup-md"
         )
@@ -75,27 +75,20 @@ class WorkbenchLifecycleJourneyTests(unittest.TestCase):
         self.assertIsInstance(proposal["edits"][0]["before"], str)
         self.assertIsInstance(proposal["edits"][0]["after"], str)
 
-        rejected = json.loads(
+        resolved = json.loads(
             self.post(
-                f"/api/lifecycle/proposals/{proposal['draft_key']}/reject",
+                f"/api/lifecycle/proposals/{proposal['draft_key']}/{decision}",
                 token=True,
             ).body
         )
-        self.assertEqual(rejected["publication"]["decision"], "REJECTED")
-        self.assertIsNone(rejected["publication"]["revision_id"])
+        expected = "APPROVED" if decision == "approve" else "REJECTED"
+        self.assertEqual(resolved["publication"]["decision"], expected)
+        if decision == "reject":
+            self.assertIsNone(resolved["publication"]["revision_id"])
+            return
 
-        recreated = json.loads(self.post(proposal_target, token=True).body)["draft"]
-        self.assertEqual(recreated["draft_key"], proposal["draft_key"])
-        approved = json.loads(
-            self.post(
-                f"/api/lifecycle/proposals/{recreated['draft_key']}/approve",
-                token=True,
-            ).body
-        )
-        self.assertEqual(approved["publication"]["decision"], "APPROVED")
-        self.assertIsInstance(approved["publication"]["revision_id"], str)
-
-        refinement_key = approved["publication"]["record_key"]
+        self.assertIsInstance(resolved["publication"]["revision_id"], str)
+        refinement_key = resolved["publication"]["record_key"]
         refinement = json.loads(
             self.harness.request(f"/api/records/{refinement_key}").body
         )
@@ -104,6 +97,12 @@ class WorkbenchLifecycleJourneyTests(unittest.TestCase):
             f"/api/lifecycle/diagnoses/{refinement_key}", token=True
         )
         self.assertEqual(continued.status, 200)
+
+    def test_whitespace_lifecycle_supports_approval(self) -> None:
+        self._run_whitespace_lifecycle("approve")
+
+    def test_whitespace_lifecycle_supports_rejection(self) -> None:
+        self._run_whitespace_lifecycle("reject")
 
 
 if __name__ == "__main__":

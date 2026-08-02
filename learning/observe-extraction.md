@@ -64,12 +64,15 @@ the record or whether an external party should trust it.
 ## Use the Workbench as another entry
 
 Start the Workbench with `corpus workbench --no-open`. In the browser, select
-**Observe policy memo** for a guided input. You can also upload one `.docx`,
-`.md`, `.pdf`, or `.txt` file up to 32 MiB.
+**Add a document**, then select `policy-memo.md` for a guided no-findings
+inspection. You can also upload one `.docx`, `.md`, `.pdf`, or `.txt` file up
+to 32 MiB.
 
 Both paths call the same observation service as the CLI. The browser shows
 uploaded-source metadata, but it does not display or serve the uploaded
-original.
+original. The Observe stage groups source metadata, extraction evidence, and
+canonical evidence. Use its Summary, Evidence, and Artifacts tabs to inspect
+the published record.
 
 ## Optional PDF extension
 

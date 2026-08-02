@@ -282,7 +282,18 @@ class WorkbenchLifecycleTests(unittest.TestCase):
         self.assertIsNone(self.coordinator.owner)
 
     def test_diagnosis_publication_refreshes_and_selects_result(self) -> None:
-        result = self.service.diagnose(self.observation_key)
+        state = self._state_with_records(
+            "undiagnosed",
+            ((self.published.observation, "extraction-observatory", "observation"),),
+        )
+        observation_key = next(
+            item["record_key"]
+            for item in state.projection.projection["records"]
+            if item["kind"] == "OBSERVATION"
+        )
+        result = WorkbenchLifecycleService(
+            state, MutationCoordinator()
+        ).diagnose(observation_key)
         self.assertEqual(result["publication"]["kind"], "DIAGNOSIS")
         self.assertIsNotNone(result["publication"]["record_key"])
         self.assertEqual(result["refresh"]["status"], "READY")
@@ -290,29 +301,41 @@ class WorkbenchLifecycleTests(unittest.TestCase):
     def test_equivalent_diagnoses_resolve_interleaved_without_context_alias(
         self,
     ) -> None:
-        observation_root = self.state.resolve_actionable_roots(
-            self.state.capture_snapshot(), [self.observation_key]
-        )[self.observation_key]
-        diagnose(
-            observation_root, self.workspace / "evidence-based-diagnosis"
+        alternate_diagnosis = diagnose(
+            self.published.observation,
+            self.workspace / "alternate-diagnosis",
         )
-        self.assertTrue(self.state.refresh().succeeded)
-        diagnosis_keys = [
-            item["record_key"]
-            for item in self.state.projection.projection["records"]
-            if item["kind"] == "DIAGNOSIS"
+        states = [
+            self._state_with_records(
+                label,
+                (
+                    (
+                        self.published.observation,
+                        "extraction-observatory",
+                        "observation",
+                    ),
+                    (diagnosis_root, "evidence-based-diagnosis", "diagnosis"),
+                ),
+            )
+            for label, diagnosis_root in (
+                ("equivalent-a", self.published.diagnosis),
+                ("equivalent-b", alternate_diagnosis),
+            )
         ]
-        self.assertEqual(len(diagnosis_keys), 2)
         proposals = []
-        for key in diagnosis_keys:
-            detail = self.state.projection.details[key]
+        services = []
+        for state in states:
+            key, finding = self._finding(state, "D009")
+            service = WorkbenchLifecycleService(state, MutationCoordinator())
+            services.append(service)
+            detail = state.projection.details[key]
             finding = next(
                 item
                 for item in detail["view"]["findings"]
                 if item["rule_id"] == "D009"
             )
             proposals.append(
-                self.service.create_proposal(key, finding["finding_id"])["draft"]
+                service.create_proposal(key, finding["finding_id"])["draft"]
             )
         self.assertEqual(proposals[0]["draft_id"], proposals[1]["draft_id"])
         self.assertNotEqual(proposals[0]["draft_key"], proposals[1]["draft_key"])
@@ -321,18 +344,18 @@ class WorkbenchLifecycleTests(unittest.TestCase):
             proposals[1]["diagnosis_record_key"],
         )
 
-        rejected = self.service.reject(proposals[1]["draft_key"])
-        approved = self.service.approve(proposals[0]["draft_key"])
+        rejected = services[1].reject(proposals[1]["draft_key"])
+        approved = services[0].approve(proposals[0]["draft_key"])
         self.assertEqual(rejected["publication"]["decision"], "REJECTED")
         self.assertEqual(approved["publication"]["decision"], "APPROVED")
 
-        for proposal, result in (
-            (proposals[1], rejected),
-            (proposals[0], approved),
+        for state, proposal, result in (
+            (states[1], proposals[1], rejected),
+            (states[0], proposals[0], approved),
         ):
             record_key = result["publication"]["record_key"]
-            snapshot = self.state.capture_snapshot()
-            root = self.state.resolve_actionable_roots(snapshot, [record_key])[
+            snapshot = state.capture_snapshot()
+            root = state.resolve_actionable_roots(snapshot, [record_key])[
                 record_key
             ]
             manifest = json.loads(
@@ -350,7 +373,7 @@ class WorkbenchLifecycleTests(unittest.TestCase):
             self.assertEqual(manifest["draft_id"], proposal["draft_id"])
             relationships = {
                 item["relation"]: item
-                for item in self.state.projection.details[record_key][
+                for item in state.projection.details[record_key][
                     "relationships"
                 ]
             }
@@ -417,6 +440,13 @@ class WorkbenchLifecycleTests(unittest.TestCase):
 
         isolated = self.workspace / "isolated"
         self._copy_to(
+            self.published.observation,
+            isolated
+            / "extraction-observatory"
+            / "observation"
+            / self.published.observation.name,
+        )
+        self._copy_to(
             self.published.diagnosis,
             isolated
             / "evidence-based-diagnosis"
@@ -433,16 +463,15 @@ class WorkbenchLifecycleTests(unittest.TestCase):
         self.assertEqual(supported["refiner"]["refiner_id"], "R001")
         self.assertEqual(
             supported["proposal_action"],
-            {"status": "UNAVAILABLE", "reason": "SUBJECT_NOT_ACTIONABLE"},
+            {"status": "AVAILABLE", "reason": None},
         )
         isolated_key = isolated_diagnosis["record_key"]
-        with self.assertRaises(ActionNotAvailableError):
-            WorkbenchLifecycleService(
-                isolated_state, MutationCoordinator()
-            ).create_proposal(isolated_key, supported["finding_id"])
-        self.assertFalse(
-            (isolated / "refinement-drafts").exists()
-            and any((isolated / "refinement-drafts").glob("*.json"))
+        proposal = WorkbenchLifecycleService(
+            isolated_state, MutationCoordinator()
+        ).create_proposal(isolated_key, supported["finding_id"])["draft"]
+        self.assertEqual(proposal["diagnosis_record_key"], isolated_key)
+        self.assertTrue(
+            (isolated / "refinement-drafts" / f"{proposal['draft_id']}.json").is_file()
         )
 
     def test_all_supported_refiners_create_their_application_previews(self) -> None:
@@ -542,19 +571,9 @@ class WorkbenchLifecycleTests(unittest.TestCase):
             / self.published.diagnosis.name,
         )
         missing_state = WorkbenchState(missing)
-        missing_detail = next(iter(missing_state.projection.details.values()))
-        missing_finding = next(
-            finding
-            for finding in missing_detail["view"]["findings"]
-            if finding["rule_id"] == "D009"
-        )
-        self.assertEqual(
-            missing_detail["relationships"][0]["state"], "MISSING"
-        )
-        self.assertEqual(
-            missing_finding["proposal_action"],
-            {"status": "UNAVAILABLE", "reason": "SUBJECT_NOT_ACTIONABLE"},
-        )
+        self.assertEqual(missing_state.refresh_status, "FAILED")
+        self.assertEqual(missing_state.projection.projection["records"], [])
+        self.assertEqual(missing_state.projection.details, {})
 
     def _state_with_records(self, label, records) -> WorkbenchState:
         workspace = self.workspace / label

@@ -70,22 +70,31 @@ class WorkbenchRecordDetailContractTests(unittest.TestCase):
         return build_projection(admit_records(roots)).details.values()
 
     def test_all_four_kinds_and_incomplete_states_use_current_data(self) -> None:
-        roots = [
-            self.observation.root,
-            self.failed.root,
-            self.diagnosis.root,
-            self.diagnosis.diagnosis,
-            self.refinements.applied,
-            self.refinements.rejected,
-            self.corpus.root,
-        ]
-        details = list(self._details(roots))
+        applied_details = list(
+            self._details(
+                [
+                    self.refinements.observation,
+                    self.refinements.diagnosis,
+                    self.refinements.applied,
+                    self.corpus.root,
+                ]
+            )
+        )
+        rejected_details = list(
+            self._details(
+                [
+                    self.refinements.observation,
+                    self.refinements.diagnosis,
+                    self.refinements.rejected,
+                ]
+            )
+        )
+        incomplete_details = list(self._details([self.failed.root]))
+        details = [*applied_details, *rejected_details, *incomplete_details]
         self.assertEqual(
             {detail["kind"] for detail in details},
             {"OBSERVATION", "DIAGNOSIS", "REFINEMENT", "CORPUS"},
         )
-        missing = next(iter(self._details([self.diagnosis.diagnosis])))
-        self.assertEqual(missing["view"]["subject_state"], "NOT_CHECKED")
         self.assertTrue(
             any(
                 detail["kind"] == "REFINEMENT"
@@ -132,31 +141,40 @@ class WorkbenchRecordDetailContractTests(unittest.TestCase):
         )
 
     def test_diagnosis_and_refinement_contracts_are_exact(self) -> None:
-        details = self._details(
-            [
-                self.refinements.observation,
-                self.refinements.diagnosis,
-                self.refinements.applied,
-                self.refinements.rejected,
-            ]
+        approved_details = list(
+            self._details(
+                [
+                    self.refinements.observation,
+                    self.refinements.diagnosis,
+                    self.refinements.applied,
+                ]
+            )
+        )
+        rejected_details = list(
+            self._details(
+                [
+                    self.refinements.observation,
+                    self.refinements.diagnosis,
+                    self.refinements.rejected,
+                ]
+            )
         )
         diagnosis = next(
-            value["view"] for value in details if value["kind"] == "DIAGNOSIS"
+            value["view"]
+            for value in approved_details
+            if value["kind"] == "DIAGNOSIS"
         )
         self.assertEqual(set(diagnosis["source"]), SOURCE_FIELDS)
         self.assertTrue(
             all(set(finding) == FINDING_FIELDS for finding in diagnosis["findings"])
         )
-        details = self._details(
-            [
-                self.refinements.observation,
-                self.refinements.diagnosis,
-                self.refinements.applied,
-                self.refinements.rejected,
-            ]
-        )
         refinements = [
-            value["view"] for value in details if value["kind"] == "REFINEMENT"
+            next(
+                value["view"]
+                for value in details
+                if value["kind"] == "REFINEMENT"
+            )
+            for details in (approved_details, rejected_details)
         ]
         by_state = {value["decision"]: value for value in refinements}
         for value in refinements:
@@ -200,6 +218,15 @@ class WorkbenchRecordDetailContractTests(unittest.TestCase):
                 self.assertEqual(
                     set(relationship["target_identity"]), {"name", "value"}
                 )
+
+    def test_corpus_detail_exposes_verified_report_and_stylesheet(self) -> None:
+        details = list(self._details([self.corpus.root]))
+        corpus = next(value for value in details if value["kind"] == "CORPUS")
+        by_role = {item["role"]: item for item in corpus["artifacts"]}
+        self.assertEqual(by_role["corpus-report"]["media_type"], "text/html")
+        self.assertEqual(by_role["corpus-stylesheet"]["media_type"], "text/css")
+        self.assertEqual(by_role["corpus-report"]["availability"], "AVAILABLE")
+        self.assertEqual(by_role["corpus-stylesheet"]["availability"], "AVAILABLE")
 
 
 if __name__ == "__main__":

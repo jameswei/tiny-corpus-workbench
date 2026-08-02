@@ -69,8 +69,10 @@ ALLOWED_ROLES = {
     "prepared-document-markdown",
     "normalized-corpus-specification",
     "corpus-summary",
+    "corpus-report",
+    "corpus-stylesheet",
 }
-ALLOWED_MEDIA = {"application/json", "text/markdown"}
+ALLOWED_MEDIA = {"application/json", "text/markdown", "text/html", "text/css"}
 
 
 @dataclass(frozen=True)
@@ -341,12 +343,6 @@ def _listed_descriptors(kind: str, manifest: dict[str, Any]) -> list[dict[str, A
         )
     else:
         values = list(manifest["artifacts"])
-        if kind == "CORPUS":
-            values = [
-                item
-                for item in values
-                if item["role"] not in {"corpus-report", "corpus-stylesheet"}
-            ]
     result: list[dict[str, Any]] = []
     seen_paths: set[str] = set()
     seen_pairs: set[tuple[str, str]] = set()
