@@ -6,6 +6,7 @@ const TOAST_DURATION_MS = 4000;
 const LOCALE_KEY = "tcw.workbench.locale";
 const RECONCILING_OBSERVATION = "RECONCILING";
 const STAGES = ["observe", "diagnose", "refine", "revision"];
+const GUIDED_SOURCE_KEYS = new Set(["policy-memo-md", "whitespace-cleanup-c960009a8c64"]);
 
 const catalogs = {
   en: {
@@ -18,7 +19,13 @@ const catalogs = {
     loading: "Loading the workspace…", contextDocument: "Document", contextCorpus: "Corpus", verifiedMembers: "Verified · {count} members",
     observeQuestion: "What did extraction produce?", diagnoseQuestion: "What needs attention?", refineQuestion: "What change is proposed?",
     revisionQuestion: "What was preserved?", currentStage: "Current stage", observe: "Observe", diagnose: "Diagnose", refine: "Refine", revision: "Revision",
-    shellGuidance: "This stage workspace is ready for the lifecycle content in the next checkpoint.", summary: "Summary", evidence: "Evidence", artifacts: "Artifacts",
+    shellGuidance: "Choose a stage to inspect this document's preparation evidence.", summary: "Summary", evidence: "Evidence", artifacts: "Artifacts",
+    preparationRound: "Preparation round {current} of {total}", startsOriginal: "Starts from Original", startsRevision: "Starts from Revision {number}", chooseRound: "Choose preparation round", sharedObservation: "Shared initial observation",
+    sourceObject: "Source object", filename: "Filename", mediaType: "Media type", size: "Size", sha256: "SHA-256", observationComplete: "Observation completed", observationMeaning: "The source was extracted into separate views and a canonical working document.", observationStages: "Observation stages", canonicalEvidence: "Canonical evidence", extractionEvidence: "Extraction evidence", uploadPrivacy: "Workbench shows source metadata and extracted artifacts. It never displays or serves the uploaded original.", diagnoseHandoff: "The observation is ready for deterministic, read-only Diagnosis.", continueDiagnosis: "Continue to Diagnosis",
+    diagnosisReady: "Diagnosis is read-only", diagnosisReadyBody: "Fixed rules inspect the current document and record evidence. Diagnosis does not change the source, observation, or current revision.", runDiagnosis: "Run Diagnosis", diagnosisRunning: "Diagnosis is running…", diagnosisCompleted: "Diagnosis completed", findingsCount: "{count} findings", noFindingsMeaning: "No fixed rule matched. No content changed.", noFindingsLimit: "This does not prove that the document is correct, complete, or suitable for every use.", findingEvidenceLimit: "A finding is evidence that one fixed mechanical rule matched. It is not an invalidity or compliance verdict.", whyItMatters: "Why it matters", availableNextStep: "Available next step", refineFinding: "Review the supported refinement", severity: "Severity", unavailable: "Unavailable", notNeeded: "Not needed", unavailablePrerequisite: "This stage has no published prerequisite yet.", noFindingsNotNeeded: "No fixed rule matched, so no refinement or prepared revision is needed. Diagnosis evidence remains available.", historicalReadOnly: "Historical round · read-only", returnLatest: "Return to latest round",
+    refineReady: "Review a supported refinement", refineReadyBody: "The finding and supported refiner are shown before proposal creation. A proposal describes one change; it does not change the document.", sourceFinding: "Source finding", supportedRefiner: "Supported refiner", createProposal: "Create proposal", proposalRunning: "Creating the proposal…", proposedChange: "Proposed change", comparisonPreview: "Comparison preview", before: "Before", after: "After", visibleWhitespace: "Visible whitespace: · space, → tab, ↵ line break", openFullComparison: "Open full comparison", closeFullComparison: "Close full comparison", previousChange: "Previous change", nextChange: "Next change", changePosition: "Change {current} of {total}", structuralMovement: "Structural movement", chooseDecision: "Choose a decision", decisionGuidance: "Approval creates one immutable prepared revision. Rejection keeps the current document without a new revision.", approve: "Approve", reject: "Reject", recordDecision: "Record decision", decisionRunning: "Recording the decision…", approved: "Approved", rejected: "Rejected", decisionApprovedBody: "The approved edit created one immutable prepared revision.", decisionRejectedBody: "No prepared revision was created. The base document remains current and unchanged.", viewPreparedRevision: "View prepared revision", rejectedEvidence: "The proposal, human decision, and refinement report remain available. No forward or inverse transformation was applied.",
+    revisionCreated: "Prepared revision created", revisionMeaning: "The base remains preserved and the prepared revision is the current immutable result.", revisionEvidence: "The source and observation are unchanged. One approved edit was applied, with forward and inverse transformation evidence.", revisionHistory: "Revision history", original: "Original", revisionNumber: "Revision {number}", current: "Current", openAppliedComparison: "Open applied comparison", optionalNextStep: "Optional next step", nextRoundBody: "Diagnose the prepared revision to begin another Diagnose → Refine → Revision round.", startNextRound: "Start another Diagnosis", rejectedRevisionNotNeeded: "The recorded decision rejected the proposal. Only an approved proposal creates a prepared revision.", preservedEvidence: "Preserved and immutable evidence", forwardInverse: "Forward and inverse evidence verified", loadingStage: "Loading stage evidence…",
+    lifecyclePrepublicationFailure: "The operation failed before publication. No record was created, and the accepted immutable source remains unchanged.", retry: "Retry", lifecyclePublishedRefreshFailed: "The record was published, but the workspace could not refresh. Keep this accepted view and use Refresh workspace; do not rerun the producer.", lifecycleUnknown: "The mutation outcome is unknown. Workbench is reconciling the workspace and will not replay the action.", staleToken: "The action token changed. It was refreshed; click again to confirm this action.", lifecycleBusy: "Another mutation is running. Wait for it to reach a terminal result.", decisionComplete: "This proposal already has a recorded decision.", noCliNeeded: "The browser completes this lifecycle; no CLI command or target JSON is required.",
     inspectorSummary: "Stage guidance and status will appear here.", inspectorEvidence: "Verified supporting evidence will appear here.", inspectorArtifacts: "Published artifacts will appear here.",
     noDocuments: "No documents", noCorpora: "No corpora", addIntro: "Choose one path. A new source is selected and Observe starts immediately.",
     completePath: "Complete guided preparation", noFindingsPath: "Guided no-findings inspection", uploadTitle: "Upload one document",
@@ -54,7 +61,13 @@ const catalogs = {
     loading: "正在加载工作区…", contextDocument: "文档", contextCorpus: "语料库", verifiedMembers: "已验证 · {count} 个成员",
     observeQuestion: "提取得到了什么？", diagnoseQuestion: "哪些内容需要注意？", refineQuestion: "建议进行什么更改？",
     revisionQuestion: "保留了什么？", currentStage: "当前阶段", observe: "观察", diagnose: "诊断", refine: "改进", revision: "修订",
-    shellGuidance: "此阶段工作区已就绪；生命周期内容将在下一检查点加入。", summary: "摘要", evidence: "证据", artifacts: "产物",
+    shellGuidance: "选择一个阶段，检查此文档的准备证据。", summary: "摘要", evidence: "证据", artifacts: "产物",
+    preparationRound: "准备轮次 {current}/{total}", startsOriginal: "从原始版本开始", startsRevision: "从修订 {number} 开始", chooseRound: "选择准备轮次", sharedObservation: "共享的初始观察",
+    sourceObject: "来源对象", filename: "文件名", mediaType: "媒体类型", size: "大小", sha256: "SHA-256", observationComplete: "观察已完成", observationMeaning: "来源已提取为独立视图和规范工作文档。", observationStages: "观察阶段", canonicalEvidence: "规范证据", extractionEvidence: "提取证据", uploadPrivacy: "工作台显示来源元数据和提取产物，绝不显示或提供上传的原始文件。", diagnoseHandoff: "观察已准备好，可进行确定性的只读诊断。", continueDiagnosis: "继续诊断",
+    diagnosisReady: "诊断为只读操作", diagnosisReadyBody: "固定规则检查当前文档并记录证据。诊断不会更改来源、观察记录或当前修订。", runDiagnosis: "运行诊断", diagnosisRunning: "正在运行诊断…", diagnosisCompleted: "诊断已完成", findingsCount: "{count} 个发现", noFindingsMeaning: "没有固定规则匹配，内容未更改。", noFindingsLimit: "这并不能证明文档正确、完整或适合所有用途。", findingEvidenceLimit: "发现表示一个固定机械规则匹配。它不是无效性或合规性裁决。", whyItMatters: "为什么重要", availableNextStep: "可用的下一步", refineFinding: "检查支持的改进", severity: "严重性", unavailable: "不可用", notNeeded: "不需要", unavailablePrerequisite: "此阶段尚无已发布的前置记录。", noFindingsNotNeeded: "没有固定规则匹配，因此不需要改进或准备修订。诊断证据仍可查看。", historicalReadOnly: "历史轮次 · 只读", returnLatest: "返回最新轮次",
+    refineReady: "检查支持的改进", refineReadyBody: "创建提案前会显示来源发现和支持的改进器。提案仅描述一项更改，不会更改文档。", sourceFinding: "来源发现", supportedRefiner: "支持的改进器", createProposal: "创建提案", proposalRunning: "正在创建提案…", proposedChange: "建议的更改", comparisonPreview: "比较预览", before: "更改前", after: "更改后", visibleWhitespace: "可见空白：· 空格、→ 制表符、↵ 换行", openFullComparison: "打开完整比较", closeFullComparison: "关闭完整比较", previousChange: "上一个更改", nextChange: "下一个更改", changePosition: "更改 {current}/{total}", structuralMovement: "结构移动", chooseDecision: "选择决定", decisionGuidance: "批准会创建一个不可变的准备修订。拒绝会保留当前文档且不创建新修订。", approve: "批准", reject: "拒绝", recordDecision: "记录决定", decisionRunning: "正在记录决定…", approved: "已批准", rejected: "已拒绝", decisionApprovedBody: "批准的编辑已创建一个不可变的准备修订。", decisionRejectedBody: "未创建准备修订。基础文档保持当前状态且未更改。", viewPreparedRevision: "查看准备修订", rejectedEvidence: "提案、人工决定和改进报告仍可检查。未应用正向或逆向转换。",
+    revisionCreated: "已创建准备修订", revisionMeaning: "基础版本保持保留，准备修订是当前不可变结果。", revisionEvidence: "来源和观察记录未更改。已应用一项批准的编辑，并保存正向和逆向转换证据。", revisionHistory: "修订历史", original: "原始版本", revisionNumber: "修订 {number}", current: "当前", openAppliedComparison: "打开已应用比较", optionalNextStep: "可选的下一步", nextRoundBody: "诊断准备修订，开始另一个“诊断 → 改进 → 修订”轮次。", startNextRound: "开始另一次诊断", rejectedRevisionNotNeeded: "已记录的决定拒绝了提案。只有批准的提案才会创建准备修订。", preservedEvidence: "已保留的不可变证据", forwardInverse: "正向和逆向证据已验证", loadingStage: "正在加载阶段证据…",
+    lifecyclePrepublicationFailure: "操作在发布前失败。未创建记录，已接受的不可变来源保持不变。", retry: "重试", lifecyclePublishedRefreshFailed: "记录已发布，但工作区无法刷新。请保留当前已接受的视图并使用“刷新工作区”；不要重新运行生成操作。", lifecycleUnknown: "变更结果未知。工作台正在协调工作区，且不会重放操作。", staleToken: "操作令牌已更改并完成刷新；请再次点击以确认此操作。", lifecycleBusy: "另一个变更正在运行。请等待它达到终态。", decisionComplete: "此提案已有已记录的决定。", noCliNeeded: "浏览器可完成此生命周期；不需要 CLI 命令或目标 JSON。",
     inspectorSummary: "阶段指导和状态将在此显示。", inspectorEvidence: "已验证的支持证据将在此显示。", inspectorArtifacts: "已发布的产物将在此显示。",
     noDocuments: "没有文档", noCorpora: "没有语料库", addIntro: "请选择一种路径。新来源会被选中，并立即开始观察。",
     completePath: "完整引导式准备", noFindingsPath: "无发现引导式检查", uploadTitle: "上传一个文档",
@@ -82,7 +95,7 @@ const catalogs = {
   }
 };
 
-const state = { projection: null, locale: "en", selectedKind: null, selectedKey: null, stage: "observe", inspector: "summary", initialFailure: false, activeObservationJobId: null, pendingReactivationKey: null, pendingTerminalToastKey: null, workspaceReconciliationPending: false };
+const state = { projection: null, locale: "en", selectedKind: null, selectedKey: null, stage: "observe", inspector: "summary", selectedRound: null, selectedFinding: null, details: new Map(), proposal: null, proposalIdentity: null, appliedProposal: null, appliedProposalLoading: null, decisionSelection: null, decisionSubmitted: false, comparison: {expanded: false, index: 0}, lifecyclePending: false, lifecycleReconciliationPending: false, lifecycleNotice: null, pendingLifecycleMutation: null, actionToken: null, initialFailure: false, activeObservationJobId: null, pendingReactivationKey: null, pendingTerminalToastKey: null, workspaceReconciliationPending: false };
 const elements = {};
 let toastTimer = null;
 let toastRemaining = TOAST_DURATION_MS;
@@ -153,12 +166,43 @@ function selectedItem() {
   const key = state.selectedKind === "corpus" ? "record_key" : "document_key";
   return values.find((item) => item[key] === state.selectedKey) || null;
 }
-function selectItem(kind, key) { state.selectedKind = kind; state.selectedKey = key; state.stage = "observe"; render(); }
+function clearSelectionScopedState() { state.selectedFinding = null; state.proposal = null; state.proposalIdentity = null; state.appliedProposal = null; state.appliedProposalLoading = null; state.decisionSelection = null; state.decisionSubmitted = false; state.comparison = {expanded: false, index: 0}; }
+function resetTransientLifecycle() { clearSelectionScopedState(); state.lifecycleNotice = null; }
+function selectItem(kind, key) {
+  if (state.lifecyclePending || state.lifecycleReconciliationPending) return;
+  state.selectedKind = kind; state.selectedKey = key; state.stage = "observe"; state.selectedRound = null; resetTransientLifecycle(); render();
+  hydrateSelectedStage().then(render).catch(() => render());
+}
+function detailFor(key) { return key ? state.details.get(key) || null : null; }
+async function ensureDetail(key) {
+  if (!key || !/^[0-9a-f]{64}$/.test(key) || state.details.has(key)) return detailFor(key);
+  const detail = await fetchJSON(`${API_ROOT}/records/${key}`); state.details.set(key, detail); return detail;
+}
+function latestRound(item) { const rounds = item && Array.isArray(item.rounds) ? item.rounds : []; return rounds.length ? rounds[rounds.length - 1] : null; }
+function canStartNextRound(item) { const round = latestRound(item); return Boolean(round && round.revision_record_key); }
+function selectedRoundNumber(item) {
+  const rounds = Array.isArray(item.rounds) ? item.rounds : [];
+  const maximum = rounds.length + ((state.selectedRound === rounds.length + 1 && canStartNextRound(item)) ? 1 : 0);
+  if (state.selectedRound === null) state.selectedRound = Math.max(1, rounds.length);
+  state.selectedRound = Math.max(1, Math.min(state.selectedRound, Math.max(1, maximum)));
+  return state.selectedRound;
+}
+function selectedRoundData(item) { const number = selectedRoundNumber(item); return (item.rounds || []).find((round) => round.number === number) || null; }
+function latestViewNumber(item) { return Math.max(1, (item.rounds || []).length + (canStartNextRound(item) && state.selectedRound === (item.rounds || []).length + 1 ? 1 : 0)); }
+function isHistoricalRound(item) { const round = selectedRoundData(item); return Boolean(round && round.number < (item.rounds || []).length); }
+function isNoFindings(detail) { return Boolean(detail && detail.kind === "DIAGNOSIS" && detail.view.finding_total === 0); }
+async function hydrateSelectedStage() {
+  const item = selectedItem(); if (!item || state.selectedKind !== "document") return;
+  const round = selectedRoundData(item); const keys = new Set([item.observation_record_key]);
+  if (round) { keys.add(round.base_record_key); keys.add(round.diagnosis_record_key); keys.add(round.refinement_record_key); }
+  await Promise.all(Array.from(keys).filter(Boolean).map(ensureDetail));
+}
 
 function navigationCard(item, kind) {
   const key = kind === "document" ? item.document_key : item.record_key;
   const name = kind === "document" ? item.source.name : item.title;
   const button = node("button", null, "navigation-card"); button.type = "button"; button.title = name;
+  button.disabled = state.lifecyclePending || state.lifecycleReconciliationPending;
   button.setAttribute("aria-current", String(state.selectedKind === kind && state.selectedKey === key));
   button.append(node("span", name, "card-name"));
   button.append(node("span", kind === "document" ? item.source.media_type : t("verifiedMembers", {count: item.member_count}), "card-meta"));
@@ -180,6 +224,149 @@ function renderEmptyOrFailure() {
   if (!state.initialFailure) { const add = node("button", t("addDocument"), "primary-button"); add.type = "button"; add.addEventListener("click", () => openModal(elements.addModal)); card.append(add); }
   elements.workspaceState.append(card);
 }
+function labeledValue(label, value, className = "") {
+  const row = node("div", null, `metadata-row ${className}`.trim()); row.append(node("dt", label), node("dd", value)); return row;
+}
+function actionButton(label, handler, className = "primary-button") {
+  const button = node("button", label, className); button.type = "button"; button.disabled = state.lifecyclePending || state.lifecycleReconciliationPending; button.addEventListener("click", handler); return button;
+}
+function banner(title, body, tone = "success") { const box = node("div", null, "result-banner"); box.dataset.tone = tone; box.append(node("strong", title), node("p", body)); return box; }
+function compactHash(value) { return typeof value === "string" && value.length === 64 ? `${value.slice(0, 10)}…${value.slice(-8)}` : String(value || "—"); }
+function sourceMetadata(source) {
+  const group = node("section", null, "stage-card"); group.append(node("h3", t("sourceObject")));
+  const values = node("dl", null, "metadata-list");
+  values.append(labeledValue(t("filename"), source.name || "—"), labeledValue(t("mediaType"), source.media_type || "—"), labeledValue(t("size"), new Intl.NumberFormat(state.locale).format(source.size || 0)));
+  const hash = labeledValue(t("sha256"), compactHash(source.sha256), "hash-value"); if (hash.children[1]) hash.children[1].title = source.sha256 || ""; values.append(hash); group.append(values); return group;
+}
+function renderRoundContext(item) {
+  clear(elements.roundContext); elements.roundContext.hidden = false;
+  const current = selectedRoundNumber(item); const total = latestViewNumber(item); const rounds = item.rounds || [];
+  const copy = node("div", null, "round-copy"); copy.append(node("strong", t("preparationRound", {current, total})), node("span", current === 1 ? t("startsOriginal") : t("startsRevision", {number: current - 1})));
+  elements.roundContext.append(copy);
+  if (rounds.length > 1 || (current > rounds.length && canStartNextRound(item))) {
+    const picker = node("select", null, "round-picker"); picker.setAttribute("aria-label", t("chooseRound"));
+    const count = Math.max(rounds.length, current); for (let number = 1; number <= count; number += 1) { const option = node("option", t("preparationRound", {current: number, total: count})); option.value = String(number); option.selected = number === current; picker.append(option); }
+    picker.disabled = state.lifecyclePending || state.lifecycleReconciliationPending; picker.addEventListener("change", () => { state.selectedRound = Number(picker.value); resetTransientLifecycle(); render(); hydrateSelectedStage().then(render).catch(() => render()); }); elements.roundContext.append(picker);
+  }
+}
+function renderUnavailable(reasonKey, titleKey = "unavailable") { elements.stageHeading.textContent = t(titleKey); elements.stageGuidance.textContent = t(reasonKey); elements.central.append(banner(t(titleKey), t(reasonKey), "neutral")); }
+function renderObserve(item, detail) {
+  elements.stageHeading.textContent = t("observe"); elements.stageGuidance.textContent = t("sharedObservation");
+  if (!detail) { elements.central.append(node("p", t("loadingStage"))); return; }
+  elements.central.append(banner(t("observationComplete"), t("observationMeaning")), sourceMetadata(detail.view.source));
+  if (detail.view.source && !GUIDED_SOURCE_KEYS.has(detail.view.source.key)) elements.central.append(node("p", t("uploadPrivacy"), "privacy-note"));
+  const stages = node("section", null, "stage-card"); stages.append(node("h3", t("observationStages")));
+  for (const extractor of detail.view.extractors || []) { const row = node("div", null, "evidence-row"); row.append(node("strong", extractor.name), node("span", extractor.status)); stages.append(row); }
+  const canonical = node("div", null, "evidence-row"); canonical.append(node("strong", t("canonicalEvidence")), node("span", `${detail.view.docling_document.name} ${detail.view.docling_document.version}`)); stages.append(canonical); elements.central.append(stages);
+  const next = node("section", null, "action-guidance"); next.append(node("h3", t("availableNextStep")), node("p", t("diagnoseHandoff")), actionButton(t("continueDiagnosis"), () => changeStage("diagnose"))); elements.central.append(next);
+}
+function findingCard(item, round, finding, actionable) {
+  const card = node("article", null, "finding-card"); card.dataset.severity = finding.severity;
+  card.append(node("h3", `${t(`rule.${finding.rule_id}.name`)} · ${finding.rule_id}`), node("p", `${t("severity")}: ${finding.severity}`, "severity-label"), node("p", finding.summary));
+  const why = node("section", null, "why-card"); why.append(node("h4", t("whyItMatters")), node("p", t(`rule.${finding.rule_id}.about`))); card.append(why);
+  if (actionable) { const next = node("section", null, "action-guidance"); next.append(node("h4", t("availableNextStep")), node("p", `${t("supportedRefiner")}: ${t(`refiner.${finding.refiner.refiner_id}`)} · ${finding.refiner.refiner_id}`), actionButton(t("refineFinding"), () => { state.selectedFinding = {documentKey: item.document_key, roundNumber: round.number, diagnosisKey: round.diagnosis_record_key, findingId: finding.finding_id}; changeStage("refine"); })); card.append(next); }
+  return card;
+}
+function renderDiagnosis(item, round, detail) {
+  elements.stageHeading.textContent = t("diagnose");
+  if (isHistoricalRound(item)) { elements.stageGuidance.textContent = t("historicalReadOnly"); elements.central.append(banner(t("historicalReadOnly"), t("returnLatest"), "neutral")); }
+  if (!round || !round.diagnosis_record_key) {
+    elements.stageGuidance.textContent = t("diagnosisReadyBody"); elements.central.append(node("h3", t("diagnosisReady")), node("p", t("diagnosisReadyBody")));
+    if (state.lifecycleNotice) elements.central.append(banner(t(state.lifecycleNotice.title), t(state.lifecycleNotice.body), state.lifecycleNotice.tone));
+    if (state.lifecycleNotice && state.lifecycleNotice.title === "lifecyclePublishedRefreshFailed") return;
+    elements.central.append(actionButton(state.lifecyclePending ? t("diagnosisRunning") : t(state.lifecycleNotice && state.lifecycleNotice.title === "lifecyclePrepublicationFailure" ? "retry" : "runDiagnosis"), () => runDiagnosis(item), "primary-button")); return;
+  }
+  if (!detail) { elements.central.append(node("p", t("loadingStage"))); return; }
+  elements.stageGuidance.textContent = t("findingEvidenceLimit");
+  const count = detail.view.finding_total; elements.central.append(banner(t("diagnosisCompleted"), count === 0 ? t("noFindingsMeaning") : t("findingsCount", {count})));
+  if (count === 0) { const empty = node("section", null, "stage-card"); empty.append(node("h3", "NO_FINDINGS"), node("p", t("noFindingsMeaning")), node("p", t("noFindingsLimit"))); elements.central.append(empty); }
+  else { elements.central.append(node("p", t("findingEvidenceLimit"))); for (const finding of detail.view.findings) elements.central.append(findingCard(item, round, finding, !isHistoricalRound(item) && finding.proposal_action.status === "AVAILABLE")); }
+}
+function visibleWhitespace(value) { return String(value).replace(/ /g, "·").replace(/\t/g, "→").replace(/\r?\n/g, "↵\n"); }
+function comparisonValue(edit, side, ruleId) {
+  const value = edit[side]; if (edit.target && edit.target.field === "content_layer") {
+    const membership = value || {}; return `${membership.content_layer || "—"} · ${membership.body_index ?? membership.furniture_index ?? "—"}`;
+  }
+  return ruleId === "D009" ? visibleWhitespace(value) : String(value);
+}
+function comparisonComponent(viewModel) {
+  const edits = viewModel.edits || []; const current = Math.min(state.comparison.index, Math.max(0, edits.length - 1)); state.comparison.index = current; const edit = edits[current] || {before: "", after: "", target: {}};
+  const shell = node("section", null, "comparison-shell"); shell.dataset.mode = viewModel.mode; shell.append(node("h3", viewModel.title));
+  const context = node("div", null, "comparison-context"); context.append(node("strong", `${t(`rule.${viewModel.ruleId}.name`)} · ${viewModel.ruleId}`), node("span", `${t(`refiner.${viewModel.refinerId}`)} · ${viewModel.refinerId}`)); if (viewModel.ruleId === "D009") context.append(node("span", t("visibleWhitespace"))); if (edit.target && edit.target.field === "content_layer") context.append(node("span", t("structuralMovement"))); shell.append(context);
+  const panes = node("div", null, `comparison-panes ${state.comparison.expanded ? "is-expanded" : "is-preview"}`); for (const side of ["before", "after"]) { const pane = node("section", null, "comparison-pane"); pane.append(node("h4", t(side)), node("pre", comparisonValue(edit, side, viewModel.ruleId))); panes.append(pane); } shell.append(panes);
+  const toggle = actionButton(t(state.comparison.expanded ? "closeFullComparison" : "openFullComparison"), () => { state.comparison.expanded = !state.comparison.expanded; renderSelected(); }, "secondary-button"); shell.append(toggle);
+  const navigation = node("div", null, "comparison-navigation"); const previous = actionButton("←", () => { state.comparison.index = Math.max(0, current - 1); renderSelected(); }, "icon-button"); previous.title = t("previousChange"); previous.setAttribute("aria-label", t("previousChange")); previous.disabled = current === 0 || state.lifecyclePending; const next = actionButton("→", () => { state.comparison.index = Math.min(edits.length - 1, current + 1); renderSelected(); }, "icon-button"); next.title = t("nextChange"); next.setAttribute("aria-label", t("nextChange")); next.disabled = current >= edits.length - 1 || state.lifecyclePending; navigation.append(previous, node("span", `${current + 1} ${state.locale === "zh-CN" ? "/" : "of"} ${Math.max(1, edits.length)}`), next); navigation.setAttribute("aria-label", t("changePosition", {current: current + 1, total: Math.max(1, edits.length)})); shell.append(navigation); return shell;
+}
+function proposalFinding(item, round) {
+  const diagnosis = round ? detailFor(round.diagnosis_record_key) : null; if (!diagnosis) return null;
+  if (state.proposal) return diagnosis.view.findings.find((finding) => finding.finding_id === state.proposal.finding.finding_id) || null;
+  const selected = state.selectedFinding;
+  if (selected && selected.documentKey === item.document_key && selected.roundNumber === round.number && selected.diagnosisKey === round.diagnosis_record_key) {
+    const finding = diagnosis.view.findings.find((item) => item.finding_id === selected.findingId && item.proposal_action.status === "AVAILABLE"); if (finding) return finding;
+  }
+  state.selectedFinding = null;
+  return diagnosis.view.findings.find((finding) => finding.proposal_action.status === "AVAILABLE") || diagnosis.view.findings[0] || null;
+}
+function renderDecisionGuidance() {
+  const guidance = node("section", null, "action-guidance decision-guidance"); guidance.append(node("h3", t("availableNextStep")), node("p", t("decisionGuidance")));
+  const choices = node("div", null, "decision-choices");
+  for (const [decision, icon, label] of [["approve", "✓", t("approve")], ["reject", "×", t("reject")]]) {
+    const button = actionButton(icon, () => { state.decisionSelection = decision; renderSelected(); }, "decision-choice"); button.title = label; button.setAttribute("aria-label", label); button.setAttribute("aria-pressed", String(state.decisionSelection === decision)); choices.append(button);
+  }
+  const record = actionButton(state.lifecyclePending ? t("decisionRunning") : t("recordDecision"), recordDecision); record.disabled = !state.decisionSelection || state.lifecyclePending || state.lifecycleReconciliationPending; guidance.append(choices, record); return guidance;
+}
+function renderRefine(item, round, diagnosis, refinement) {
+  elements.stageHeading.textContent = t("refine");
+  if (!round || !round.diagnosis_record_key) { const previous = latestRound(item); const noFindings = previous && isNoFindings(detailFor(previous.diagnosis_record_key)); renderUnavailable(noFindings ? "noFindingsNotNeeded" : "unavailablePrerequisite", noFindings ? "notNeeded" : "unavailable"); return; }
+  if (!diagnosis) { elements.central.append(node("p", t("loadingStage"))); return; }
+  if (isNoFindings(diagnosis)) { renderUnavailable("noFindingsNotNeeded", "notNeeded"); return; }
+  const finding = proposalFinding(item, round); if (!finding) { renderUnavailable("unavailablePrerequisite"); return; }
+  if (refinement) {
+    const approved = refinement.view.decision === "APPROVED"; elements.stageGuidance.textContent = t(approved ? "decisionApprovedBody" : "decisionRejectedBody");
+    elements.central.append(banner(t(approved ? "approved" : "rejected"), t(approved ? "decisionApprovedBody" : "decisionRejectedBody")));
+    if (approved) elements.central.append(actionButton(t("viewPreparedRevision"), () => changeStage("revision"))); else elements.central.append(node("p", t("rejectedEvidence"))); return;
+  }
+  if (isHistoricalRound(item)) { elements.stageGuidance.textContent = t("historicalReadOnly"); elements.central.append(banner(t("historicalReadOnly"), t("returnLatest"), "neutral")); return; }
+  elements.stageGuidance.textContent = t("refineReadyBody"); const mapping = node("section", null, "stage-card mapping-card"); mapping.append(node("h3", t("refineReady")), node("p", t("refineReadyBody")), labeledValue(t("sourceFinding"), `${t(`rule.${finding.rule_id}.name`)} · ${finding.rule_id}`), labeledValue(t("supportedRefiner"), `${t(`refiner.${finding.refiner.refiner_id}`)} · ${finding.refiner.refiner_id}`)); elements.central.append(mapping);
+  if (state.lifecycleNotice) elements.central.append(banner(t(state.lifecycleNotice.title), t(state.lifecycleNotice.body), state.lifecycleNotice.tone));
+  if (state.lifecycleNotice && state.lifecycleNotice.title === "lifecyclePublishedRefreshFailed") return;
+  if (state.decisionSubmitted) return;
+  if (!state.proposal) { elements.central.append(actionButton(state.lifecyclePending ? t("proposalRunning") : t(state.lifecycleNotice && state.lifecycleNotice.title === "lifecyclePrepublicationFailure" ? "retry" : "createProposal"), () => createProposal(round, finding))); return; }
+  elements.central.append(comparisonComponent({mode: "proposal", title: t("proposedChange"), edits: state.proposal.edits, ruleId: state.proposal.finding.rule_id, refinerId: state.proposal.refiner.refiner_id}), renderDecisionGuidance());
+}
+async function loadAppliedProposal(refinementKey) {
+  const detail = await ensureDetail(refinementKey); const descriptor = (detail.artifacts || []).find((item) => item.role === "refinement-proposal"); if (!descriptor) return null;
+  const proposal = await fetchJSON(`${API_ROOT}/artifacts/${descriptor.artifact_key}`); return {edits: proposal.forward_edits, finding: proposal.finding, refiner: proposal.refiner};
+}
+function revisionHistory(item, selected) {
+  const history = node("section", null, "stage-card revision-history"); history.append(node("h3", t("revisionHistory"))); const line = node("div", null, "history-line"); line.append(node("span", t("original"))); const revisionCount = (item.rounds || []).filter((round) => round.revision_record_key).length;
+  for (const round of item.rounds || []) if (round.revision_record_key) { line.append(node("span", "→")); const label = node("button", t("revisionNumber", {number: round.number}), "history-node"); label.type = "button"; label.disabled = state.lifecyclePending || state.lifecycleReconciliationPending; label.setAttribute("aria-current", String(round.number === revisionCount)); label.addEventListener("click", () => { state.selectedRound = round.number; state.stage = "revision"; resetTransientLifecycle(); render(); hydrateSelectedStage().then(render); }); if (round.number === revisionCount) label.append(node("small", t("current"))); line.append(label); }
+  history.append(line); return history;
+}
+function renderRevision(item, round, refinement) {
+  elements.stageHeading.textContent = t("revision");
+  if (!round || !round.diagnosis_record_key) { renderUnavailable("unavailablePrerequisite"); return; }
+  const diagnosis = detailFor(round.diagnosis_record_key); if (isNoFindings(diagnosis)) { renderUnavailable("noFindingsNotNeeded", "notNeeded"); return; }
+  if (!round.revision_record_key) { const rejected = refinement && refinement.view.decision === "REJECTED"; renderUnavailable(rejected ? "rejectedRevisionNotNeeded" : "unavailablePrerequisite", rejected ? "notNeeded" : "unavailable"); return; }
+  if (!refinement) { elements.central.append(node("p", t("loadingStage"))); return; }
+  elements.stageGuidance.textContent = isHistoricalRound(item) ? t("historicalReadOnly") : t("revisionMeaning"); elements.central.append(banner(t("revisionCreated"), t("revisionMeaning")), revisionHistory(item, round.number));
+  const appliedFinding = diagnosis && diagnosis.view.findings.find((finding) => finding.finding_id === refinement.view.proposal.finding_id); const findingLabel = appliedFinding ? `${t(`rule.${appliedFinding.rule_id}.name`)} · ${appliedFinding.rule_id}` : refinement.view.proposal.finding_id;
+  const evidence = node("section", null, "stage-card"); evidence.append(node("p", t("revisionEvidence")), node("p", `${t("sourceFinding")}: ${findingLabel}`), node("p", `${t("supportedRefiner")}: ${t(`refiner.${refinement.view.proposal.refiner.refiner_id}`)} · ${refinement.view.proposal.refiner.refiner_id}`)); elements.central.append(evidence);
+  if (state.appliedProposal) elements.central.append(comparisonComponent({mode: "applied", title: t("openAppliedComparison"), edits: state.appliedProposal.edits, ruleId: state.appliedProposal.finding.rule_id, refinerId: state.appliedProposal.refiner.refiner_id}));
+  else elements.central.append(actionButton(t("openAppliedComparison"), async () => {
+    const request = {documentKey: state.selectedKey, stage: state.stage, roundNumber: round.number, refinementKey: round.refinement_record_key}; state.appliedProposalLoading = request;
+    const proposal = await loadAppliedProposal(request.refinementKey); const currentItem = selectedItem(); const currentRound = currentItem && state.selectedKind === "document" ? selectedRoundData(currentItem) : null;
+    if (state.appliedProposalLoading !== request || state.selectedKey !== request.documentKey || state.stage !== "revision" || !currentRound || currentRound.number !== request.roundNumber || currentRound.refinement_record_key !== request.refinementKey) return;
+    state.appliedProposalLoading = null; state.appliedProposal = proposal; renderSelected();
+  }));
+  if (!isHistoricalRound(item) && round.number === (item.rounds || []).length) { const next = node("section", null, "action-guidance optional-next"); next.append(node("h3", t("optionalNextStep")), node("p", t("nextRoundBody")), actionButton(t("startNextRound"), () => { state.selectedRound = round.number + 1; state.stage = "diagnose"; resetTransientLifecycle(); render(); })); elements.central.append(next); }
+}
+function renderInspector(item, round) {
+  clear(elements.inspectorPanel); const detail = state.stage === "observe" ? detailFor(item.observation_record_key) : round ? detailFor(state.stage === "diagnose" ? round.diagnosis_record_key : round.refinement_record_key || round.diagnosis_record_key) : null;
+  if (state.inspector === "summary") elements.inspectorPanel.append(node("p", detail ? `${detail.kind} · ${detail.artifact_integrity}` : t("inspectorSummary")));
+  else if (state.inspector === "evidence") elements.inspectorPanel.append(node("p", detail ? t(state.stage === "revision" ? "forwardInverse" : "preservedEvidence") : t("inspectorEvidence")));
+  else elements.inspectorPanel.append(node("p", detail ? `${detail.artifacts.length} ${t("artifacts")}` : t("inspectorArtifacts")));
+}
 function renderSelected() {
   const item = selectedItem();
   if (!item) { state.selectedKind = null; state.selectedKey = null; renderEmptyOrFailure(); return; }
@@ -188,9 +375,17 @@ function renderSelected() {
   elements.contextName.textContent = state.selectedKind === "document" ? item.source.name : item.title;
   elements.stepper.hidden = state.selectedKind === "corpus";
   elements.stepper.querySelectorAll("li").forEach((entry) => entry.dataset.current = String(entry.dataset.stage === state.stage));
-  elements.stageHeading.textContent = t(state.selectedKind === "corpus" ? "corpusShell" : state.stage); elements.stageGuidance.textContent = t("shellGuidance");
+  clear(elements.central); elements.central.append(node("p", t("currentStage"), "eyebrow"), elements.stageHeading, elements.stageGuidance);
+  if (state.selectedKind === "corpus") { elements.roundContext.hidden = true; elements.stageHeading.textContent = t("corpusShell"); elements.stageGuidance.textContent = t("shellGuidance"); }
+  else {
+    renderRoundContext(item); const round = selectedRoundData(item);
+    if (state.stage === "observe") renderObserve(item, detailFor(item.observation_record_key));
+    else if (state.stage === "diagnose") renderDiagnosis(item, round, round ? detailFor(round.diagnosis_record_key) : null);
+    else if (state.stage === "refine") renderRefine(item, round, round ? detailFor(round.diagnosis_record_key) : null, round ? detailFor(round.refinement_record_key) : null);
+    else renderRevision(item, round, round ? detailFor(round.refinement_record_key) : null);
+    renderInspector(item, round);
+  }
   elements.tabs.forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.tab === state.inspector)));
-  elements.inspectorPanel.textContent = t(`inspector${state.inspector[0].toUpperCase()}${state.inspector.slice(1)}`);
 }
 function renderRuleReference() {
   clear(elements.ruleList);
@@ -240,14 +435,90 @@ function backdropDismiss(event) { if (event.target === event.currentTarget) clos
 
 async function fetchJSON(target, options = {}) {
   const response = await fetch(target, {credentials: "same-origin", headers: {Accept: "application/json", ...(options.headers || {})}, ...options});
-  if (!response.ok) { let body = {}; try { body = await response.json(); } catch (_) { /* status is sufficient */ } const error = new Error(body.message || `Request failed with status ${response.status}.`); error.code = body.code; error.confirmed = true; throw error; }
+  if (!response.ok) { let body = {}; try { body = await response.json(); } catch (_) { /* status is sufficient */ } const error = new Error(body.message || `Request failed with status ${response.status}.`); error.code = body.code; error.status = response.status; error.confirmed = true; throw error; }
   return response.status === 204 ? null : response.json();
+}
+async function actionToken(force = false) {
+  if (!state.actionToken || force) state.actionToken = (await fetchJSON(`${API_ROOT}/lifecycle/action-token`)).action_token;
+  return state.actionToken;
+}
+function knownPrepublication(error) { return ["ACTION_NOT_AVAILABLE", "NOT_FOUND", "WORKSPACE_STALE", "LIFECYCLE_BUSY", "ACTION_TOKEN_INVALID", "INVALID_REQUEST"].includes(error.code); }
+function reconciledMutationOutcome(projection, mutation) {
+  if (!mutation) return {state: "UNKNOWN"};
+  const document = projection.documents.find((item) => item.document_key === mutation.documentKey); if (!document) return {state: "UNKNOWN"};
+  if (mutation.kind === "proposal") return {state: "NOT_PUBLISHED"};
+  if (mutation.kind === "diagnosis") {
+    const round = (document.rounds || []).find((item) => item.base_record_key === mutation.baseKey && item.diagnosis_record_key); return round ? {state: "PUBLISHED", recordKey: round.diagnosis_record_key} : {state: "NOT_PUBLISHED"};
+  }
+  const round = (document.rounds || []).find((item) => item.base_record_key === mutation.baseKey && item.diagnosis_record_key === mutation.diagnosisKey && item.refinement_record_key); return round ? {state: "PUBLISHED", recordKey: round.refinement_record_key} : {state: "NOT_PUBLISHED"};
+}
+async function authoritativeWorkspaceProjection() {
+  await fetchJSON(`${API_ROOT}/workbench/refresh`, {method: "POST"}); return fetchJSON(`${API_ROOT}/workbench`);
+}
+async function reconcileLifecycleUnknown() {
+  state.lifecycleReconciliationPending = true; state.lifecyclePending = false;
+  if (!state.lifecycleNotice || state.lifecycleNotice.title !== "lifecyclePublishedRefreshFailed") state.lifecycleNotice = {title: "lifecycleUnknown", body: "lifecycleUnknown", tone: "failure"}; render();
+  try {
+    const confirmedPublished = state.lifecycleNotice && state.lifecycleNotice.title === "lifecyclePublishedRefreshFailed";
+    const mutation = state.pendingLifecycleMutation; const projection = await authoritativeWorkspaceProjection(); const outcome = reconciledMutationOutcome(projection, mutation); applyProjection(projection, mutation ? mutation.documentKey : state.selectedKey);
+    if (confirmedPublished && outcome.state !== "PUBLISHED") { render(); return false; }
+    if (outcome.state === "UNKNOWN") { render(); return false; }
+    if (outcome.state === "PUBLISHED") { state.selectedRound = null; state.stage = mutation.kind === "decision" ? "refine" : "diagnose"; state.proposal = mutation.kind === "decision" ? null : state.proposal; }
+    else if (mutation && mutation.kind === "decision") state.decisionSubmitted = false;
+    state.lifecycleReconciliationPending = false; state.pendingLifecycleMutation = null; state.lifecycleNotice = null; await hydrateSelectedStage(); render(); return true;
+  } catch (_) { render(); return false; }
+}
+async function lifecyclePost(target) {
+  const token = await actionToken(); return fetchJSON(target, {method: "POST", headers: {"X-TCW-Action-Token": token}});
+}
+async function handleLifecycleError(error) {
+  if (error.code === "ACTION_TOKEN_INVALID") {
+    try { await actionToken(true); } catch (_) { /* keep the rejected token state visible */ }
+    state.lifecyclePending = false; elements.refresh.disabled = false; state.pendingLifecycleMutation = null; state.decisionSubmitted = false; state.lifecycleNotice = {title: "staleToken", body: "staleToken", tone: "failure"}; render(); return "STALE";
+  }
+  if (knownPrepublication(error)) {
+    state.lifecyclePending = false; elements.refresh.disabled = false; state.pendingLifecycleMutation = null; state.decisionSubmitted = false; state.lifecycleNotice = {title: error.code === "LIFECYCLE_BUSY" ? "lifecycleBusy" : "lifecyclePrepublicationFailure", body: error.code === "LIFECYCLE_BUSY" ? "lifecycleBusy" : "lifecyclePrepublicationFailure", tone: "failure"}; render(); return "PREPUBLICATION";
+  }
+  await reconcileLifecycleUnknown(); elements.refresh.disabled = false; return "UNKNOWN";
+}
+async function acceptPublication(envelope, preferredStage) {
+  if (!envelope || !envelope.publication) throw new Error("lifecycle response outcome is unknown");
+  if (!envelope.refresh || envelope.refresh.status !== "READY" || !envelope.publication.record_key) {
+    state.lifecyclePending = false; elements.refresh.disabled = false; state.lifecycleReconciliationPending = true; state.lifecycleNotice = {title: "lifecyclePublishedRefreshFailed", body: "lifecyclePublishedRefreshFailed", tone: "failure"}; render(); return false;
+  }
+  const projection = await fetchJSON(`${API_ROOT}/workbench`); applyProjection(projection, state.selectedKey); state.stage = preferredStage; state.selectedRound = null; state.lifecyclePending = false; elements.refresh.disabled = false; state.pendingLifecycleMutation = null; state.lifecycleNotice = null; await hydrateSelectedStage(); render(); return true;
+}
+function currentBaseKey(item) {
+  const rounds = item.rounds || []; if (!rounds.length) return item.observation_record_key;
+  const last = rounds[rounds.length - 1]; return last.revision_record_key || last.base_record_key;
+}
+async function runDiagnosis(item) {
+  if (state.lifecyclePending || state.lifecycleReconciliationPending || isHistoricalRound(item)) return;
+  const baseKey = currentBaseKey(item); state.pendingLifecycleMutation = {kind: "diagnosis", documentKey: item.document_key, baseKey}; state.lifecyclePending = true; elements.refresh.disabled = true; state.lifecycleNotice = null; render();
+  try { const envelope = await lifecyclePost(`${API_ROOT}/lifecycle/diagnoses/${baseKey}`); await acceptPublication(envelope, "diagnose"); }
+  catch (error) { await handleLifecycleError(error); }
+}
+async function createProposal(round, finding) {
+  if (state.lifecyclePending || state.lifecycleReconciliationPending || state.proposal) return;
+  const identity = {documentKey: state.selectedKey, roundNumber: round.number, diagnosisKey: round.diagnosis_record_key, baseKey: round.base_record_key}; state.pendingLifecycleMutation = {kind: "proposal", ...identity}; state.lifecyclePending = true; elements.refresh.disabled = true; state.lifecycleNotice = null; render();
+  try { const envelope = await lifecyclePost(`${API_ROOT}/lifecycle/proposals/${round.diagnosis_record_key}/${finding.finding_id}`); state.proposal = envelope.draft; state.proposalIdentity = identity; state.pendingLifecycleMutation = null; state.lifecyclePending = false; elements.refresh.disabled = false; state.decisionSelection = null; state.comparison = {expanded: false, index: 0}; render(); }
+  catch (error) { await handleLifecycleError(error); }
+}
+async function recordDecision() {
+  if (!state.proposal || !state.decisionSelection || state.decisionSubmitted || state.lifecyclePending || state.lifecycleReconciliationPending) return;
+  state.pendingLifecycleMutation = {kind: "decision", documentKey: state.selectedKey, diagnosisKey: state.proposal.diagnosis_record_key, baseKey: state.proposal.base_record_key, draftKey: state.proposal.draft_key, decision: state.decisionSelection}; state.decisionSubmitted = true; state.lifecyclePending = true; elements.refresh.disabled = true; state.lifecycleNotice = null; render();
+  try { const envelope = await lifecyclePost(`${API_ROOT}/lifecycle/proposals/${state.proposal.draft_key}/${state.decisionSelection}`); await acceptPublication(envelope, "refine"); }
+  catch (error) { await handleLifecycleError(error); }
+}
+function changeStage(stage) {
+  if (!STAGES.includes(stage) || state.lifecyclePending || state.lifecycleReconciliationPending) return;
+  state.stage = stage; state.appliedProposal = null; state.comparison = {expanded: false, index: 0}; render(); hydrateSelectedStage().then(render).catch(() => render());
 }
 async function loadProjection({initial = false, preferredKey = null} = {}) {
   try {
     const projection = await fetchJSON(`${API_ROOT}/workbench`);
     applyProjection(projection, preferredKey);
-    render(); elements.refresh.disabled = false; return true;
+    await hydrateSelectedStage(); render(); elements.refresh.disabled = false; return true;
   } catch (error) {
     if (initial) { state.initialFailure = true; state.projection = null; render(); elements.assertive.textContent = t("loadFailureTitle"); elements.refresh.disabled = false; }
     throw error;
@@ -255,7 +526,7 @@ async function loadProjection({initial = false, preferredKey = null} = {}) {
 }
 function applyProjection(projection, preferredKey = null) {
     if (!catalogCoversReference(projection.reference)) throw new Error("locale catalogs do not match the canonical reference");
-    const priorKey = preferredKey || state.selectedKey; const priorKind = state.selectedKind;
+    const selectedKeyBefore = state.selectedKey; const selectedKindBefore = state.selectedKind; const priorKey = preferredKey || state.selectedKey; const priorKind = state.selectedKind;
     state.projection = projection; state.initialFailure = false;
     const documentExists = projection.documents.some((item) => item.document_key === priorKey);
     const corpusExists = projection.corpora.some((item) => item.record_key === priorKey);
@@ -264,6 +535,19 @@ function applyProjection(projection, preferredKey = null) {
     else if (state.selectedKey && !documentExists && !corpusExists) { state.selectedKey = null; state.selectedKind = null; }
     if (!state.selectedKey && projection.documents.length) { state.selectedKind = "document"; state.selectedKey = projection.documents[0].document_key; }
     else if (!state.selectedKey && projection.corpora.length) { state.selectedKind = "corpus"; state.selectedKey = projection.corpora[0].record_key; }
+    const selectionChanged = selectedKeyBefore !== state.selectedKey || selectedKindBefore !== state.selectedKind;
+    if (selectionChanged) clearSelectionScopedState();
+    else if (state.proposal) {
+      const identity = state.proposalIdentity; const document = identity && projection.documents.find((item) => item.document_key === identity.documentKey);
+      const round = document && (document.rounds || []).find((item) => item.number === identity.roundNumber);
+      const selectedRound = document ? (state.selectedRound === null ? Math.max(1, (document.rounds || []).length) : state.selectedRound) : null;
+      if (!identity || state.selectedKind !== "document" || state.selectedKey !== identity.documentKey || selectedRound !== identity.roundNumber || !round || round.diagnosis_record_key !== identity.diagnosisKey || round.base_record_key !== identity.baseKey) clearSelectionScopedState();
+    }
+    if (state.selectedFinding) {
+      const document = projection.documents.find((item) => item.document_key === state.selectedFinding.documentKey);
+      const round = document && (document.rounds || []).find((item) => item.number === state.selectedFinding.roundNumber);
+      if (!document || !round || round.diagnosis_record_key !== state.selectedFinding.diagnosisKey || state.selectedKey !== state.selectedFinding.documentKey) state.selectedFinding = null;
+    }
     return state.projection;
 }
 function observationIsActive(job) { return Boolean(job && (job.state === "QUEUED" || job.state === "RUNNING")); }
@@ -273,7 +557,7 @@ function setObservationActive(job) {
 }
 function updateObservationControls() {
   if (!elements.add) return;
-  const disabled = state.initialFailure || !state.projection || state.activeObservationJobId !== null;
+  const disabled = state.initialFailure || !state.projection || state.activeObservationJobId !== null || state.lifecyclePending || state.lifecycleReconciliationPending;
   elements.add.disabled = disabled;
   if (elements.guidedWhitespace) elements.guidedWhitespace.disabled = disabled;
   if (elements.guidedPolicy) elements.guidedPolicy.disabled = disabled;
@@ -281,10 +565,12 @@ function updateObservationControls() {
   if (elements.upload) elements.upload.disabled = disabled || !(elements.file.files && elements.file.files.length === 1);
 }
 async function refreshWorkspace() {
+  if (state.lifecyclePending) return false;
   const selected = state.selectedKey; const before = state.projection ? state.projection.session_id : null;
   elements.refresh.disabled = true; elements.polite.textContent = t("refreshStarted");
   try {
-    await fetchJSON(`${API_ROOT}/workbench/refresh`, {method: "POST"}); await loadProjection({preferredKey: selected});
+    if (state.lifecycleReconciliationPending) { if (!await reconcileLifecycleUnknown()) throw new Error("lifecycle reconciliation remains unresolved"); }
+    else { await fetchJSON(`${API_ROOT}/workbench/refresh`, {method: "POST"}); await loadProjection({preferredKey: selected}); state.pendingLifecycleMutation = null; state.lifecycleNotice = null; }
     showToast(t(before === state.projection.session_id ? "refreshNoChange" : "refreshSuccess"), "success");
   } catch (_) { showToast(t("refreshFailure"), "failure"); }
   finally { elements.refresh.disabled = false; }
@@ -408,6 +694,7 @@ async function consumeObservationJob(job, expectedJobId) {
     const document = projected.documents.find((item) => item.observation_record_key === job.observation.record_key);
     applyProjection(projected, document ? document.document_key : null);
     if (document) state.stage = "observe";
+    await hydrateSelectedStage();
     render();
     const hadPendingReactivation = state.pendingReactivationKey !== null;
     const reconciled = await settleTerminalOwnership({announceReactivation: true});
@@ -455,9 +742,9 @@ async function discoverActiveObservation() {
 }
 
 function bindElements() {
-  const ids = ["app-surface", "package-version", "rule-reference", "locale-toggle", "refresh-workspace", "add-document", "document-list", "corpus-list", "workspace-state", "selected-workspace", "context-kind", "context-name", "stage-stepper", "stage-heading", "stage-guidance", "inspector-panel", "toast", "toast-message", "toast-close", "polite-announcer", "assertive-announcer", "add-modal", "rule-modal", "rule-list", "observation-file", "add-upload", "add-whitespace", "add-policy"];
+  const ids = ["app-surface", "package-version", "rule-reference", "locale-toggle", "refresh-workspace", "add-document", "document-list", "corpus-list", "workspace-state", "selected-workspace", "context-kind", "context-name", "round-context", "stage-stepper", "central-surface", "stage-heading", "stage-guidance", "inspector-panel", "toast", "toast-message", "toast-close", "polite-announcer", "assertive-announcer", "add-modal", "rule-modal", "rule-list", "observation-file", "add-upload", "add-whitespace", "add-policy"];
   for (const id of ids) elements[id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = document.getElementById(id);
-  Object.assign(elements, {surface: elements.appSurface, version: elements.packageVersion, ruleButton: elements.ruleReference, localeToggle: elements.localeToggle, refresh: elements.refreshWorkspace, add: elements.addDocument, documents: elements.documentList, corpora: elements.corpusList, workspaceState: elements.workspaceState, selected: elements.selectedWorkspace, contextKind: elements.contextKind, contextName: elements.contextName, stepper: elements.stageStepper, stageHeading: elements.stageHeading, stageGuidance: elements.stageGuidance, inspectorPanel: elements.inspectorPanel, toastMessage: elements.toastMessage, toastClose: elements.toastClose, polite: elements.politeAnnouncer, assertive: elements.assertiveAnnouncer, addModal: elements.addModal, ruleModal: elements.ruleModal, ruleList: elements.ruleList, file: elements.observationFile, upload: elements.addUpload, guidedWhitespace: elements.addWhitespace, guidedPolicy: elements.addPolicy});
+  Object.assign(elements, {surface: elements.appSurface, version: elements.packageVersion, ruleButton: elements.ruleReference, localeToggle: elements.localeToggle, refresh: elements.refreshWorkspace, add: elements.addDocument, documents: elements.documentList, corpora: elements.corpusList, workspaceState: elements.workspaceState, selected: elements.selectedWorkspace, contextKind: elements.contextKind, contextName: elements.contextName, roundContext: elements.roundContext, stepper: elements.stageStepper, central: elements.centralSurface, stageHeading: elements.stageHeading, stageGuidance: elements.stageGuidance, inspectorPanel: elements.inspectorPanel, toastMessage: elements.toastMessage, toastClose: elements.toastClose, polite: elements.politeAnnouncer, assertive: elements.assertiveAnnouncer, addModal: elements.addModal, ruleModal: elements.ruleModal, ruleList: elements.ruleList, file: elements.observationFile, upload: elements.addUpload, guidedWhitespace: elements.addWhitespace, guidedPolicy: elements.addPolicy});
   elements.tabs = Array.from(document.querySelectorAll("[role=tab]"));
 }
 function addListeners() {
@@ -469,7 +756,7 @@ function addListeners() {
   document.getElementById("add-whitespace").addEventListener("click", () => submitGuidedObservation("whitespace-cleanup-md", "whitespace-cleanup.md"));
   document.getElementById("add-policy").addEventListener("click", () => submitGuidedObservation("policy-memo-md", "policy-memo.md"));
   elements.file.addEventListener("change", updateObservationControls); elements.upload.addEventListener("click", submitUploadedObservation);
-  elements.stepper.querySelectorAll("li button").forEach((button) => button.addEventListener("click", () => { state.stage = button.parentElement.dataset.stage; renderSelected(); }));
+  elements.stepper.querySelectorAll("li button").forEach((button) => button.addEventListener("click", () => changeStage(button.parentElement.dataset.stage)));
   elements.tabs.forEach((tab) => tab.addEventListener("click", () => { state.inspector = tab.dataset.tab; renderSelected(); }));
 }
 async function start() {
@@ -480,5 +767,5 @@ async function start() {
   await discoverActiveObservation();
 }
 
-if (typeof window !== "undefined") window.__tcwWorkbench = {catalogs, state, elements, t, catalogParity, catalogCoversReference, negotiatedLocale, setLocale, applyProjection, showToast, pauseToast, resumeToast, setToastHover, setToastFocus, dismissToast, loadProjection, refreshWorkspace, handleObservationEnvelope, reconcilePendingReactivation, reconcileMissingObservationSnapshot, claimObservationSubmission, submitGuidedObservation, submitUploadedObservation, observationIsActive, setObservationActive, consumeObservationJob, pollObservation, discoverActiveObservation, updateObservationControls, render, openModal, closeModal, modalKeydown, backdropDismiss};
+if (typeof window !== "undefined") window.__tcwWorkbench = {catalogs, state, elements, t, catalogParity, catalogCoversReference, negotiatedLocale, setLocale, applyProjection, showToast, pauseToast, resumeToast, setToastHover, setToastFocus, dismissToast, loadProjection, refreshWorkspace, handleObservationEnvelope, reconcilePendingReactivation, reconcileMissingObservationSnapshot, claimObservationSubmission, submitGuidedObservation, submitUploadedObservation, observationIsActive, setObservationActive, consumeObservationJob, pollObservation, discoverActiveObservation, updateObservationControls, render, renderSelected, comparisonComponent, visibleWhitespace, changeStage, runDiagnosis, createProposal, recordDecision, actionToken, reconcileLifecycleUnknown, openModal, closeModal, modalKeydown, backdropDismiss};
 if (!globalThis.__TCW_TEST_NO_START__) start();
