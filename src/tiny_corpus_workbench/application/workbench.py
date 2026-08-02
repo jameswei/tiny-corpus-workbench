@@ -284,14 +284,25 @@ class WorkbenchState:
             return AcceptedWorkspaceSnapshot(
                 empty_projection(), MappingProxyType({})
             )
-        for root in roots:
-            try:
-                admit_records([root])
-            except (WorkbenchError, OSError, ValueError) as error:
-                relative = root.relative_to(self.workspace).as_posix()
-                raise InputError(f"{relative}: {sanitize_message(error)}") from error
         try:
             admitted = admit_records(roots)
+        except (WorkbenchError, OSError, ValueError) as batch_error:
+            for root in roots:
+                try:
+                    admit_records([root])
+                except (WorkbenchError, OSError, ValueError) as error:
+                    relative = root.relative_to(self.workspace).as_posix()
+                    raise InputError(
+                        f"{relative}: {sanitize_message(error)}"
+                    ) from error
+            raise IntegrityError(
+                "workspace records conflict or cannot form one projection"
+            ) from batch_error
+        except Exception as error:
+            raise IntegrityError(
+                "workspace records conflict or cannot form one projection"
+            ) from error
+        try:
             projection = build_projection(admitted)
             actionable_roots = _actionable_roots(self.workspace, admitted)
             return AcceptedWorkspaceSnapshot(projection, actionable_roots)
