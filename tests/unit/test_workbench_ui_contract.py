@@ -182,6 +182,15 @@ console.log(JSON.stringify([api.compactHash(full), full, api.isolatedHtml('<h1>R
                 JobRefresh("READY", None),
                 None,
             ).to_dict(),
+            "readyDetail": ObservationJob(
+                "job-1",
+                "COMPLETED",
+                None,
+                job_input,
+                JobObservation("SUCCESS", "obs-new", "f" * 64),
+                JobRefresh("READY", None),
+                None,
+            ).to_dict(),
             "refreshFailed": ObservationJob(
                 "job-1",
                 "COMPLETED",
@@ -340,6 +349,13 @@ outputs.publishedRefreshFailedNoObservation = [api.state.projection === accepted
 responses.push(response(projection("ready", [newDoc, oldDoc])));
 await api.consumeObservationJob(backendJobs.ready, "job-1");
 outputs.ready = [api.state.projection.session_id, api.state.selectedKey, api.state.stage, e.toast.dataset.tone, e.add.disabled];
+
+api.applyProjection(projection("terminal-base", [oldDoc]), "doc-old"); api.state.stage = "diagnose"; api.state.inspector = "evidence"; const terminalAccepted = api.state.projection;
+const terminalProjectionStart = requests.length; responses.push(response({job:backendJobs.ready}), response({message:"projection unavailable"}, 500)); await api.pollObservation("job-1");
+outputs.terminalProjectionFailure = [api.state.projection === terminalAccepted, api.state.selectedKey, api.state.stage, api.state.inspector, api.state.activeObservationJobId, e.add.disabled, timers.size, e.toast.dataset.tone, e.toastMessage.textContent.includes("Use Refresh workspace"), e.toastMessage.textContent.includes("do not run Observe again"), requests.slice(terminalProjectionStart).every(item => item[1] === "GET")];
+
+const detailDoc = {...newDoc, observation_record_key:"f".repeat(64)}; const terminalDetailStart = requests.length; responses.push(response({job:backendJobs.readyDetail}), response(projection("terminal-detail", [detailDoc, oldDoc])), response({message:"detail unavailable"}, 500)); await api.pollObservation("job-1");
+outputs.terminalDetailFailure = [api.state.projection === terminalAccepted, api.state.selectedKey, api.state.stage, api.state.inspector, api.state.activeObservationJobId, e.add.disabled, timers.size, e.toast.dataset.tone, e.toastMessage.textContent.includes("Use Refresh workspace"), e.toastMessage.textContent.includes("do not run Observe again"), requests.slice(terminalDetailStart).every(item => item[1] === "GET")];
 
 responses.push(response(projection("duplicate", [oldDoc, newDoc])));
 await api.handleObservationEnvelope({job:null,reactivation:{document_key:"doc-old",observation_record_key:"record-old"}}, "old.md");
@@ -540,6 +556,8 @@ console.log(JSON.stringify(outputs));
         self.assertEqual(values["publishedRefreshFailed"], [True, "doc-old", "diagnose", "evidence", "failure", True, False])
         self.assertEqual(values["publishedRefreshFailedNoObservation"], [True, "doc-old", "failure", True])
         self.assertEqual(values["ready"], ["ready", "doc-new", "observe", "success", False])
+        self.assertEqual(values["terminalProjectionFailure"], [True, "doc-old", "diagnose", "evidence", None, False, 0, "failure", True, True, True])
+        self.assertEqual(values["terminalDetailFailure"], [True, "doc-old", "diagnose", "evidence", None, False, 0, "failure", True, True, True])
         self.assertEqual(values["duplicate"], ["doc-old", "doc-old,doc-new", True])
         self.assertEqual(values["reactivationLoadUnknown"], ["RECONCILING", True, True, True])
         self.assertEqual(values["reactivationRecovered"], [None, None, "doc-old", False, True, True])

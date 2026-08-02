@@ -783,12 +783,22 @@ async function consumeObservationJob(job, expectedJobId) {
     return;
   }
   if (job.state === "COMPLETED" && job.observation && job.refresh && job.refresh.status === "READY" && job.observation.record_key) {
-    const projected = await fetchJSON(`${API_ROOT}/workbench`);
-    const document = projected.documents.find((item) => item.observation_record_key === job.observation.record_key);
-    applyProjection(projected, document ? document.document_key : null);
-    if (document) state.stage = "observe";
-    await hydrateSelectedStage();
-    render();
+    const acceptedState = {...state, details: new Map(state.details)};
+    let document;
+    try {
+      const projected = await fetchJSON(`${API_ROOT}/workbench`);
+      document = projected.documents.find((item) => item.observation_record_key === job.observation.record_key);
+      applyProjection(projected, document ? document.document_key : null);
+      if (document) state.stage = "observe";
+      await hydrateSelectedStage();
+      render();
+    } catch (_) {
+      Object.assign(state, acceptedState);
+      setObservationActive(null);
+      state.pendingTerminalToastKey = null;
+      showToast(t("observationPublishedRefreshFailed"), "failure");
+      return;
+    }
     const hadPendingReactivation = state.pendingReactivationKey !== null;
     const reconciled = await settleTerminalOwnership({announceReactivation: true});
     if (reconciled && !hadPendingReactivation) showToast(t("refreshSuccess"), "success");
