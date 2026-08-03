@@ -92,8 +92,9 @@ service.
 | [v0.7.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.7.0) | Web Observation Workflow |
 | [v0.8.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.8.0) | Interactive Document Lifecycle |
 
-This checkout identifies version `0.9.0`. It contains the v0.9 Workbench UI/UX
-redesign. The table above lists published milestones only. Use
+This checkout identifies version `0.9.1`. It contains the corrective
+completion of the v0.9 Workbench UI/UX redesign. The table above lists
+published milestones only. Use
 [GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases)
 for current publication availability.
 
