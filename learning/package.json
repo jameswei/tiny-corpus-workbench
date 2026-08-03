@@ -1,0 +1,16 @@
+{
+  "name": "tiny-corpus-workbench-learning-guides",
+  "private": true,
+  "version": "0.9.2",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev --host 127.0.0.1 --port 4173",
+    "build": "vitepress build",
+    "preview": "vitepress preview --host 127.0.0.1 --port 4173"
+  },
+  "devDependencies": {
+    "vite": "5.4.21",
+    "vitepress": "1.6.4",
+    "vue": "3.5.39"
+  }
+}

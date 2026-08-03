@@ -17,7 +17,8 @@ promise cross-version readers or migrations.
 
 The v0.6 through v0.9 sequence deliberately splits the next Workbench
 direction into bounded, independently useful increments. It is not one large
-Webapp implementation milestone.
+Webapp implementation milestone. v0.9.2 turns the resulting lifecycle into a
+dedicated bilingual learning docsite.
 
 The current learning curriculum follows lifecycle topics rather than one
 lesson for each product milestone.
@@ -36,6 +37,7 @@ lesson for each product milestone.
 | v0.7 | Web Observation Workflow | Observe one guided or uploaded document through the browser. |
 | v0.8 | Interactive Document Lifecycle | Diagnose and explicitly resolve one document refinement through the browser. |
 | v0.9 | Workbench UI/UX Redesign | Present the document lifecycle through a focused, bilingual learning interface. |
+| v0.9.2 | Learning Docsite | Teach the document-preparation lifecycle through a bilingual, practice-linked reading experience. |
 | v1.0 | Coherent Workbench | Present the complete learning workflow through clear local interfaces. |
 
 ## v0.0 — Planning Baseline
@@ -230,6 +232,30 @@ source-only.
 This milestone changes the bundled human interface. It does not add new rules,
 refiners, persisted schemas, migrations, CLI behavior, browser corpus
 execution, hosted processing, or a public API.
+
+## v0.9.2 — Learning Docsite
+
+Rebuild the learner-facing documentation around the complete document-preparation
+lifecycle.
+
+Deliverables:
+
+- six English and Simplified Chinese curriculum pages that explain the boundary,
+  extraction, diagnosis, explicit decisions, revisions, corpus inspection, and
+  complete Workbench practice;
+- a VitePress docsite with bilingual navigation, local search, tables of
+  contents, direct language switching, and an English technical-reference area;
+- static publication under the existing project Pages site; and
+- a clear separation between learner-facing technical reference and historical
+  project or collaboration records.
+
+Exit condition: a learner can read the principles, perform each exercise in the
+local Workbench, and use the technical reference for exact commands without
+confusing the curriculum with historical project records.
+
+This milestone changes learning and publication surfaces only. It does not
+change product behavior, the CLI, records, schemas, the Workbench lifecycle, or
+the project boundary.
 
 ## v1.0 — Coherent Workbench
 

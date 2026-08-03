@@ -12,14 +12,14 @@ drafts, approves, rejects, or applies a refinement.
 Inspect a committed example corpus:
 
 ```bash
-uv run corpus inspect \
+corpus inspect \
   fixtures/corpus/golden-matrix.json
 ```
 
 Select other local output and model directories:
 
 ```bash
-uv run corpus inspect CORPUS_SPEC \
+corpus inspect CORPUS_SPEC \
   --output-root build/corpus-inspection \
   --docling-artifacts .cache/docling/models
 ```
@@ -27,13 +27,13 @@ uv run corpus inspect CORPUS_SPEC \
 Verify a published corpus:
 
 ```bash
-uv run corpus verify-corpus CORPUS_DIRECTORY
+corpus verify-corpus CORPUS_DIRECTORY
 ```
 
 Compare the historical run with its current live inputs:
 
 ```bash
-uv run corpus verify-corpus CORPUS_DIRECTORY \
+corpus verify-corpus CORPUS_DIRECTORY \
   --spec CORPUS_SPEC
 ```
 

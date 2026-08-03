@@ -5,7 +5,7 @@ review evidence, or publication state.
 
 ## Source state
 
-This checkout identifies package version `0.9.0`. The current product
+This checkout identifies package version `0.9.2`. The current product
 milestones cover:
 
 1. extraction observation;
@@ -18,17 +18,20 @@ milestones cover:
 8. visible verification, diagnosis, proposal decisions, and immutable
    revision inspection in the browser; and
 9. a coherent bilingual Workbench with document-centered navigation,
-   preparation rounds, focused evidence, comparisons, and artifact readers.
+   preparation rounds, focused evidence, comparisons, and artifact readers; and
+10. a bilingual learning docsite that teaches the lifecycle through paired
+    principles and Workbench practice.
 
 For published versions and release availability, use
 [GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases).
 
 ## Current source
 
-The current source contains the v0.9 Workbench UI/UX redesign. The CLI remains
-the full lifecycle interface. The bundled browser groups immutable records by
-document and preparation round. For published versions and availability, use
-[GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases).
+The current source contains the v0.9.2 bilingual learning docsite. The CLI
+remains the full lifecycle interface. The bundled browser groups immutable
+records by document and preparation round. The docsite teaches those concepts
+and uses the Workbench as its practice table. For published versions and
+availability, use [GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases).
 
 ## Settled invariants
 
@@ -60,8 +63,8 @@ Read these files for the current question:
 - [README](README.md): public purpose, setup, interfaces, and project boundary
 - [initial proposal](docs/proposal.md): original brainstorming verdict and
   rationale
-- [user guides](docs/): current commands, records, and behavior
-- [learning hub](learning/README.md): guided lessons
+- [technical documentation](docs/): commands, records, and implementation history
+- [learning docsite](learning/): guided bilingual lessons for learners
 - [roadmap](docs/roadmap.md): major future direction
 - [historical plans](docs/plans/): completed milestone outcomes, rationale, and
   boundaries

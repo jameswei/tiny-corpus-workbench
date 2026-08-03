@@ -28,13 +28,32 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
+      - name: Set up Node.js for learning docsite
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.1"
+
       - name: Validate static site
         run: python3 tools/validate_site.py site
+
+      - name: Build learning docsite
+        run: |
+          npm ci --prefix learning
+          npm run build --prefix learning
+
+      - name: Assemble Pages artifact
+        run: |
+          mkdir -p pages-artifact/learn
+          cp -R site/. pages-artifact/
+          cp -R learning/.vitepress/dist/. pages-artifact/learn/
+          test -f pages-artifact/index.html
+          test -f pages-artifact/learn/en/index.html
+          test -f pages-artifact/learn/zh/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: site
+          path: pages-artifact
 
   deploy:
     if: github.ref == 'refs/heads/main'

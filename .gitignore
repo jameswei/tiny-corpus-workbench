@@ -31,3 +31,8 @@ htmlcov/
 *.log
 tmp/
 work/
+
+# Learning docsite build output
+learning/.vitepress/cache/
+learning/.vitepress/dist/
+learning/node_modules/

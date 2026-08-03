@@ -1,6 +1,6 @@
 [project]
 name = "tiny-corpus-workbench"
-version = "0.9.1"
+version = "0.9.2"
 description = "An inspectable learning lab for document preparation before RAG"
 readme = "README.md"
 requires-python = "==3.12.*"
