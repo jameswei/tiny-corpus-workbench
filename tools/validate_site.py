@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -15,22 +16,37 @@ from urllib.parse import unquote, urlsplit
 EXPECTED_FILES = {
     "404.html",
     "assets/favicon.svg",
+    "assets/workbench-observe.png",
+    "i18n.js",
     "index.html",
+    "locales/en.json",
+    "locales/zh-CN.json",
     "styles.css",
 }
 CANONICAL_URL = "https://lifeplayer.space/tiny-corpus-workbench/"
 FORBIDDEN_ELEMENTS = {
-    "button",
     "embed",
     "form",
     "iframe",
     "input",
     "object",
-    "script",
     "select",
     "textarea",
 }
 REFERENCE_ATTRIBUTES = {"href", "src"}
+LOCALIZED_ATTRIBUTES = {
+    "data-i18n",
+    "data-i18n-alt",
+    "data-i18n-aria-label",
+    "data-i18n-content",
+    "data-i18n-title",
+}
+RUNTIME_LOCALE_KEYS = {
+    "language.short_en",
+    "language.short_zh_cn",
+    "language.switch_to_en",
+    "language.switch_to_zh_cn",
+}
 
 
 @dataclass(frozen=True, order=True)
@@ -181,6 +197,10 @@ def _policy_issues(relative: str, parser: PageParser) -> list[Issue]:
     for line, tag, attrs in parser.elements:
         if tag in FORBIDDEN_ELEMENTS:
             issues.append(Issue(relative, line, f"forbidden element: {tag}"))
+        if tag == "button" and attrs.get("type", "").lower() != "button":
+            issues.append(Issue(relative, line, "buttons must use type=button"))
+        if tag == "script" and not attrs.get("src", "").strip():
+            issues.append(Issue(relative, line, "inline scripts are forbidden"))
         for name in attrs:
             if name.startswith("on"):
                 issues.append(Issue(relative, line, f"event-handler attribute is forbidden: {name}"))
@@ -212,6 +232,44 @@ def _policy_issues(relative: str, parser: PageParser) -> list[Issue]:
         ]
         if not home_links:
             issues.append(Issue(relative, 1, "404 page must use the canonical HTTPS home link"))
+    return issues
+
+
+def _locale_issues(site: Path, parser: PageParser) -> list[Issue]:
+    issues: list[Issue] = []
+    resources: dict[str, dict[str, str]] = {}
+    for locale in ("en", "zh-CN"):
+        relative = f"locales/{locale}.json"
+        try:
+            value = json.loads((site / relative).read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            issues.append(Issue(relative, 1, f"cannot read locale resource: {error}"))
+            continue
+        if not isinstance(value, dict) or not all(
+            isinstance(key, str) and isinstance(text, str) and text.strip()
+            for key, text in value.items()
+        ):
+            issues.append(Issue(relative, 1, "locale resource must map keys to non-empty strings"))
+            continue
+        resources[locale] = value
+
+    if set(resources) != {"en", "zh-CN"}:
+        return issues
+    english_keys = set(resources["en"])
+    chinese_keys = set(resources["zh-CN"])
+    for key in sorted(english_keys - chinese_keys):
+        issues.append(Issue("locales/zh-CN.json", 1, f"missing locale key: {key}"))
+    for key in sorted(chinese_keys - english_keys):
+        issues.append(Issue("locales/en.json", 1, f"missing locale key: {key}"))
+
+    referenced = set(RUNTIME_LOCALE_KEYS)
+    for _line, _tag, attrs in parser.elements:
+        for attribute in LOCALIZED_ATTRIBUTES:
+            if key := attrs.get(attribute, "").strip():
+                referenced.add(key)
+    for locale, resource in resources.items():
+        for key in sorted(referenced - set(resource)):
+            issues.append(Issue(f"locales/{locale}.json", 1, f"missing referenced key: {key}"))
     return issues
 
 
@@ -286,6 +344,8 @@ def validate(site: Path) -> list[Issue]:
         issues.extend(_metadata_issues(relative, parser))
         issues.extend(_policy_issues(relative, parser))
         issues.extend(_reference_issues(site, relative, parser, page_ids))
+    if parser := parsed_pages.get("index.html"):
+        issues.extend(_locale_issues(site, parser))
     return sorted(set(issues))
 
 
