@@ -243,7 +243,9 @@ RAG evaluation, and downstream integrations are outside this boundary.
 
 Start with the project-authored CC0 fixtures before using private documents.
 The bilingual [Learning Guides](https://lifeplayer.space/tiny-corpus-workbench/learn/)
-teach the complete lifecycle through principles and Workbench practice:
+teach the complete lifecycle through principles and Workbench practice. The
+following links list the English course; select Simplified Chinese from the
+Learning Guides entry page for the Chinese course:
 
 1. [prepare documents for a corpus](https://lifeplayer.space/tiny-corpus-workbench/learn/en/prepare-documents.html)
 2. [capture and extract](https://lifeplayer.space/tiny-corpus-workbench/learn/en/capture-and-extract.html)

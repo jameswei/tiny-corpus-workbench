@@ -236,6 +236,4 @@ authority. Proposal, HTTP, UI, token, and transformation states are not
 authority. Local hashes detect ordinary corruption under the trusted-local
 model. They do not prove authorship, authenticity, or a trusted timestamp.
 
-See the [README](https://github.com/jameswei/tiny-corpus-workbench/blob/main/README.md) for the complete CLI path and the
-[complete lifecycle lesson](https://lifeplayer.space/tiny-corpus-workbench/learn/en/complete-lifecycle.html)
-for a guided browser exercise.
+See the [README](../README.md) for the complete CLI path.
