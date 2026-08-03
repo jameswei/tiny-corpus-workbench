@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -56,7 +57,7 @@ class StaticSiteValidationTests(unittest.TestCase):
     def test_valid_temporary_site(self) -> None:
         result = self.validate()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("site validation passed: 4 files", result.stdout)
+        self.assertIn("site validation passed: 8 files", result.stdout)
 
     def test_404_is_independent_of_nested_request_depth(self) -> None:
         parser = LinkCollector()
@@ -84,7 +85,7 @@ class StaticSiteValidationTests(unittest.TestCase):
         self.assert_invalid("assets/favicon.svg:1: expected regular file is missing")
 
     def test_broken_fragment_fails(self) -> None:
-        self.replace("index.html", 'href="#workflow"', 'href="#unknown"')
+        self.replace("index.html", 'href="#lifecycle"', 'href="#unknown"')
         self.assert_invalid("local fragment does not resolve: #unknown")
 
     def test_duplicate_id_fails(self) -> None:
@@ -109,6 +110,17 @@ class StaticSiteValidationTests(unittest.TestCase):
         self.replace("index.html", "</main>", "<form><input></form></main>")
         self.assert_invalid("forbidden element: form")
         self.assert_invalid("forbidden element: input")
+
+    def test_inline_script_fails(self) -> None:
+        self.replace("index.html", "</body>", "<script>alert('x')</script></body>")
+        self.assert_invalid("inline scripts are forbidden")
+
+    def test_missing_locale_key_fails(self) -> None:
+        path = self.site / "locales" / "zh-CN.json"
+        resource = json.loads(path.read_text(encoding="utf-8"))
+        resource.pop("landing.lifecycle")
+        path.write_text(json.dumps(resource), encoding="utf-8")
+        self.assert_invalid("missing locale key: landing.lifecycle")
 
     def test_external_dependency_fails(self) -> None:
         self.replace(

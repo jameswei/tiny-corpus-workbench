@@ -1751,7 +1751,7 @@ wheels = [
 
 [[package]]
 name = "tiny-corpus-workbench"
-version = "0.9.1"
+version = "0.9.3"
 source = { editable = "." }
 dependencies = [
     { name = "docling" },
