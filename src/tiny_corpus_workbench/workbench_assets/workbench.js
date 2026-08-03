@@ -260,7 +260,12 @@ function renderNavigation() {
   for (const item of state.projection.documents) elements.documents.append(navigationCard(item, "document"));
   for (const item of state.projection.corpora) elements.corpora.append(navigationCard(item, "corpus"));
   if (!state.projection.documents.length) elements.documents.append(node("p", t("noDocuments"), "card-meta"));
-  if (!state.projection.corpora.length) elements.corpora.append(node("p", t("noCorpora"), "card-meta"));
+  if (!state.projection.corpora.length) {
+    const empty = node("div", null, "corpus-empty");
+    const guidance = node("p", null, "corpus-empty-guidance");
+    guidance.append(`${t("corpusEmptyStart")} `, node("code", "corpus inspect", "terminal-token"), ` ${t("corpusEmptyEnd")}`);
+    empty.append(node("p", t("noCorpora"), "card-meta"), guidance); elements.corpora.append(empty);
+  }
 }
 function renderEmptyOrFailure() {
   clear(elements.workspaceState); elements.selected.hidden = true; elements.workspaceState.hidden = false;
@@ -665,9 +670,8 @@ function renderCorpus(item, detail) {
   elements.stageHeading.textContent = t("corpusSummary"); elements.stageGuidance.textContent = t("corpusMeaning", {count: item.member_count});
   if (!detail) { elements.central.append(node("p", t("loadingStage"))); return; }
   elements.central.append(banner(t("verified"), t("corpusMeaning", {count: item.member_count})));
-  const totals = detail.view.totals || {}; const summary = node("section", null, "stage-card"); summary.append(node("h3", t("corpusTotals")));
-  const values = node("dl", null, "metadata-list"); for (const [key, label] of [["member_count", "members"], ["finding_count", "findings"], ["revision_count", "revisions"], ["failed", "failures"]]) if (Object.prototype.hasOwnProperty.call(totals, key)) values.append(labeledValue(t(label), new Intl.NumberFormat(state.locale).format(totals[key]))); summary.append(values); elements.central.append(summary);
-  const members = node("section", null, "stage-card corpus-members"); members.append(node("h3", t("memberMatrix"))); for (const member of detail.view.matrix || []) { const row = node("div", null, "evidence-row"); row.append(node("strong", member.member_id), node("span", t("memberStatus", {family: member.family, format: member.format, status: member.status}))); members.append(row); } elements.central.append(members);
+  const totals = detail.view.totals || {}; const overview = node("section", null, "corpus-overview"); overview.append(node("h3", t("corpusOverview"))); const metrics = node("div", null, "corpus-metrics"); for (const [key, label] of [["member_count", "members"], ["finding_count", "findings"], ["revision_count", "revisions"], ["failed", "failures"]]) { const metric = node("div", null, "corpus-metric"); metric.append(node("strong", new Intl.NumberFormat(state.locale).format(totals[key] || 0)), node("span", t(label))); metrics.append(metric); } overview.append(metrics); elements.central.append(overview);
+  const matrix = detail.view.matrix || []; const formats = [...new Set(matrix.map((member) => member.format))].sort(); const families = [...new Set(matrix.map((member) => member.family))].sort(); const members = node("section", null, "corpus-coverage"); members.append(node("h3", t("corpusMemberCoverage"))); const scroll = node("div", null, "corpus-matrix-scroll"); const table = node("table", null, "corpus-matrix"); const head = node("thead"); const headRow = node("tr"); const familyHead = node("th", t("corpusFamily")); familyHead.scope = "col"; headRow.append(familyHead); for (const format of formats) { const cell = node("th", String(format).toUpperCase()); cell.scope = "col"; headRow.append(cell); } head.append(headRow); const body = node("tbody"); for (const family of families) { const row = node("tr"); const heading = node("th", corpusName(family)); heading.scope = "row"; row.append(heading); for (const format of formats) { const member = matrix.find((candidate) => candidate.family === family && candidate.format === format); const cell = node("td"); const status = member ? member.status : ""; const marker = node("span", corpusStatusGlyph(status), "corpus-cell-status"); marker.dataset.status = status || "MISSING"; marker.title = member ? `${member.member_id} · ${corpusStatusLabel(status)}` : "—"; marker.setAttribute("aria-label", marker.title); cell.append(marker); row.append(cell); } body.append(row); } table.append(head, body); scroll.append(table); members.append(scroll, node("p", `✓ ${t("corpusComplete")} · ! ${t("corpusPartial")} · × ${t("corpusFailed")}`, "corpus-coverage-legend")); elements.central.append(members);
 }
 function renderSelected() {
   const item = selectedItem();
