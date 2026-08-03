@@ -93,26 +93,21 @@ service.
 | [v0.8.0](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.8.0) | Interactive Document Lifecycle |
 | [v0.9.1](https://github.com/jameswei/tiny-corpus-workbench/releases/tag/v0.9.1) | v0.9 Workbench UI/UX Corrective Completion |
 
-This checkout identifies version `0.9.1`. It contains the corrective
-completion of the v0.9 Workbench UI/UX redesign. The table above lists
-published milestones only. Use
+This checkout identifies version `0.9.2`. It adds a bilingual learning docsite
+that connects document-preparation principles to practical Workbench exercises.
+The table above lists published milestones only. Use
 [GitHub Releases](https://github.com/jameswei/tiny-corpus-workbench/releases)
 for current publication availability.
 
 ## One-time setup
 
-The project requires CPython 3.12 and
-[uv](https://docs.astral.sh/uv/). Clone this source repository, then create the
-locked environment:
+The project requires CPython 3.12. Clone this source repository, create a
+virtual environment, and install the project:
 
 ```bash
-uv sync --frozen --python 3.12
-```
-
-Activate the environment to use the CLI directly:
-
-```bash
+python3.12 -m venv .venv
 source .venv/bin/activate
+python -m pip install -e .
 corpus --help
 ```
 
@@ -120,13 +115,12 @@ PDF extraction also needs local Docling models. Download them once while
 network access is available:
 
 ```bash
-uv run docling-tools models download layout tableformer \
+docling-tools models download layout tableformer \
   --output-dir .cache/docling/models
 ```
 
-The examples below use Markdown and do not need those model files. If you do
-not activate `.venv`, prefix a usage command with `uv run`, such as
-`uv run corpus observe SOURCE`.
+The examples below use Markdown and do not need those model files. Keep the
+virtual environment active while you use `corpus`.
 
 ## Short end-to-end example
 
@@ -248,14 +242,15 @@ revision. Chunking, embeddings, indexing, retrieval, reranking, generation,
 RAG evaluation, and downstream integrations are outside this boundary.
 
 Start with the project-authored CC0 fixtures before using private documents.
-The [learning hub](learning/README.md) provides lessons for the complete
-lifecycle:
+The bilingual [Learning Guides](https://lifeplayer.space/tiny-corpus-workbench/learn/)
+teach the complete lifecycle through principles and Workbench practice:
 
-1. [observe extraction](learning/observe-extraction.md)
-2. [diagnose with evidence](learning/diagnose-with-evidence.md)
-3. [control a document revision](learning/control-document-revision.md)
-4. [inspect an explicit corpus](learning/inspect-a-corpus.md)
-5. [complete the document lifecycle](learning/complete-document-lifecycle.md)
+1. [prepare documents for a corpus](https://lifeplayer.space/tiny-corpus-workbench/learn/en/prepare-documents.html)
+2. [capture and extract](https://lifeplayer.space/tiny-corpus-workbench/learn/en/capture-and-extract.html)
+3. [inspect and diagnose](https://lifeplayer.space/tiny-corpus-workbench/learn/en/inspect-and-diagnose.html)
+4. [decide and revise](https://lifeplayer.space/tiny-corpus-workbench/learn/en/decide-and-revise.html)
+5. [inspect a corpus](https://lifeplayer.space/tiny-corpus-workbench/learn/en/inspect-a-corpus.html)
+6. [practice the complete lifecycle](https://lifeplayer.space/tiny-corpus-workbench/learn/en/complete-lifecycle.html)
 
 Use the deeper guides for exact behavior:
 

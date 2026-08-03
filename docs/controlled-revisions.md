@@ -9,15 +9,15 @@ with an explicit command flag.
 Create and verify a diagnosis:
 
 ```bash
-uv run corpus diagnose DOCUMENT_DIRECTORY
-uv run corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
+corpus diagnose DOCUMENT_DIRECTORY
+corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
   --subject DOCUMENT_DIRECTORY
 ```
 
 Draft one canonical proposal:
 
 ```bash
-uv run corpus draft-refinement DIAGNOSIS_DIRECTORY \
+corpus draft-refinement DIAGNOSIS_DIRECTORY \
   --finding FINDING_ID \
   --base DOCUMENT_DIRECTORY \
   --output proposal.json
@@ -35,12 +35,12 @@ media_type: application/json
 Approve or reject with exactly one flag:
 
 ```bash
-uv run corpus resolve-refinement proposal.json \
+corpus resolve-refinement proposal.json \
   --diagnosis DIAGNOSIS_DIRECTORY \
   --base DOCUMENT_DIRECTORY \
   --approve
 
-uv run corpus resolve-refinement proposal.json \
+corpus resolve-refinement proposal.json \
   --diagnosis DIAGNOSIS_DIRECTORY \
   --base DOCUMENT_DIRECTORY \
   --reject
@@ -52,7 +52,7 @@ Zero decision flags or both decision flags are invalid. `--diagnosis` and
 Verify the publication:
 
 ```bash
-uv run corpus verify-refinement REFINEMENT_DIRECTORY \
+corpus verify-refinement REFINEMENT_DIRECTORY \
   --diagnosis DIAGNOSIS_DIRECTORY \
   --base DOCUMENT_DIRECTORY
 ```

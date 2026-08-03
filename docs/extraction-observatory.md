@@ -7,17 +7,19 @@ problem, recommend a repair, or change the source.
 
 ## Setup
 
-Use CPython 3.12 and install the locked development environment:
+Use CPython 3.12, activate a virtual environment, and install the project:
 
 ```bash
-uv sync --frozen --python 3.12
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
 ```
 
 PDF observation requires Docling's layout and table-structure models. Prefetch
 them once while network access is intentionally available:
 
 ```bash
-uv run docling-tools models download layout tableformer \
+docling-tools models download layout tableformer \
   --output-dir .cache/docling/models
 ```
 
@@ -28,13 +30,13 @@ records a canonical inventory hash. Symlinks are rejected.
 ## Observe one source
 
 ```bash
-uv run corpus observe fixtures/golden/policy-memo.pdf
+corpus observe fixtures/golden/policy-memo.pdf
 ```
 
 Optional locations are explicit:
 
 ```bash
-uv run corpus observe SOURCE \
+corpus observe SOURCE \
   --output-root build/extraction-observatory \
   --docling-artifacts .cache/docling/models
 ```
@@ -133,7 +135,7 @@ instead of parsing `argparse` stderr.
 Verification is self-contained by default and does not import either extractor:
 
 ```bash
-uv run corpus verify OBSERVATION_DIRECTORY
+corpus verify OBSERVATION_DIRECTORY
 ```
 
 The verifier/schema runtime is loaded only for this command. If it is
@@ -158,8 +160,8 @@ identity: its name and version are `null`.
 Current source and model checks are opt-in and advisory:
 
 ```bash
-uv run corpus verify OBSERVATION_DIRECTORY --source SOURCE
-uv run corpus verify OBSERVATION_DIRECTORY \
+corpus verify OBSERVATION_DIRECTORY --source SOURCE
+corpus verify OBSERVATION_DIRECTORY \
   --docling-artifacts .cache/docling/models
 ```
 
@@ -225,11 +227,11 @@ Normal tests do not rewrite committed fixtures.
 Fast checks:
 
 ```bash
-uv sync --frozen --python 3.12
-uv run --frozen --group test python -m unittest discover -s tests/unit -v
-uv run --frozen --group test python -m compileall -q src tests tools
-uv run --frozen --group fixtures python tools/generate_fixtures.py --check
-uv run --frozen --group fixtures python tools/verify_fixtures.py
+python -m pip install python-docx==1.2.0 reportlab==5.0.0
+python -m unittest discover -s tests/unit -v
+python -m compileall -q src tests tools
+python tools/generate_fixtures.py --check
+python tools/verify_fixtures.py
 git diff --check
 ```
 
@@ -238,12 +240,12 @@ The checkout-portability regression creates a separate temporary checkout with
 and repeats both fixture checks there:
 
 ```bash
-uv run --frozen --group fixtures python tools/verify_checkout_portability.py
+python tools/verify_checkout_portability.py
 ```
 
 Full checks after model prefetch:
 
 ```bash
 TCW_DOCLING_ARTIFACTS=.cache/docling/models \
-  uv run --frozen --group test python -m unittest discover -s tests -v
+  python -m unittest discover -s tests -v
 ```

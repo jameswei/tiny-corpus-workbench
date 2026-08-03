@@ -81,6 +81,24 @@ jobs:
       - name: Validate static site
         run: uv run --frozen python tools/validate_site.py site
 
+      - name: Build learning docsite
+        run: |
+          npm ci --prefix learning
+          npm run build --prefix learning
+          test -f learning/.vitepress/dist/index.html
+          for locale in en zh; do
+            test -f "learning/.vitepress/dist/${locale}/index.html"
+            for lesson in \
+              prepare-documents \
+              capture-and-extract \
+              inspect-and-diagnose \
+              decide-and-revise \
+              inspect-a-corpus \
+              complete-lifecycle; do
+              test -f "learning/.vitepress/dist/${locale}/${lesson}.html"
+            done
+          done
+
       - name: Compile Python sources
         run: uv run --frozen --group test python -m compileall -q src tests tools
 

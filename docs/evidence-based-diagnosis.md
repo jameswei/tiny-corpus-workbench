@@ -15,26 +15,26 @@ artifacts.
 Create a diagnosis:
 
 ```bash
-uv run corpus diagnose DOCUMENT_DIRECTORY
+corpus diagnose DOCUMENT_DIRECTORY
 ```
 
 Choose another publication root:
 
 ```bash
-uv run corpus diagnose DOCUMENT_DIRECTORY \
+corpus diagnose DOCUMENT_DIRECTORY \
   --output-root build/evidence-based-diagnosis
 ```
 
 Verify the published diagnosis:
 
 ```bash
-uv run corpus verify-diagnosis DIAGNOSIS_DIRECTORY
+corpus verify-diagnosis DIAGNOSIS_DIRECTORY
 ```
 
 Compare a diagnosis with its subject and rerun all rules:
 
 ```bash
-uv run corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
+corpus verify-diagnosis DIAGNOSIS_DIRECTORY \
   --subject DOCUMENT_DIRECTORY
 ```
 

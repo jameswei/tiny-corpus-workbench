@@ -12,14 +12,13 @@ English and Simplified Chinese.
 
 ## Set up and start
 
-Install the locked environment:
+Use CPython 3.12, activate a virtual environment, and install the project:
 
 ```bash
-uv sync --frozen --python 3.12
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
 ```
-
-Activate `.venv` to use `corpus` directly. You can instead prefix a usage
-command with `uv run`.
 
 Start the Workbench without opening a browser automatically:
 
@@ -237,6 +236,6 @@ authority. Proposal, HTTP, UI, token, and transformation states are not
 authority. Local hashes detect ordinary corruption under the trusted-local
 model. They do not prove authorship, authenticity, or a trusted timestamp.
 
-See the [README](../README.md) for the complete CLI path and the
-[complete lifecycle lesson](../learning/complete-document-lifecycle.md) for a
-guided browser exercise.
+See the [README](https://github.com/jameswei/tiny-corpus-workbench/blob/main/README.md) for the complete CLI path and the
+[complete lifecycle lesson](https://lifeplayer.space/tiny-corpus-workbench/learn/en/complete-lifecycle.html)
+for a guided browser exercise.
